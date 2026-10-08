@@ -7,13 +7,11 @@ import { ProjectDialog } from './ProjectDialog';
 import { Tooltip } from './Tooltip';
 import type { Project } from './desktop';
 import { projectBadgeStyle, projectInitials } from './projects/projectBadge';
+import { SortOrder, sortProjects } from './projects/projectSort';
 
-enum SortOrder { Recent = 'recent', Created = 'created' }
-const SORT_KEY = 'claude-code-gui:project-selector:sort-order';
 const nameOf = (project: Project) => project.alias || project.path.split(/[\\/]/).filter(Boolean).pop() || project.path;
 const realNameOf = (project: Project) => project.path.split(/[\\/]/).filter(Boolean).pop() || project.path;
 const abbreviate = (path: string, home: string) => path === home ? '~' : path.startsWith(home + '/') ? '~' + path.slice(home.length) : path;
-function readSort() { try { return localStorage.getItem(SORT_KEY) === SortOrder.Created ? SortOrder.Created : SortOrder.Recent; } catch { return SortOrder.Recent; } }
 
 function MarqueePath({ text }: { text: string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -58,10 +56,9 @@ function ProjectRow({ project, home, active, disabled, onOpen, onPin, onEdit, on
     </div>
   </div>;
 }
-export function ProjectsPage({ disabled, onOpen, onAdd }: { disabled: boolean; onOpen: (projectId: number) => void; onAdd: () => void }) {
+export function ProjectsPage({ disabled, onOpen, onAdd, sort, onSort }: { disabled: boolean; onOpen: (projectId: number) => void; onAdd: () => void; sort: SortOrder; onSort: (sort: SortOrder) => void }) {
   const projectQuery = useQuery({ queryKey: QUERY_KEY.projects, queryFn: ({ signal }) => desktopApi.projects(signal) });
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState(readSort);
   const [activeIndex, setActiveIndex] = useState(0);
   const [editing, setEditing] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState<Project | null>(null);
@@ -82,14 +79,14 @@ export function ProjectsPage({ disabled, onOpen, onAdd }: { disabled: boolean; o
   const needle = query.trim().toLowerCase();
   const home = projectQuery.data?.homeDir || '';
   const projects = (projectQuery.data?.projects || []).filter(project => project.hiddenAt === 0);
-  const visible = projects.filter(project => [realNameOf(project), nameOf(project), project.path, abbreviate(project.path, home)].some(text => text.toLowerCase().includes(needle))).sort((a, b) => Number(b.favoritedAt > 0) - Number(a.favoritedAt > 0) || (sort === SortOrder.Created ? b.createdAt - a.createdAt : b.lastModified - a.lastModified));
+  const visible = sortProjects(projects.filter(project => [realNameOf(project), nameOf(project), project.path, abbreviate(project.path, home)].some(text => text.toLowerCase().includes(needle))), sort);
   useEffect(() => { setActiveIndex(index => index < visible.length ? index : 0); }, [visible.length]);
   useEffect(() => { if (projects.length) search.current?.focus(); }, [projects.length]);
   const pending = disabled || importMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
   return <main className="projects-page flex h-full min-h-0 flex-col bg-canvas">
     <div className="mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col px-6 pt-6">
       <div className="flex flex-wrap items-center gap-3"><div className="relative min-w-36 flex-1"><svg aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg><input ref={search} className="w-full rounded bg-transparent py-2 pr-3 pl-9 text-sm outline-none placeholder:text-muted" aria-label="프로젝트 검색" placeholder="프로젝트 검색" value={query} onChange={event => { setQuery(event.target.value); setActiveIndex(0); }} onKeyDown={event => { if (!visible.length || pending) return; if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setActiveIndex(index => (index + (event.key === 'ArrowDown' ? 1 : -1) + visible.length) % visible.length); } if (event.key === 'Enter') { event.preventDefault(); onOpen(visible[activeIndex]?.id || visible[0].id); } }} /></div>
-        <div role="group" aria-label="정렬 순서" className="flex rounded-lg bg-navigation p-0.5">{[SortOrder.Recent, SortOrder.Created].map(order => <button key={order} aria-pressed={sort === order} className={`rounded-md px-3 py-1.5 text-xs ${sort === order ? 'bg-selected text-foreground' : 'text-muted hover:text-foreground'}`} onClick={() => { setSort(order); try { localStorage.setItem(SORT_KEY, order); } catch { /* Browser display preference only. */ } }}>{order === SortOrder.Recent ? '최근 사용순' : '생성순'}</button>)}</div>
+        <div role="group" aria-label="정렬 순서" className="flex rounded-lg bg-navigation p-0.5">{[SortOrder.Recent, SortOrder.Created].map(order => <button key={order} aria-pressed={sort === order} className={`rounded-md px-3 py-1.5 text-xs ${sort === order ? 'bg-selected text-foreground' : 'text-muted hover:text-foreground'}`} onClick={() => onSort(order)}>{order === SortOrder.Recent ? '최근 사용순' : '생성순'}</button>)}</div>
         <button className="secondary-button shrink-0 rounded!" disabled={pending} onClick={onAdd}>프로젝트 추가</button>
       </div><div className="mt-3 border-t border-divider" />
       <div className="flex justify-end py-2"><button className="text-xs text-muted underline underline-offset-4 hover:text-foreground" disabled={pending} onClick={() => importMutation.mutate()}>기존 프로젝트 가져오기</button></div>

@@ -19,6 +19,9 @@ async function setup(t, allowedOrigins = []) {
     } else if (req.url.startsWith('/internal/')) { res.writeHead(401); res.end('unauthorized'); }
     else { res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.end('chat-app'); }
   });
+  const backendRequests = [];
+  const nestedSettings = new Map();
+  let sessionRows = Array.from({ length: 35 }, (_, index) => ({ sessionId: 'session-' + index, title: 'Title ' + index, sessionDir: index === 34 ? join(project, 'nested') : project, createdAt: '2026-10-01T00:00:00Z', lastTimestamp: '2026-10-09T00:00:00Z', isSidechain: false, originalExtra: { preserved: true } }));
   const sockets = new Set();
   upstream.on('upgrade', (req, socket) => {
     sockets.add(socket); socket.on('close', () => sockets.delete(socket));
@@ -39,10 +42,24 @@ async function setup(t, allowedOrigins = []) {
       for (let index = 0; index < body.length; index++) body[index] ^= mask[index % 4];
       const message = JSON.parse(body.toString());
       pending = pending.subarray(offset + 4 + length);
-      assert.equal(message.type, 'DELETE_PROJECT');
-      assert.equal(message.payload.path, project);
-      const payload = Buffer.from(JSON.stringify({ type: 'ACK', payload: { requestId: message.requestId, status: 'ok' } }));
-      socket.write(Buffer.concat([Buffer.from([0x81, payload.length]), payload]));
+      backendRequests.push(message);
+      let result = { status: 'ok' };
+      if (message.type === 'DELETE_PROJECT') assert.equal(message.payload.path, project);
+      else if (message.type === 'GET_SETTINGS') result.settings = { includeNestedSessions: nestedSettings.get(message.payload.workingDir) ?? true };
+      else if (message.type === 'SAVE_SETTINGS') nestedSettings.set(message.payload.workingDir, message.payload.value);
+      else if (message.type === 'GET_SESSIONS') {
+        const offset = message.payload.offset || 0;
+        const scopedRows = message.payload.includeNested ? sessionRows : sessionRows.filter(row => row.sessionDir === message.payload.workingDir);
+        const limit = message.payload.limit || scopedRows.length;
+        result = { sessions: scopedRows.slice(offset, offset + limit), total: scopedRows.length, nextOffset: Math.min(offset + limit, scopedRows.length), hasMore: offset + limit < scopedRows.length, scopeDirCount: message.payload.includeNested ? 2 : 1 };
+      } else if (message.type === 'RENAME_SESSION') sessionRows.find(row => row.sessionId === message.payload.sessionId).title = message.payload.title;
+      else if (message.type === 'DELETE_SESSION') sessionRows = sessionRows.filter(row => row.sessionId !== message.payload.sessionId);
+      else assert.equal(message.type, 'MARK_SESSION_READ');
+      const payload = Buffer.from(JSON.stringify({ type: 'ACK', payload: { requestId: message.requestId, ...result } }));
+      let frame;
+      if (payload.length < 126) frame = Buffer.from([0x81, payload.length]);
+      else { frame = Buffer.alloc(4); frame[0] = 0x81; frame[1] = 126; frame.writeUInt16BE(payload.length, 2); }
+      socket.write(Buffer.concat([frame, payload]));
     });
   });
   await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve));
@@ -66,7 +83,7 @@ async function setup(t, allowedOrigins = []) {
     const { csrf } = await response.json();
     return { cookie: response.headers.get('set-cookie').split(';')[0], 'x-swttch-csrf': csrf, 'Content-Type': 'application/json' };
   }
-  return { base, project, client, port: server.address().port };
+  return { base, project, client, backendRequests, port: server.address().port };
 }
 
 test('common API validates directories, persists recents, and isolates browser projects', async t => {
@@ -191,4 +208,78 @@ test('WebSocket proxy preserves original authenticated handshake and rejects for
   }
   assert.equal(await handshake(`http://127.0.0.1:${port}`), 101);
   assert.equal(await handshake('https://evil.example'), 'rejected');
+});
+
+
+test('session REST paging preserves raw entries and mutations resolve nested session directories', async t => {
+  const { base, project, client, backendRequests } = await setup(t);
+  const headers = await client();
+  const created = await (await fetch(base + '/desktop-api/projects', { method: 'POST', headers, body: JSON.stringify({ path: project }) })).json();
+  const listUrl = base + '/desktop-api/projects/' + created.id + '/sessions';
+  mkdirSync(join(project, 'nested'));
+  await fetch(base + '/desktop-api/projects', { method: 'POST', headers, body: JSON.stringify({ path: join(project, 'nested') }) });
+  const first = await (await fetch(listUrl, { headers })).json();
+  assert.equal(first.sessions.length, 30); assert.equal(first.hasMore, true); assert.equal(first.nextOffset, 30);
+  assert.deepEqual(first.sessions[0].originalExtra, { preserved: true }); assert.equal(first.scopeDirCount, 2);
+  assert.equal(backendRequests.at(-1).payload.includeNested, false);
+  const last = await (await fetch(listUrl + '?offset=30', { headers })).json();
+  assert.equal(last.sessions.length, 5); assert.equal(last.hasMore, false);
+  assert.equal((await (await fetch(listUrl + '?limit=all', { headers })).json()).sessions.length, 35);
+  assert.equal((await fetch(listUrl + '?offset=-1', { headers })).status, 400);
+  const resource = listUrl + '/session-34';
+  assert.equal((await fetch(resource, { method: 'PATCH', headers: { cookie: headers.cookie }, body: '{"title":"rename"}' })).status, 403);
+  assert.equal((await fetch(resource, { method: 'PATCH', headers, body: '{"title":" "}' })).status, 400);
+  assert.equal((await fetch(resource, { method: 'PATCH', headers, body: '{"title":"  Renamed  "}' })).status, 200);
+  assert.equal(backendRequests.at(-1).type, 'RENAME_SESSION'); assert.equal(backendRequests.at(-1).payload.workingDir, join(project, 'nested')); assert.equal(backendRequests.at(-1).payload.title, 'Renamed');
+  assert.equal((await fetch(resource + '/read-receipts', { method: 'POST', headers, body: '{}' })).status, 204);
+  assert.equal(backendRequests.at(-1).type, 'MARK_SESSION_READ');
+  assert.equal((await fetch(listUrl + '/missing', { method: 'DELETE', headers })).status, 404);
+  assert.equal((await fetch(resource, { method: 'DELETE', headers })).status, 204);
+  assert.equal(backendRequests.at(-1).type, 'DELETE_SESSION'); assert.equal(backendRequests.at(-1).payload.workingDir, join(project, 'nested'));
+  assert.equal((await (await fetch(listUrl + '?limit=all', { headers })).json()).sessions.length, 34);
+});
+
+
+test('project session scope persists through the backend and lists only registered descendants', async t => {
+  const { base, project, client, backendRequests } = await setup(t);
+  const headers = await client();
+  const createProject = async path => (await fetch(base + '/desktop-api/projects', { method: 'POST', headers, body: JSON.stringify({ path }) })).json();
+  const parent = await createProject(project);
+  const nested = join(project, 'nested'); mkdirSync(nested);
+  const sibling = project + '-other'; mkdirSync(sibling);
+  const child = await createProject(nested); await createProject(sibling);
+  const parentResource = base + '/desktop-api/projects/' + parent.id;
+  assert.equal((await fetch(parentResource, { method: 'PATCH', headers, body: '{"sessionsExpanded":"true"}' })).status, 400);
+  assert.equal((await fetch(parentResource, { method: 'PATCH', headers: { cookie: headers.cookie }, body: '{"sessionsExpanded":true}' })).status, 403);
+  const expanded = await (await fetch(parentResource, { method: 'PATCH', headers, body: '{"sessionsExpanded":true}' })).json();
+  assert.equal(expanded.sessionsExpanded, true);
+  assert.equal((await (await fetch(parentResource, { headers })).json()).sessionsExpanded, true);
+  assert.equal((await (await fetch(base + '/desktop-api/projects/' + child.id, { headers })).json()).sessionsExpanded, false);
+  const url = base + '/desktop-api/projects/' + parent.id + '/session-scope';
+  const before = await (await fetch(url, { headers })).json();
+  assert.equal(before.includeNestedSessions, true); assert.deepEqual(before.projects.map(row => row.id), [child.id]);
+  assert.equal((await fetch(url, { method: 'PATCH', headers: { cookie: headers.cookie }, body: '{"includeNestedSessions":false}' })).status, 403);
+  assert.equal((await fetch(url, { method: 'PATCH', headers, body: '{"includeNestedSessions":"false"}' })).status, 400);
+  assert.equal((await fetch(url, { method: 'POST', headers, body: '{}' })).status, 405);
+  const saved = await (await fetch(url, { method: 'PATCH', headers, body: '{"includeNestedSessions":false}' })).json();
+  assert.equal(saved.includeNestedSessions, false);
+  const command = backendRequests.find(message => message.type === 'SAVE_SETTINGS');
+  assert.deepEqual(command.payload, { key: 'includeNestedSessions', value: false, scope: 'project', workingDir: project });
+  assert.equal((await (await fetch(url, { headers })).json()).includeNestedSessions, false);
+  const listUrl = base + '/desktop-api/projects/' + parent.id + '/sessions?limit=all';
+  const local = await (await fetch(listUrl, { headers })).json();
+  assert.equal(local.sessions.length, 34); assert.equal(local.scopeDirCount, 1);
+  await fetch(url, { method: 'PATCH', headers, body: '{"includeNestedSessions":true}' });
+  assert.equal((await (await fetch(listUrl, { headers })).json()).sessions.length, 35);
+  const childUrl = base + '/desktop-api/projects/' + child.id;
+  assert.equal((await fetch(base + '/desktop-api/projects/' + parent.id, { method: 'PATCH', headers, body: JSON.stringify({ projectId: child.id }) })).status, 400);
+  assert.equal((await fetch(childUrl, { method: 'PATCH', headers, body: '{"projectId":99999}' })).status, 400);
+  await fetch(childUrl, { method: 'PATCH', headers, body: '{"projectId":null}' });
+  assert.deepEqual((await (await fetch(url, { headers })).json()).projects, []);
+  assert.equal((await (await fetch(listUrl, { headers })).json()).sessions.length, 34);
+  // An explicit parent outside the folder hierarchy also determines session scope.
+  const siblingProject = (await (await fetch(base + '/desktop-api/projects', { headers })).json()).projects.find(row => row.path === sibling);
+  await fetch(childUrl, { method: 'PATCH', headers, body: JSON.stringify({ projectId: siblingProject.id }) });
+  const siblingSessions = await (await fetch(base + '/desktop-api/projects/' + siblingProject.id + '/sessions?limit=all', { headers })).json();
+  assert.deepEqual(siblingSessions.sessions.map(row => row.sessionId), ['session-34']);
 });

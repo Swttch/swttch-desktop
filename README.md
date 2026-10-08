@@ -65,14 +65,19 @@ Windows·Linux 실행 및 설치 패키지는 미검증이다.
 레이아웃 수정 전 소스는 `artifacts/layout-v1/`에 보존했다. 이 백업은 현재 실행 경로에서 사용하지 않는다.
 공통 API 전환 직전 소스는 `artifacts/react-native-host/`에 보존했다.
 
-이 디렉토리는 상위 저장소의 `packages/` 제외 규칙에 의해 Git 비추적 상태이며, 자체 Git 저장소도 아직 없다.
-별도 비공개 저장소를 만들기로 한 기존 결정과 실제 저장소 생성 상태를 구분한다.
+이 디렉토리는 상위 저장소의 `packages/` 제외 규칙을 유지하고 자체 로컬 Git 저장소로 관리한다. 첫 체크포인트는 `7793261`이며, 원격 저장소는 아직 연결하지 않았다.
 
 ## 프로젝트 DB와 가져오기
 
 프로젝트 목록은 `~/.swttch/desktop.sqlite`의 `projects` 테이블 전체를 사용하며 최근 열기 5개와 별도로 관리한다. 프로젝트 페이지의 **기존 프로젝트 가져오기**는 `~/.claude-code-gui/entities/project/projects.entity.jsonl`만 읽는다. 별칭·설명·즐겨찾기·숨김 상태와 추가 원본 필드는 JSON 데이터로 보존한다. 원본 파일은 변경하지 않는다. 기존 DB 프로젝트는 유지하며 메타데이터가 없는 행만 보완한다. 반복 가져오기는 중복이나 덮어쓰기를 만들지 않는다. 잘못된 JSONL은 부분 반영 없이 오류를 표시한다. 숨긴 프로젝트는 DB에 보존하고 UI에서 제외한다.
 
 저장 계층은 **Drizzle ORM + better-sqlite3**를 사용한다. `src/database/schema.cjs`가 프로젝트 테이블 스키마, `project.repository.cjs`가 조회·등록·트랜잭션 가져오기를 담당한다. DB 버전 업그레이드는 `connection.cjs`에서 수행한다. 주요 엔티티 필드는 실제 컬럼으로 저장하고 원본의 추가 필드도 JSON 컬럼에 보존한다.
+
+프로젝트의 `id`는 자신의 PK, `projectId`는 부모 프로젝트의 PK를 저장하는 nullable self FK(`project_id → projects.id`)다. `null`이면 상위 프로젝트가 없다. Drizzle의 `parent`/`children` association을 제공하며 실제 부모 행 삭제 시 `ON DELETE SET NULL`을 적용한다. 없는 부모와 자기 자신·순환 관계는 거부한다. SQLite v5 업그레이드 및 최초 JSONL 가져오기에서는 기존 `projectId`를 유지하고, null인 항목은 경로상 가장 가까운 상위 프로젝트에 자동 연결한다. 이후 재가져오기·재시작은 사용자가 변경한 관계를 덮어쓰지 않는다. 원본 JSONL은 수정하지 않는다.
+
+하위 프로젝트 목록과 세션 병합 범위는 폴더 경로를 재추론하지 않고 DB의 부모 관계를 재귀적으로 따른다. 경로 밖의 프로젝트도 명시적으로 연결할 수 있으며, `PATCH /desktop-api/projects/:projectId`의 `projectId`에 부모 ID 또는 null을 전달해 관계를 변경한다.
+
+사이드바의 폴더 아이콘은 세션 펼침·접힘만 수행한다. 이름 클릭은 상세 이동과 펼침을 함께 수행한다. `sessionsExpanded`는 SQLite v6의 `sessions_expanded` boolean 컬럼에 저장하며 같은 프로젝트 PATCH 리소스로 변경한다. 앱 재시작 후에도 프로젝트별 상태가 복원된다.
 
 ## API와 프론트 통신 컨벤션
 
@@ -83,8 +88,11 @@ Windows·Linux 실행 및 설치 패키지는 미검증이다.
 | POST | /desktop-api/sessions | 로컬 브라우저 연결 생성 |
 | GET / PUT | /desktop-api/workspace | 현재 작업 공간 조회·프로젝트/세션 전환 |
 | GET | /desktop-api/projects | ORM 프로젝트 목록 |
-| PATCH / DELETE | /desktop-api/projects/:projectPath | 별칭·설명·고정 수정 / 세션 기록 삭제 |
-| GET | /desktop-api/projects/:projectPath/sessions | 원본 세션 목록 조회 |
+| PATCH / DELETE | /desktop-api/projects/:projectId | 별칭·설명·고정 수정 / 세션 기록 삭제 |
+| GET / PATCH | /desktop-api/projects/:projectId/session-scope | 하위 프로젝트 목록 및 프로젝트별 병합 설정 |
+| GET | /desktop-api/projects/:projectId/sessions | 원본 세션 목록 조회 (offset, limit) |
+| PATCH / DELETE | /desktop-api/projects/:projectId/sessions/:sessionId | 세션 이름 변경 / 삭제 |
+| POST | /desktop-api/projects/:projectId/sessions/:sessionId/read-receipts | 세션 읽음 표시 |
 | POST | /desktop-api/project-imports | 기존 엔티티 JSONL 가져오기 |
 | POST | /desktop-api/backend-restarts | 채팅 백엔드 재시작 |
 
@@ -92,8 +100,10 @@ Windows·Linux 실행 및 설치 패키지는 미검증이다.
 
 Electron도 ORM 드라이버의 Node ABI가 동일하도록 시스템 Node.js 24 이상으로 로컬 호스트를 실행한다. 별도 런타임 경로는 SWTTCH_NODE_EXECUTABLE로 지정한다. 현재 전환의 일반 기능은 localhost에서 검증했으며 Electron 창/네이티브 호스트 통합은 별도 검증 대상이다.
 
-프로젝트 추가는 사이드바와 프로젝트 페이지에서 같은 `AddProjectModal`을 사용한다. 클릭하면 로컬 서비스가 Electron 폴더 선택 헬퍼를 실행해 실제 디렉터리를 선택한다. 폴더 업로드는 하지 않는다. Electron에서는 폴더 드롭의 실제 경로를 바로 읽고, 일반 브라우저에서는 드롭 폴더의 절대 경로가 제공되지 않으므로 선택창에서 같은 폴더를 확인한다. 등록은 `POST /desktop-api/projects`, 선택창은 `POST /desktop-api/folder-selections`, 상세 조회는 `GET /desktop-api/projects/:projectPath`다. 추가 후 공유 PATH 상수와 replacePathParams로 `/projects/:projectPath` 상세 라우트로 이동한다. 상세에서 실제 세션 조회·새 채팅·기존 세션 열기를 제공한다.
+프로젝트 추가는 사이드바와 프로젝트 페이지에서 같은 `AddProjectModal`을 사용한다. 클릭하면 로컬 서비스가 Electron 폴더 선택 헬퍼를 실행해 실제 디렉터리를 선택한다. 폴더 업로드는 하지 않는다. Electron에서는 폴더 드롭의 실제 경로를 바로 읽고, 일반 브라우저에서는 드롭 폴더의 절대 경로가 제공되지 않으므로 선택창에서 같은 폴더를 확인한다. 등록은 `POST /desktop-api/projects`, 선택창은 `POST /desktop-api/folder-selections`, 상세 조회는 `GET /desktop-api/projects/:projectId`다. 추가 후 공유 PATH 상수와 replacePathParams로 `/projects/:projectId` 상세 라우트로 이동한다. 상세에서 실제 세션 조회·새 채팅·기존 세션 열기를 제공한다.
 
 프로젝트 추가와 수정은 공통 `ProjectDialog` 입력폼을 사용합니다. 폴더 선택 후 표시 이름(별칭)과 설명을 입력하고 최종 추가를 누르면 하나의 POST 요청·ORM 트랜잭션으로 저장한 뒤 상세페이지로 이동합니다. 폴더 선택과 폼 입력은 아직 등록을 수행하지 않으며, 취소하면 프로젝트는 생성되지 않습니다. 선택된 폴더는 큰 드롭존 대신 폴더명·경로·변경 컨트롤로 표시됩니다.
 
 프로젝트 상세 라우트와 REST 프로젝트 리소스는 /projects/:projectId 형식의 정수 ID를 사용합니다. SQLite v4 업그레이드는 원본 JSONL의 정수 ID를 기본키로 보존하며, ID가 없는 기존 항목에만 새 ID를 부여합니다. 폴더 경로는 데이터 필드와 기존 채팅 백엔드 작업 디렉터리로만 사용합니다.
+
+프로젝트 상세의 세션 목록은 플러그인 세션 패널의 검색·날짜 그룹·페이징·활동/탭 필터·수정·삭제·키보드 동작을 적용한다. 전체 스펙과 환경별 적용은 [세션 목록](docs/session-list.md)을 참고한다.

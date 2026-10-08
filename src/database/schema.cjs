@@ -1,7 +1,10 @@
+const { relations } = require('drizzle-orm');
 const { sqliteTable, text, integer } = require('drizzle-orm/sqlite-core');
 
 const projects = sqliteTable('projects', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: integer('project_id').references(() => projects.id, { onDelete: 'set null' }),
+  sessionsExpanded: integer('sessions_expanded', { mode: 'boolean' }).notNull().default(false),
   path: text('path').notNull().unique(),
   openedAt: integer('opened_at').notNull(),
   sessionCount: integer('session_count').notNull().default(0),
@@ -14,4 +17,8 @@ const projects = sqliteTable('projects', {
   // Keep source entity fields, including fields this version does not consume.
   data: text('data', { mode: 'json' }).notNull().default({}),
 });
-module.exports = { projects };
+const projectRelations = relations(projects, ({ one, many }) => ({
+  parent: one(projects, { fields: [projects.projectId], references: [projects.id], relationName: 'projectHierarchy' }),
+  children: many(projects, { relationName: 'projectHierarchy' }),
+}));
+module.exports = { projects, projectRelations };

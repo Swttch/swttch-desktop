@@ -1,4 +1,4 @@
-import type { DesktopState, SessionListEntry, Project } from './desktop';
+import type { DesktopState, SessionPage, Project, ProjectSessionScope } from './desktop';
 import { API_PATH } from '../../src/api-paths.mjs';
 import { replacePathParams } from './routes';
 import { queryClient, QUERY_KEY } from './query-client';
@@ -32,20 +32,25 @@ async function request<T>(path: string, method: string, body?: object, signal?: 
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }
 export const desktopApi = {
+  projectScope: (projectId: string, signal?: AbortSignal) => request<ProjectSessionScope>(replacePathParams(API_PATH.PROJECT_SCOPE, { projectId }), 'GET', undefined, signal),
+  updateProjectScope: (projectId: string, includeNestedSessions: boolean) => request<ProjectSessionScope>(replacePathParams(API_PATH.PROJECT_SCOPE, { projectId }), 'PATCH', { includeNestedSessions }),
   selectFolder: () => request<{ path: string | null }>(API_PATH.FOLDER_SELECTIONS, 'POST', {}),
   createProject: (project: { path: string; alias: string; description: string }) => request<Project>(API_PATH.PROJECTS, 'POST', project),
   project: (projectId: string, signal?: AbortSignal) => request<Project>(replacePathParams(API_PATH.PROJECT, { projectId }), 'GET', undefined, signal),
   projects: (signal?: AbortSignal) => request<{ projects: Project[]; homeDir: string }>(API_PATH.PROJECTS, 'GET', undefined, signal),
-  updateProject: (projectId: number, fields: { favorite?: boolean; alias?: string; description?: string }) => request<Project>(replacePathParams(API_PATH.PROJECT, { projectId }), 'PATCH', fields),
+  updateProject: (projectId: number, fields: { projectId?: number | null; sessionsExpanded?: boolean; favorite?: boolean; alias?: string; description?: string }) => request<Project>(replacePathParams(API_PATH.PROJECT, { projectId }), 'PATCH', fields),
   deleteProject: (projectId: number) => request<void>(replacePathParams(API_PATH.PROJECT, { projectId }), 'DELETE'),
   state: (signal?: AbortSignal) => request<DesktopState>(API_PATH.WORKSPACE, 'GET', undefined, signal),
   openProject: (path: string) => request<DesktopState>(API_PATH.WORKSPACE, 'PUT', { path }),
   openSession: (sessionId: string, path: string) => request<DesktopState>(API_PATH.WORKSPACE, 'PUT', { path, sessionId }),
-  listSessions: async (projectId: string, signal?: AbortSignal) => {
-    const result = await request<{ sessions: SessionListEntry[]; hasMore: boolean; total: number; serviceError?: { reason: string } }>(replacePathParams(API_PATH.PROJECT_SESSIONS, { projectId }), 'GET', undefined, signal);
+  listSessions: async (projectId: string, signal?: AbortSignal, offset = 0, all = false) => {
+    const result = await request<SessionPage>(replacePathParams(API_PATH.PROJECT_SESSIONS, { projectId }) + '?offset=' + offset + '&limit=' + (all ? 'all' : 30), 'GET', undefined, signal);
     if (result.serviceError) throw new Error(result.serviceError.reason);
     return result;
   },
+  renameSession: (projectId: string, sessionId: string, title: string) => request(replacePathParams(API_PATH.PROJECT_SESSION, { projectId, sessionId }), 'PATCH', { title }),
+  deleteSession: (projectId: string, sessionId: string) => request<void>(replacePathParams(API_PATH.PROJECT_SESSION, { projectId, sessionId }), 'DELETE'),
+  markSessionRead: (projectId: string, sessionId: string) => request<void>(replacePathParams(API_PATH.SESSION_READS, { projectId, sessionId }), 'POST', {}),
   migrateProjects: () => request<{ imported: number; enriched: number; unchanged: number; total: number; state: DesktopState }>(API_PATH.PROJECT_IMPORTS, 'POST', {}),
   retry: () => request<DesktopState>(API_PATH.BACKEND_RESTARTS, 'POST', {}),
   subscribe(callback: (state: DesktopState) => void, onError: () => void) {

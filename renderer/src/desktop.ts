@@ -7,6 +7,8 @@ export enum DesktopPhase {
 
 export interface Project {
   id: number;
+  projectId: number | null;
+  sessionsExpanded: boolean;
   path: string;
   alias: string | null;
   description: string | null;
@@ -17,6 +19,11 @@ export interface Project {
   sessionCount: number;
 }
 
+export interface ProjectSessionScope { includeNestedSessions: boolean; projects: Project[] }
+
+export enum SessionActivity { Idle = 'idle', Running = 'running', Awaiting = 'awaiting', Done = 'done' }
+export interface SessionPage { sessions: SessionListEntry[]; hasMore: boolean; total: number; nextOffset: number; scopeDirCount: number; serviceError?: { reason: string } }
+
 export interface DesktopState {
   phase: DesktopPhase;
   message: string;
@@ -25,6 +32,8 @@ export interface DesktopState {
   projects: Project[];
   chatUrl: string | null;
   backendId: string;
+  sessionActivity?: { activity: Record<string, SessionActivity>; open: string[] };
+  sessionsRevision?: number;
 }
 
 // Original GET_SESSIONS entry fields; the transport retains the full payload.

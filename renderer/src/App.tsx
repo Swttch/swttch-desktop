@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react';
-import { DesktopPhase, type DesktopState } from './desktop';
+import { DesktopPhase, type DesktopState, type Project } from './desktop';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { queryClient, QUERY_KEY } from './query-client';
 import { desktopApi } from './api';
@@ -11,6 +11,8 @@ import { ProjectDetailPage } from './ProjectDetailPage';
 import { PATH, replacePathParams } from './routes';
 import { ProjectsPage } from './ProjectsPage';
 import { useRouter } from './router';
+import { SidebarProject } from './SidebarProject';
+import { readProjectSort, saveProjectSort, sortProjects } from './projects/projectSort';
 
 enum IconName { Folder, Chat, Sidebar, SidebarCollapsed, Plus, Home, History, Search, Refresh, Compose }
 function Icon({ name, solid = false, className = '' }: { name: IconName; solid?: boolean; className?: string }) {
@@ -38,6 +40,7 @@ const sidebarShortcut = (event: KeyboardEvent) => event.shiftKey && (event.metaK
 
 export function App() {
   const workspaceQuery = useQuery({ queryKey: QUERY_KEY.workspace, queryFn: ({ signal }) => desktopApi.state(signal) });
+  const projectsQuery = useQuery({ queryKey: QUERY_KEY.projects, queryFn: ({ signal }) => desktopApi.projects(signal) });
   const state: DesktopState = workspaceQuery.data || { phase: DesktopPhase.Starting, message: '채팅 환경을 준비하고 있습니다.', project: null, recent: [], projects: [], chatUrl: null, backendId: '' };
   const actionMutation = useMutation({ mutationFn: (action: () => Promise<DesktopState>) => action(), onSuccess: next => queryClient.setQueryData(QUERY_KEY.workspace, next) });
   const router = useRouter();
@@ -49,14 +52,15 @@ export function App() {
   useEffect(() => {
     if (legacyProject) router.push(replacePathParams(PATH.PROJECT, { projectId: legacyProject.id }));
   }, [legacyProject?.id, router]);
-  const currentProject = state.projects.find(project => project.path === state.project);
+  const detailProject = state.projects.find(project => String(project.id) === detailId);
+  const projectNavigation = projectsPage || Boolean(detailId);
   const busy = actionMutation.isPending;
   const [collapsed, setCollapsed] = useState(false);
   const [error, setError] = useState('');
   const [selecting, setSelecting] = useState(false);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
-  const [showAll, setShowAll] = useState(false);
+  const [sort, setSort] = useState(readProjectSort);
   const [sessionId, setSessionId] = useState('');
   const [sessionTitle, setSessionTitle] = useState('새 채팅');
   const [accountInfo, setAccountInfo] = useState(false);
@@ -68,17 +72,22 @@ export function App() {
   const chat = state.phase === DesktopPhase.Chat;
   const disabled = !ready || busy;
 
-  const sessionsQuery = useQuery({
-    queryKey: QUERY_KEY.sessions(state.project), enabled: Boolean(currentProject) && ready,
-    queryFn: ({ signal }) => desktopApi.listSessions(String(currentProject!.id), signal),
+  const expandMutation = useMutation({
+    mutationFn: ({ id, expanded }: { id: number; expanded: boolean }) => desktopApi.updateProject(id, { sessionsExpanded: expanded }),
+    onMutate: async ({ id, expanded }) => {
+      await queryClient.cancelQueries({ queryKey: QUERY_KEY.projects });
+      const previous = queryClient.getQueryData<{ projects: Project[]; homeDir: string }>(QUERY_KEY.projects);
+      if (previous) queryClient.setQueryData(QUERY_KEY.projects, { ...previous, projects: previous.projects.map(project => project.id === id ? { ...project, sessionsExpanded: expanded } : project) });
+      return { previous };
+    },
+    onError: (error, _, context) => { if (context?.previous) queryClient.setQueryData(QUERY_KEY.projects, context.previous); toast.error(error.message); },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: QUERY_KEY.projects }),
   });
-  const sessions = sessionsQuery.data?.sessions || [];
-  const sessionsLoading = sessionsQuery.isFetching;
-  const sessionsError = sessionsQuery.error?.message || '';
   useEffect(() => desktopApi.subscribe(next => {
     queryClient.setQueryData(QUERY_KEY.workspace, next); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.projects }); setError('');
   }, () => setError('로컬 서버 연결이 끊겼습니다. 새로고침해 주세요.')), []);
-  useEffect(() => { if (state.project) void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessions(state.project) }); }, [state.project, sessionId]);
+  useEffect(() => { void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessionLists }); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.projectScopes }); }, [state.sessionsRevision]);
+  useEffect(() => { if (state.project) void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessions(state.project) }); }, [state.project, sessionId, state.sessionsRevision]);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (!sidebarShortcut(event)) return;
@@ -121,6 +130,8 @@ export function App() {
     finally { inFlight.current = false;  }
   }
   function chooseProject(projectId: number) {
+    const project = (projectsQuery.data?.projects || state.projects).find(row => row.id === projectId);
+    if (!project?.sessionsExpanded) expandMutation.mutate({ id: projectId, expanded: true });
     router.push(replacePathParams(PATH.PROJECT, { projectId }));
   }
   function openProject() { setError(''); setSelecting(true); }
@@ -130,9 +141,7 @@ export function App() {
     else void openProject();
   }
   const search = query.trim().toLowerCase();
-  const visibleSessions = sessions.filter(session => !session.isSidechain && session.title.toLowerCase().includes(search));
-  const visibleProjects = state.projects.filter(project => project.hiddenAt === 0 && (`${project.path} ${project.alias || ''}`.toLowerCase().includes(search) || project.path === state.project)).sort((a, b) => b.favoritedAt - a.favoritedAt || b.lastModified - a.lastModified).map(project => project.path);
-  const projectLabel = (path: string) => state.projects.find(project => project.path === path)?.alias || basename(path);
+  const visibleProjects = sortProjects((projectsQuery.data?.projects || state.projects).filter(project => project.hiddenAt === 0 && (`${project.path} ${project.alias || ''}`.toLowerCase().includes(search) || project.path === state.project)), sort);
   const sidebarHidden = collapsed || projectsPage;
   const feedback = error || workspaceQuery.error?.message || (state.phase === DesktopPhase.Error || state.phase === DesktopPhase.Starting ? state.message : '');
 
@@ -143,18 +152,18 @@ export function App() {
       <IconButton label="사이드바 표시/숨기기" icon={sidebarHidden ? IconName.SidebarCollapsed : IconName.Sidebar} shortcut="⇧⌘S" aria-expanded={!sidebarHidden} aria-controls="sidebar" aria-keyshortcuts="Meta+Shift+S Control+Shift+S" onClick={() => { if (projectsPage) { router.push(PATH.HOME); setCollapsed(false); } else setCollapsed(value => !value); }} />
       <div className="header-context flex min-w-0 flex-1 items-center gap-3">
         <Icon name={IconName.Folder} className="text-muted" />
-        {projectsPage ? <span className="text-sm font-medium">프로젝트</span> : state.project ? <><Tooltip content={state.project}><span className="block max-w-48 truncate text-[13px] text-muted">{basename(state.project)}</span></Tooltip><span className="text-muted/40">/</span><span className="truncate text-sm font-medium">{sessionTitle}</span></> : <span className="text-sm font-medium">Swttch</span>}
+        {detailProject ? <><span className="text-sm text-muted">프로젝트</span><span className="text-muted/40">/</span><span className="truncate text-sm font-medium">{detailProject.alias || basename(detailProject.path)}</span></> : projectsPage ? <span className="text-sm font-medium">프로젝트</span> : state.project ? <><Tooltip content={state.project}><span className="block max-w-48 truncate text-[13px] text-muted">{basename(state.project)}</span></Tooltip><span className="text-muted/40">/</span><span className="truncate text-sm font-medium">{sessionTitle}</span></> : <span className="text-sm font-medium">Swttch</span>}
       </div>
       <IconButton label="새 채팅" icon={IconName.Compose} onClick={newChat} disabled={disabled} />
       <IconButton label="프로젝트 폴더 열기" icon={IconName.Folder} onClick={() => void openProject()} disabled={disabled} />
     </header>
     <div className={`shell-body grid h-[calc(100dvh-var(--header-height))] min-h-0 ${sidebarHidden ? 'sidebar-collapsed' : ''}`}>
       <nav className="activity-rail flex flex-col items-center gap-3 py-3" aria-label="앱 메뉴">
-        <IconButton label="홈" icon={IconName.Home} solid={!projectsPage} className={`rail-button ${!projectsPage ? 'rail-active' : ''}`} aria-current={!projectsPage ? 'page' : undefined} onClick={() => { router.push(PATH.HOME); setSelecting(false); }} />
+        <IconButton label="홈" icon={IconName.Home} solid={!projectNavigation} className={`rail-button ${!projectNavigation ? 'rail-active' : ''}`} aria-current={!projectNavigation ? 'page' : undefined} onClick={() => { router.push(PATH.HOME); setSelecting(false); }} />
         <IconButton label="새 채팅" icon={IconName.Compose} className="rail-button" onClick={newChat} disabled={disabled} />
         <IconButton label="예약" icon={IconName.History} className="rail-button" onClick={() => toast('예약 기능은 준비 중입니다.')} />
         <span className="mt-1 w-6 border-t border-divider" />
-        <IconButton label="프로젝트" icon={IconName.Folder} className={`rail-button ${projectsPage ? 'rail-active' : ''}`} aria-current={projectsPage ? 'page' : undefined} onClick={() => { router.push(PATH.PROJECTS); setSelecting(false);  }} />
+        <IconButton label="프로젝트" icon={IconName.Folder} className={`rail-button ${projectNavigation ? 'rail-active' : ''}`} aria-current={projectNavigation ? 'page' : undefined} onClick={() => { router.push(PATH.PROJECTS); setSelecting(false);  }} />
         <div className="relative mt-auto">
           <Tooltip content="계정 상태" placement="right" delay={0}><button className="account-button" aria-label="계정 상태" aria-expanded={accountInfo} onClick={() => setAccountInfo(value => !value)}>S</button></Tooltip>
           {accountInfo && <div className="account-popover" role="status"><strong className="block text-sm font-medium">Swttch 계정</strong><p className="mt-2 text-xs leading-5 text-muted">앱 로그인과 기존 계정 연동은 준비 중입니다.</p></div>}
@@ -167,16 +176,7 @@ export function App() {
         {searching && <div className="px-4 py-2"><input ref={searchInput} className="field" aria-label="프로젝트·세션 검색" value={query} onChange={event => setQuery(event.target.value)} placeholder="프로젝트·세션 검색" /></div>}
         <div className="sidebar-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 pt-6">
           <div className="mb-2 flex items-center justify-between px-2"><h2 className="text-xs font-medium text-muted">프로젝트</h2><IconButton label="프로젝트 추가" icon={IconName.Plus} onClick={() => void openProject()} disabled={disabled} /></div>
-          {visibleProjects.map(path => <section key={path} className="mb-3">
-            <Tooltip content={path}><button className="project-row" disabled={disabled} onClick={() => chooseProject(state.projects.find(project => project.path === path)!.id)}><Icon name={IconName.Folder} className="text-muted" /><span className="truncate">{projectLabel(path)}</span></button></Tooltip>
-            {path === state.project && <div className="session-list pb-1">
-              {sessionsLoading && <p className="list-note" role="status">대화 불러오는 중…</p>}
-              {sessionsError && <div className="list-note" role="alert">{sessionsError}<button className="mt-2 block underline underline-offset-4" onClick={() => void sessionsQuery.refetch()}>다시 불러오기</button></div>}
-              {!sessionsLoading && !sessionsError && visibleSessions.length === 0 && <p className="list-note">{search ? '검색 결과 없음' : '채팅 없음'}</p>}
-              {!sessionsError && (showAll ? visibleSessions : visibleSessions.slice(0, 5)).map(session => <Tooltip key={session.sessionId} content={session.title}><button className={`session-row ${session.sessionId === sessionId ? 'selected' : ''}`} disabled={disabled} onClick={() => void perform(() => desktopApi.openSession(session.sessionId, session.sessionDir))}>{session.title || '제목 없는 대화'}</button></Tooltip>)}
-              {visibleSessions.length > 5 && <button className="session-row text-muted!" onClick={() => setShowAll(value => !value)}>{showAll ? '접기' : '더 보기'}</button>}
-            </div>}
-          </section>)}
+          {visibleProjects.map(project => <SidebarProject key={project.id} project={project} expanded={project.sessionsExpanded} selected={detailId ? String(project.id) === detailId : project.path === state.project} disabled={disabled || expandMutation.isPending} sessionId={sessionId} search={search} onOpen={() => chooseProject(project.id)} onToggle={() => expandMutation.mutate({ id: project.id, expanded: !project.sessionsExpanded })} onSession={(id, path) => void perform(() => desktopApi.openSession(id, path))} />)}
           {state.projects.length === 0 && <button className="navigation-row text-muted" onClick={() => void openProject()} disabled={disabled}><Icon name={IconName.Plus} />프로젝트 열기</button>}
           {search && visibleProjects.length === 0 && <p className="list-note">검색 결과 없음</p>}
         </div>
@@ -190,7 +190,7 @@ export function App() {
           {chat && !selecting && error && <div className="connection-error" role="alert">{error}</div>}
         </div>
         {detailId && <ProjectDetailPage projectId={detailId} disabled={disabled} onChat={path => void perform(() => desktopApi.openProject(path))} onSession={(sessionId, path) => void perform(() => desktopApi.openSession(sessionId, path))} />}
-        {projectsPage && <ProjectsPage disabled={disabled} onOpen={chooseProject} onAdd={() => void openProject()} />}
+        {projectsPage && <ProjectsPage disabled={disabled} onOpen={chooseProject} onAdd={() => void openProject()} sort={sort} onSort={order => { setSort(order); saveProjectSort(order); }} />}
 
       </section>
     </div>
