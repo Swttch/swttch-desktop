@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@theme {
+  --color-chrome: #2b2b2b;
+  --color-navigation: #202020;
+  --color-canvas: #1a1a1a;
+  --color-foreground: #ededed;
+  --color-muted: #a1a1a1;
+  --color-divider: #393939;
+  --color-hover: #303030;
+  --color-selected: #353535;
+  --color-dev-line: #c4ff46;
+  --color-status: #a8c1b6;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+@layer base {
+  :root { color-scheme: dark; font-size: 14px; --header-height: 3.25rem; --rail-width: 3.5rem; --sidebar-width: 16rem; }
+  body { @apply m-0 overflow-hidden bg-chrome font-sans text-base text-foreground antialiased; }
+  button { @apply cursor-pointer; }
+  button:disabled { @apply cursor-default opacity-40; }
+  button:focus-visible { @apply outline-2 outline-offset-[-2px] outline-foreground/70; }
+  ::selection { @apply bg-selected text-foreground; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { @apply rounded-full bg-divider; }
+}
+@layer components {
+  .titlebar { -webkit-app-region: drag; }
+  .titlebar button { -webkit-app-region: no-drag; }
+  .electron-host .titlebar { padding-left: 84px; }
+  .header-context { @apply ml-3 border-l border-divider pl-4; }
+  .icon-button { @apply relative flex size-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-hover hover:text-foreground; }
+  .tooltip-anchor { @apply inline-flex min-w-0; }
+  .project-row, .session-row { width: 100%; }
+  .session-list > .tooltip-anchor, section > .tooltip-anchor { @apply flex w-full; }
+  .shell-body { grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr); transition: grid-template-columns 240ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .shell-body.sidebar-collapsed { grid-template-columns: var(--rail-width) 0 minmax(0, 1fr); }
+  .sidebar-collapsed #sidebar { visibility: hidden; transition-delay: 240ms; }
+  .sidebar-content { @apply flex h-full shrink-0 flex-col; width: var(--sidebar-width); transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease-out; }
+  .sidebar-collapsed .sidebar-content { transform: translateX(-12px); opacity: 0; }
+  .rail-button { @apply size-10 rounded-xl hover:bg-selected hover:text-white; }
+  .rail-active { @apply bg-selected text-white; }
+  .account-button { @apply hover:bg-hover flex size-8 items-center justify-center rounded-full bg-selected text-xs font-medium text-foreground; }
+  .account-popover { @apply absolute bottom-0 left-12 z-50 w-56 rounded-xl border border-divider bg-navigation p-4 shadow-xl; }
+  #sidebar { @apply flex min-w-0 flex-col rounded-tl-2xl border-l border-divider/50; transition: visibility 0s; }
+  .navigation-row { @apply flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-hover; }
+  .project-row { @apply flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm hover:bg-hover; }
+  .session-row { @apply block w-full truncate rounded-xl py-2 pr-3 pl-8 text-left text-[13px] leading-5 hover:bg-hover; }
+  .session-row.selected { @apply bg-selected; }
+  .list-note { @apply py-2 pr-3 pl-8 text-xs leading-5 text-muted; }
+  .workspace { @apply border-l border-divider/60; transition: border-top-left-radius 240ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .sidebar-collapsed .workspace { @apply rounded-tl-2xl; }
+  .field { @apply w-full rounded-xl border border-divider bg-navigation px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted/70 focus:border-muted focus:ring-1 focus:ring-muted; }
+  .primary-button { @apply rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-canvas hover:bg-white; }
+  .secondary-button { @apply rounded-xl border border-divider px-4 py-2 text-sm hover:bg-hover; }
+  .connection-error { @apply absolute right-3 bottom-3 left-3 rounded-xl border border-divider bg-navigation p-3 text-xs; }
+}
+.tippy-box[data-theme~='swttch'] { background: var(--color-chrome); color: var(--color-foreground); border: 1px solid var(--color-divider); border-radius: 12px; box-shadow: 0 8px 24px #0003; font-size: 13px; }
+.tippy-box[data-theme~='swttch'] .tippy-content { padding: 8px 12px; }
+.tippy-box[data-theme~='swttch'] .tippy-arrow { color: var(--color-chrome); }
+@media (max-width: 800px) { :root { --sidebar-width: 14rem; } .header-context { @apply ml-0 gap-2 pl-3; } }
+@media (prefers-reduced-motion: reduce) {
+  .icon-button, .shell-body, .sidebar-content, .workspace { transition: none; }
+  .sidebar-collapsed #sidebar { transition-delay: 0s; }
+  .sidebar-collapsed .sidebar-content { transform: none; }
+}
+@layer components {
+  .project-menu-item { @apply block w-full px-3 py-2 text-left text-xs text-muted hover:bg-hover hover:text-foreground; }
+}
+.project-marquee span { transition: transform 300ms ease-out; }
+.project-marquee:hover span { transform: translateX(calc(-1 * var(--scroll-distance))); transition: transform var(--scroll-duration) linear; }
+@media (prefers-reduced-motion: reduce) { .project-marquee span, .project-marquee:hover span { transform: none; transition: none; } }
