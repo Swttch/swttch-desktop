@@ -35,7 +35,8 @@ async function request<T>(path: string, method: string, body?: object, signal?: 
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }
 export const desktopApi = {
-  activeSessions: (offset: number, signal?: AbortSignal) => request<{ rows: { session: SessionListEntry; projectId: number }[]; hasMore: boolean; nextOffset: number }>(API_PATH.ACTIVE_SESSIONS + '?offset=' + offset + '&limit=5', 'GET', undefined, signal),
+  activeSessions: (offset: number, signal?: AbortSignal) => request<{ rows: { session: SessionListEntry; projectId: number }[]; total: number; hasMore: boolean; nextOffset: number }>(API_PATH.ACTIVE_SESSIONS + '?offset=' + offset + '&limit=5', 'GET', undefined, signal),
+  favoriteSessions: (offset: number, signal?: AbortSignal) => request<{ rows: { session: SessionListEntry; projectId: number }[]; total: number; hasMore: boolean; nextOffset: number }>(API_PATH.FAVORITE_SESSIONS + '?offset=' + offset + '&limit=5', 'GET', undefined, signal),
   importSessions: (projectId: string, includeNested: boolean) => request<{ imported: number }>(replacePathParams(API_PATH.PROJECT_SESSION_IMPORTS, { projectId }), 'POST', { includeNested }),
   syncSessionSources: (uids?: string[]) => request<{ results: { uid: string; status: string; error?: string }[] }>(API_PATH.SESSION_SOURCE_SYNCS, 'POST', uids === undefined ? {} : { uids }),
   projectScope: (projectId: string, signal?: AbortSignal) => request<ProjectSessionScope>(replacePathParams(API_PATH.PROJECT_SCOPE, { projectId }), 'GET', undefined, signal),
@@ -54,6 +55,7 @@ export const desktopApi = {
     if (result.serviceError) throw new Error(result.serviceError.reason);
     return result;
   },
+  favoriteSession: (projectId: string, sessionId: string, favorite: boolean) => request(replacePathParams(API_PATH.PROJECT_SESSION, { projectId, sessionId }), 'PATCH', { favorite }),
   renameSession: (projectId: string, sessionId: string, title: string) => request(replacePathParams(API_PATH.PROJECT_SESSION, { projectId, sessionId }), 'PATCH', { title }),
   deleteSession: (projectId: string, sessionId: string) => request<void>(replacePathParams(API_PATH.PROJECT_SESSION, { projectId, sessionId }), 'DELETE'),
   markSessionRead: (projectId: string, sessionId: string) => request<void>(replacePathParams(API_PATH.SESSION_READS, { projectId, sessionId }), 'POST', {}),

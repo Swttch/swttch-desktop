@@ -69,7 +69,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
   function projectScope(project, includeNested) {
     return [project, ...(includeNested ? projectDescendants(store.projects(), project.id).filter(row => !row.hiddenAt) : [])];
   }
-  const sessionEntry = ({ session, project }) => ({ ...session.data, sessionId: session.uid, sessionDir: project.path, title: displayTitle(session), createdAt: session.createdAt, lastTimestamp: session.lastTimestamp, isOpen: session.isOpen, activity: session.activity });
+  const sessionEntry = ({ session, project }) => ({ ...session.data, sessionId: session.uid, sessionDir: project.path, title: displayTitle(session), createdAt: session.createdAt, lastTimestamp: session.lastTimestamp, isOpen: session.isOpen, activity: session.activity, favoritedAt: session.favoritedAt });
   function importProjectSessions(project, includeNested = false) {
     const key = project.id + ':' + includeNested;
     if (imports.has(key)) return imports.get(key);
@@ -196,11 +196,11 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
       return json(res, 201, { csrf: session.csrf, state: state(session) });
     }
     if (!session) return json(res, 401, { error: '앱 연결이 만료됐습니다. 새로고침해 주세요.' });
-    if (path === API_PATH.ACTIVE_SESSIONS && req.method === 'GET') {
+    if ([API_PATH.ACTIVE_SESSIONS, API_PATH.FAVORITE_SESSIONS].includes(path) && req.method === 'GET') {
       const params = new URL(req.url, 'http://localhost').searchParams;
       const offset = Number(params.get('offset') || 0), limit = Number(params.get('limit') || 5);
       if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) return json(res, 400, { error: '페이지 범위를 확인해 주세요.' });
-      const page = store.sessionRepository.active(offset, limit);
+      const page = path === API_PATH.ACTIVE_SESSIONS ? store.sessionRepository.active(offset, limit) : store.sessionRepository.favorites(offset, limit);
       return json(res, 200, { ...page, rows: page.rows.map(({ session, project }) => ({ projectId: project.id, session: sessionEntry({ session, project }) })) });
     }
     if (path === API_PATH.SESSION_SOURCE_SYNCS) {
@@ -308,6 +308,12 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         const row = savedSession && owner && projectScope(project, true).some(item => item.id === owner.id) ? sessionEntry({ session: savedSession, project: owner }) : null;
         if (!row) return json(res, 404, { error: '이 프로젝트에 없는 세션입니다.' });
         const body = req.method === 'PATCH' ? await readBody(req) : {};
+        if (req.method === 'PATCH' && body.favorite !== undefined) {
+          if (typeof body.favorite !== 'boolean' || body.title !== undefined) throw new Error('즐겨찾기 여부를 확인해 주세요.');
+          const saved = store.sessionRepository.setFavorite(sessionId, body.favorite);
+          sessionsRevision++; broadcast();
+          return json(res, 200, { session: sessionEntry({ session: saved, project: owner }) });
+        }
         if (req.method === 'PATCH' && (typeof body.title !== 'string' || !body.title.trim())) throw new Error('세션 이름을 입력해 주세요.');
         if (req.method === 'PATCH') {
           await sourceSync.discover([row]);

@@ -404,3 +404,24 @@ test('session migration is explicit, paged and repeatable; list GET stays DB-onl
   }
   assert.equal(entries.some(row => row.sessionId === 'session-0'), false);
 });
+
+test('session favorites are DB-only mutations, retain source metadata, and paginate with total counts', async t => {
+  const { base, client, backendRequests } = await setup(t);
+  const headers = await client(), root = base + '/desktop-api/projects/1/sessions/';
+  const before = backendRequests.length;
+  assert.equal((await fetch(root + 'session-0', { method: 'PATCH', headers: { cookie: headers.cookie }, body: '{"favorite":true}' })).status, 403);
+  assert.equal((await fetch(root + 'session-0', { method: 'PATCH', headers, body: '{"favorite":"true"}' })).status, 400);
+  assert.equal((await fetch(root + 'missing', { method: 'PATCH', headers, body: '{"favorite":true}' })).status, 404);
+  for (let index = 0; index < 6; index++) assert.equal((await fetch(root + 'session-' + index, { method: 'PATCH', headers, body: '{"favorite":true}' })).status, 200);
+  const first = await (await fetch(base + '/desktop-api/favorite-sessions', { headers })).json();
+  assert.equal(first.total, 6); assert.equal(first.rows.length, 5); assert.equal(first.hasMore, true);
+  const last = await (await fetch(base + '/desktop-api/favorite-sessions?offset=5', { headers })).json();
+  assert.equal(last.rows.length, 1); assert.equal(last.total, 6); assert.equal(last.hasMore, false);
+  assert.equal(first.rows[0].session.originalExtra.preserved, true);
+  const original = await (await fetch(root + 'session-0', { method: 'PATCH', headers, body: '{"favorite":true}' })).json();
+  const repeated = await (await fetch(root + 'session-0', { method: 'PATCH', headers, body: '{"favorite":true}' })).json();
+  assert.equal(original.session.favoritedAt, repeated.session.favoritedAt);
+  assert.equal(backendRequests.length, before);
+  assert.equal((await fetch(root + 'session-0', { method: 'PATCH', headers, body: '{"favorite":false}' })).status, 200);
+  assert.equal((await (await fetch(base + '/desktop-api/favorite-sessions', { headers })).json()).total, 5);
+});

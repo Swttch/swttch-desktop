@@ -22,7 +22,9 @@ test('source sync reuses plugin titles, preserves alias files and settles missin
     const parser = await import(pathToFileURL(join(__dirname, '../dist/session-source.mjs')).href);
     const sync = createSessionSourceSync({ repository: store.sessionRepository, projects: store.projects, reader: async () => ({ ...parser, getProjectSessionsPath: async () => source }) });
     store.sessionRepository.syncActivity({ open: [uid], activity: { [uid]: 'running' } });
+    store.sessionRepository.setFavorite(uid, true);
     const result = await sync.syncSessionSource(uid);
+    assert.ok(result.favoritedAt > 0);
     assert.equal(result.title, 'Original prompt'); assert.equal(result.customTitle, 'CLI title'); assert.equal(result.alias, 'Plugin alias'); assert.equal(displayTitle(result), 'Plugin alias');
     assert.equal(result.src, src); assert.equal(result.isOpen, true); assert.equal(result.activity, 'running'); assert.equal(result.data.extra, 'preserved'); assert.ok(result.sourceSyncedAt);
     await writeFile(src, rows.concat({ type: 'custom-title', customTitle: 'Changed CLI title', sessionId: uid }).map(JSON.stringify).join('\n') + '\n');
@@ -55,5 +57,27 @@ test('active DB query paginates, excludes closed/hidden projects and preserves u
     assert.equal(store.sessionRepository.find('active-0').activity, 'awaiting');
     store.sessionRepository.syncActivity({ open: [], activity: {} });
     assert.equal(store.sessionRepository.active().rows.length, 0);
+  } finally { store.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test('v7 upgrade and favorite persistence retain existing session rows', async () => {
+  const Database = require('better-sqlite3');
+  const home = await mkdtemp(join(tmpdir(), 'swttch-favorite-upgrade-'));
+  let store = openStore(home);
+  const project = store.createProject(home, {});
+  store.sessionRepository.upsert('retained-uid', { projectId: project.id, title: 'Retained', data: { extra: true } });
+  store.close();
+  const db = new Database(join(home, 'desktop.sqlite'));
+  db.exec('DROP INDEX sessions_favorited; ALTER TABLE sessions DROP COLUMN favorited_at; PRAGMA user_version=7;'); db.close();
+  try {
+    store = openStore(home);
+    assert.equal(store.sessionRepository.find('retained-uid').favoritedAt, 0);
+    store.sessionRepository.setFavorite('retained-uid', true);
+    store.close(); store = openStore(home);
+    assert.equal(store.sessionRepository.favorites().total, 1);
+    assert.equal(store.sessionRepository.find('retained-uid').title, 'Retained');
+    assert.equal(store.sessionRepository.find('retained-uid').data.extra, true);
+    store.sessionRepository.setFavorite('retained-uid', false);
+    assert.equal(store.sessionRepository.favorites().total, 0);
   } finally { store.close(); await rm(home, { recursive: true, force: true }); }
 });

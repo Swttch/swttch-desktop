@@ -1,5 +1,6 @@
 export const API_PATH = Object.freeze({
   SESSIONS: '/desktop-api/sessions',
+  FAVORITE_SESSIONS: '/desktop-api/favorite-sessions',
   ACTIVE_SESSIONS: '/desktop-api/active-sessions',
   WORKSPACE: '/desktop-api/workspace',
   FOLDER_SELECTIONS: '/desktop-api/folder-selections',

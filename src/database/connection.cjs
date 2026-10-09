@@ -11,7 +11,7 @@ function openDatabase(home) {
     client.pragma('journal_mode = WAL');
     client.pragma('foreign_keys = OFF');
     const version = client.pragma('user_version', { simple: true });
-    if (version > 7) throw new Error('이 앱보다 새로운 데이터베이스입니다. 앱을 업데이트해 주세요.');
+    if (version > 8) throw new Error('이 앱보다 새로운 데이터베이스입니다. 앱을 업데이트해 주세요.');
     // Versioned DDL upgrades preserve the existing MVP database in place.
     client.transaction(() => {
       client.exec("CREATE TABLE IF NOT EXISTS projects (path TEXT PRIMARY KEY, opened_at INTEGER NOT NULL, data TEXT NOT NULL DEFAULT '{}')");
@@ -66,7 +66,11 @@ function openDatabase(home) {
         client.exec("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT NOT NULL UNIQUE, project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL, src TEXT, title TEXT, custom_title TEXT, alias TEXT, created_at TEXT, last_timestamp TEXT, is_open INTEGER NOT NULL DEFAULT 0, activity TEXT NOT NULL DEFAULT 'idle', activity_updated_at INTEGER NOT NULL DEFAULT 0, source_synced_at INTEGER NOT NULL DEFAULT 0, source_mtime INTEGER, source_size INTEGER, data TEXT NOT NULL DEFAULT '{}')");
         client.exec('CREATE INDEX sessions_project_time ON sessions(project_id, last_timestamp); CREATE INDEX sessions_open_activity ON sessions(is_open, activity)');
       }
-      client.pragma('user_version = 7');
+      if (version < 8) {
+        client.exec('ALTER TABLE sessions ADD COLUMN favorited_at INTEGER NOT NULL DEFAULT 0');
+        client.exec('CREATE INDEX sessions_favorited ON sessions(favorited_at)');
+      }
+      client.pragma('user_version = 8');
     })();
     client.pragma('foreign_keys = ON');
     if (client.pragma('foreign_key_check').length) throw new Error('프로젝트 관계의 외래키가 올바르지 않습니다.');

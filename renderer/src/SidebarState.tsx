@@ -1,14 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-export enum SidebarSectionName { ActiveSessions = 'activeSessions', Projects = 'projects' }
+export enum SidebarSectionName { Favorites = 'favorites', ActiveSessions = 'activeSessions', Projects = 'projects' }
 const STORAGE_KEY = 'swttch-sidebar-sections-v1';
-const defaults = { [SidebarSectionName.ActiveSessions]: true, [SidebarSectionName.Projects]: true };
+const defaults = { [SidebarSectionName.Favorites]: true, [SidebarSectionName.ActiveSessions]: true, [SidebarSectionName.Projects]: true };
 type Sections = typeof defaults;
 const SidebarState = createContext<{ expanded: Sections; toggle: (section: SidebarSectionName) => void } | null>(null);
 function readSections(): Sections {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as Partial<Sections> | null;
-    return { activeSessions: typeof saved?.activeSessions === 'boolean' ? saved.activeSessions : true, projects: typeof saved?.projects === 'boolean' ? saved.projects : true };
+    return { favorites: typeof saved?.favorites === 'boolean' ? saved.favorites : true, activeSessions: typeof saved?.activeSessions === 'boolean' ? saved.activeSessions : true, projects: typeof saved?.projects === 'boolean' ? saved.projects : true };
   } catch { return defaults; }
 }
 export function SidebarStateProvider({ children }: { children: ReactNode }) {

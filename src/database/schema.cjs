@@ -28,6 +28,7 @@ const sessions = sqliteTable('sessions', {
   projectId: integer('project_id').references(() => projects.id, { onDelete: 'set null' }),
   src: text('src'), title: text('title'), customTitle: text('custom_title'), alias: text('alias'),
   createdAt: text('created_at'), lastTimestamp: text('last_timestamp'),
+  favoritedAt: integer('favorited_at').notNull().default(0),
   isOpen: integer('is_open', { mode: 'boolean' }).notNull().default(false),
   activity: text('activity').notNull().default('idle'),
   activityUpdatedAt: integer('activity_updated_at').notNull().default(0),

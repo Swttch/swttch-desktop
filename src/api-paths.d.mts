@@ -1,5 +1,6 @@
 export const API_PATH: {
   readonly SESSIONS: '/desktop-api/sessions';
+  readonly FAVORITE_SESSIONS: '/desktop-api/favorite-sessions';
   readonly ACTIVE_SESSIONS: '/desktop-api/active-sessions';
   readonly WORKSPACE: '/desktop-api/workspace';
   readonly PROJECT: '/desktop-api/projects/:projectId';

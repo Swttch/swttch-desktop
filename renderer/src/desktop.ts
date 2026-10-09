@@ -44,6 +44,7 @@ export interface SessionListEntry {
   title: string;
   lastTimestamp: string | null;
   createdAt: string;
+  favoritedAt: number;
   isOpen?: boolean;
   activity?: SessionActivity;
   messageCount: number | null;

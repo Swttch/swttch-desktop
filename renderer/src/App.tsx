@@ -1,4 +1,4 @@
-import { ActiveSessions } from './ActiveSessions';
+import { SidebarSessions } from './SidebarSessions';
 import { SidebarSection } from './SidebarSection';
 import { SidebarSectionName } from './SidebarState';
 import { SidebarResize, useSidebarWidth } from './SidebarResize';
@@ -253,8 +253,9 @@ export function App() {
         <div className="px-3"><button className="navigation-row" onClick={newChat} disabled={disabled}><Icon name={IconName.Compose} /><span>새 채팅</span></button></div>
         {searching && <div className="px-4 py-2"><input ref={searchInput} className="field" aria-label="프로젝트·세션 검색" value={query} onChange={event => setQuery(event.target.value)} placeholder="프로젝트·세션 검색" /></div>}
         <div className="sidebar-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 pt-6">
-          <ActiveSessions projects={projectsQuery.data?.projects || state.projects} ready={ready} disabled={disabled} sessionId={sessionId} search={search} onSession={(id, path) => openView(path, id)} />
-          <SidebarSection name={SidebarSectionName.Projects} title="프로젝트" action={<IconButton label="프로젝트 추가" icon={IconName.Plus} onClick={() => void openProject()} disabled={disabled} />}>
+          <SidebarSessions favorites projects={projectsQuery.data?.projects || state.projects} ready={ready} disabled={disabled} sessionId={sessionId} search={search} onSession={(id, path) => openView(path, id)} />
+          <SidebarSessions projects={projectsQuery.data?.projects || state.projects} ready={ready} disabled={disabled} sessionId={sessionId} search={search} onSession={(id, path) => openView(path, id)} />
+          <SidebarSection name={SidebarSectionName.Projects} title="프로젝트" count={(projectsQuery.data?.projects || state.projects).filter(project => project.hiddenAt === 0).length} action={<IconButton label="프로젝트 추가" icon={IconName.Plus} onClick={() => void openProject()} disabled={disabled} />}>
           {visibleProjects.map(project => <SidebarProject key={project.id} project={project} expanded={project.sessionsExpanded} selected={detailId ? String(project.id) === detailId : project.path === activeProjectPath} disabled={disabled || expandMutation.isPending} ready={ready} sessionId={sessionId} search={search} onOpen={() => chooseProject(project.id)} onToggle={() => expandMutation.mutate({ id: project.id, expanded: !project.sessionsExpanded })} onSession={(id, path) => openView(path, id)} onNewSession={() => openView(project.path)} />)}
           {state.projects.length === 0 && <button className="navigation-row text-muted" onClick={() => void openProject()} disabled={disabled}><Icon name={IconName.Plus} />프로젝트 열기</button>}
           {search && visibleProjects.length === 0 && <p className="list-note">검색 결과 없음</p>}
