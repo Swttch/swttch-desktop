@@ -12,10 +12,15 @@ const { openStore } = require('./store.cjs');
 const { getControlToken } = require('./launcher-auth.cjs');
 const { subscribeBackend } = require('./backend-events.cjs');
 const { backendRequest } = require('./backend-request.cjs');
+const { sessionUrl } = require('./session-url.cjs');
+const { displayTitle, createSessionSourceSync } = require('./session-source-sync.cjs');
+const { renameSessionWithCli } = require('./session-rename.cjs');
 
-function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(homedir(), '.swttch'), backend: suppliedBackend, allowedOrigins = [], folderDialog: suppliedFolderDialog } = {}) {
+function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(homedir(), '.swttch'), backend: suppliedBackend, allowedOrigins = [], folderDialog: suppliedFolderDialog, sourceReader, renameSession = renameSessionWithCli, subscribe = subscribeBackend } = {}) {
   mkdirSync(home, { recursive: true, mode: 0o700 });
   const store = openStore(home);
+  const sourceSync = createSessionSourceSync({ repository: store.sessionRepository, projects: store.projects, reader: sourceReader });
+  store.sessionRepository.syncActivity({ open: [], activity: {} });
   const folderDialog = suppliedFolderDialog || createFolderDialog();
   const sessions = new Map();
   const streams = new Map();
@@ -28,9 +33,87 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
   let unsubscribeBackend = () => {};
   let sessionActivity = { activity: {}, open: [] };
   let sessionsRevision = 0;
+  let activityRevision = 0;
+  let hydration;
+  let hydrationRequested = false;
+  async function discoverSessionUids(missing) {
+        for (const project of store.projects()) {
+          if (!missing.size || stopping) break;
+          let offset = 0;
+          do {
+            const page = await backendRequest(backend, 'GET_SESSIONS', { workingDir: project.path, includeNested: false, offset, limit: 30 });
+            if (page.status === 'error' || page.serviceError) throw new Error(page.error || '활성 세션 정보를 불러오지 못했습니다.');
+            const rows = (page.sessions || []).filter(row => missing.has(row.sessionId));
+            await sourceSync.discover(rows);
+            for (const row of rows) if (store.sessionRepository.find(row.sessionId)?.projectId) missing.delete(row.sessionId);
+            if (!missing.size || !page.hasMore || page.nextOffset <= offset) break;
+            offset = page.nextOffset;
+          } while (!stopping);
+        }
+  }
+  async function hydrateOpenSessions() {
+    hydrationRequested = true;
+    if (hydration) return hydration;
+    hydration = (async () => {
+      while (hydrationRequested && !stopping) {
+        hydrationRequested = false;
+        const missing = new Set(sessionActivity.open.filter(uid => !store.sessionRepository.find(uid)?.projectId));
+        await discoverSessionUids(missing);
+        if (!stopping) { store.sessionRepository.syncActivity(sessionActivity); activityRevision++; broadcast(); }
+      }
+    })().catch(error => appendFileSync(join(home, 'desktop-backend.log'), `Active session sync: ${error.message}
+`)).finally(() => { hydration = null; });
+    return hydration;
+  }
+  const imports = new Map();
+  function projectScope(project, includeNested) {
+    return [project, ...(includeNested ? projectDescendants(store.projects(), project.id).filter(row => !row.hiddenAt) : [])];
+  }
+  const sessionEntry = ({ session, project }) => ({ ...session.data, sessionId: session.uid, sessionDir: project.path, title: displayTitle(session), createdAt: session.createdAt, lastTimestamp: session.lastTimestamp, isOpen: session.isOpen, activity: session.activity });
+  function importProjectSessions(project, includeNested = false) {
+    const key = project.id + ':' + includeNested;
+    if (imports.has(key)) return imports.get(key);
+    const promise = (async () => {
+      let imported = 0;
+      for (const item of projectScope(project, includeNested)) {
+        let offset = 0;
+        do {
+          if (stopping) break;
+          const page = await backendRequest(backend, 'GET_SESSIONS', { workingDir: item.path, includeNested: false, offset, limit: 30 });
+          if (page.status === 'error' || page.serviceError) throw new Error(page.error || page.serviceError?.reason || '세션을 가져오지 못했습니다.');
+          await sourceSync.discover(page.sessions || []);
+          imported += (page.sessions || []).length;
+          if (!page.hasMore || page.nextOffset <= offset) break;
+          offset = page.nextOffset;
+        } while (!stopping);
+      }
+      return { imported };
+    })().finally(() => {
+      imports.delete(key);
+      if (!stopping) { store.sessionRepository.syncActivity(sessionActivity); sessionsRevision++; broadcast(); }
+    });
+    imports.set(key, promise);
+    return promise;
+  }
+  let sessionEventSync = Promise.resolve();
+  function syncSessionEvent(payload) {
+    sessionEventSync = sessionEventSync.then(async () => {
+      if (stopping) return;
+      const uid = payload?.session?.sessionId;
+      if (uid && payload.action === 'delete') store.sessionRepository.remove(uid);
+      else if (uid && store.sessionRepository.find(uid)?.projectId) await sourceSync.syncSessionSource(uid);
+      else if (uid) {
+        // The started event can precede transcript creation; the later upsert retries discovery.
+        await discoverSessionUids(new Set([uid]));
+      }
+    }).catch(error => appendFileSync(join(home, 'desktop-backend.log'), `Session event sync: ${error.message}
+`)).finally(() => {
+      if (!stopping) { store.sessionRepository.syncActivity(sessionActivity); sessionsRevision++; broadcast(); }
+    });
+  }
   const pluginRoot = resolve(__dirname, '../../..');
   const backend = suppliedBackend || new Backend({
-    runtime: process.env.SWTTCH_RUNTIME_DIR || join(pluginRoot, 'backend/dist'), home, token: getControlToken(home),
+    runtime: process.env.SWTTCH_RUNTIME_DIR || join(pluginRoot, 'backend/dist'), home, token: getControlToken(),
     onLog: line => appendFileSync(join(home, 'desktop-backend.log'), `${line}\n`),
     onExit: () => {
       if (stopping || starting) return;
@@ -44,7 +127,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
     phase: phase === 'ready' && session.project ? 'chat' : phase,
     message, project: session.project, chatUrl: phase === 'ready' ? session.chatUrl : null,
     recent: store.recent(), projects: store.projects(),
-    sessionActivity, sessionsRevision,
+    sessionActivity, sessionsRevision, activityRevision,
     backendId: createHash('sha256').update(backend.token).digest('hex'),
   });
   function broadcast() {
@@ -53,6 +136,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
   function start() {
     if (starting) return starting;
     unsubscribeBackend(); sessionActivity = { activity: {}, open: [] };
+    store.sessionRepository.syncActivity(sessionActivity); activityRevision++;
     phase = 'starting'; message = '채팅 환경을 준비하고 있습니다.';
     for (const session of sessions.values()) { session.project = null; session.chatUrl = null; }
     broadcast();
@@ -61,9 +145,9 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         await backend.stop();
         await backend.start();
         phase = 'ready'; message = '프로젝트를 선택해 시작하세요.';
-        if (!suppliedBackend) unsubscribeBackend = subscribeBackend(backend, (type, payload) => {
-          if (type === 'activity') sessionActivity = payload;
-          else sessionsRevision++;
+        if (!suppliedBackend || subscribe !== subscribeBackend) unsubscribeBackend = subscribe(backend, (type, payload) => {
+          if (type === 'activity') { sessionActivity = payload; store.sessionRepository.syncActivity(payload); activityRevision++; void hydrateOpenSessions(); }
+          else { syncSessionEvent(payload); void hydrateOpenSessions(); }
           broadcast();
         });
       } catch (error) { phase = 'error'; message = error.message; }
@@ -96,26 +180,6 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
     return JSON.parse(body || '{}');
   }
 
-  async function getProjectSessions(project, offset = 0, limit) {
-    const settings = await backendRequest(backend, 'GET_SETTINGS', { workingDir: project.path });
-    if (settings.status === 'error') throw new Error(settings.error || '설정을 불러오지 못했습니다.');
-    const children = settings.settings?.includeNestedSessions === true
-      ? projectDescendants(store.projects(), project.id).filter(row => !row.hiddenAt) : [];
-    if (!children.length) return backendRequest(backend, 'GET_SESSIONS', {
-      workingDir: project.path, includeNested: false, offset, ...(limit === undefined ? {} : { limit }),
-    });
-    // DB association determines scope; the reused backend still owns session I/O.
-    const pages = await Promise.all([project, ...children].map(row => backendRequest(backend, 'GET_SESSIONS', { workingDir: row.path, includeNested: false })));
-    const failed = pages.find(page => page.status === 'error' || page.serviceError);
-    if (failed) throw new Error(failed.error || failed.serviceError || '세션을 불러오지 못했습니다.');
-    const entries = new Map();
-    for (const page of pages) for (const row of page.sessions || []) entries.set(row.sessionId, row);
-    const rows = [...entries.values()].sort((a, b) => (Date.parse(b.lastTimestamp || b.createdAt) || 0) - (Date.parse(a.lastTimestamp || a.createdAt) || 0));
-    const sessions = rows.slice(offset, limit === undefined ? undefined : offset + limit);
-    const nextOffset = offset + sessions.length;
-    return { ...pages[0], sessions, total: rows.length, hasMore: nextOffset < rows.length, nextOffset, scopeDirCount: children.length + 1 };
-  }
-
   async function api(req, res) {
     if (!allowed(req)) return json(res, 403, { error: 'Forbidden origin' });
     const path = new URL(req.url, `http://${req.headers.host}`).pathname;
@@ -132,6 +196,25 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
       return json(res, 201, { csrf: session.csrf, state: state(session) });
     }
     if (!session) return json(res, 401, { error: '앱 연결이 만료됐습니다. 새로고침해 주세요.' });
+    if (path === API_PATH.ACTIVE_SESSIONS && req.method === 'GET') {
+      const params = new URL(req.url, 'http://localhost').searchParams;
+      const offset = Number(params.get('offset') || 0), limit = Number(params.get('limit') || 5);
+      if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) return json(res, 400, { error: '페이지 범위를 확인해 주세요.' });
+      const page = store.sessionRepository.active(offset, limit);
+      return json(res, 200, { ...page, rows: page.rows.map(({ session, project }) => ({ projectId: project.id, session: sessionEntry({ session, project }) })) });
+    }
+    if (path === API_PATH.SESSION_SOURCE_SYNCS) {
+      if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return json(res, 405, { error: 'Method not allowed' }); }
+      if (req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      try {
+        const body = await readBody(req);
+        if (body.uids !== undefined && (!Array.isArray(body.uids) || body.uids.some(uid => typeof uid !== 'string'))) throw new Error('세션 UID 목록을 확인해 주세요.');
+        const uids = body.uids === undefined ? store.sessionRepository.all().map(row => row.uid) : [...new Set(body.uids)];
+        const results = body.uids === undefined ? await sourceSync.syncAllSessionSources() : await sourceSync.syncSessionSources(uids);
+        sessionsRevision++; broadcast();
+        return json(res, 201, { results: results.map((result, index) => result.status === 'fulfilled' ? { uid: uids[index], status: result.status, session: result.value } : { uid: uids[index], status: result.status, error: result.reason.message }) });
+      } catch (error) { return json(res, 400, { error: error.message }); }
+    }
     if (path === API_PATH.EVENTS && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
       streams.set(res, session);
@@ -181,18 +264,32 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         return json(res, 200, { includeNestedSessions: settings.settings?.includeNestedSessions === true, projects: children });
       } catch (error) { return json(res, 400, { error: error.message }); }
     }
+    const importMatch = /^\/desktop-api\/projects\/([^/]+)\/session-imports$/.exec(path);
+    if (importMatch) {
+      if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return json(res, 405, { error: 'Method not allowed' }); }
+      if (req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      try {
+        if (phase !== 'ready') throw new Error('세션 환경이 아직 준비되지 않았습니다.');
+        const project = store.projects().find(row => String(row.id) === decodeURIComponent(importMatch[1]));
+        if (!project) return json(res, 404, { error: '등록되지 않은 프로젝트입니다.' });
+        const body = await readBody(req);
+        if (body.includeNested !== undefined && typeof body.includeNested !== 'boolean') throw new Error('하위 프로젝트 포함 여부를 확인해 주세요.');
+        return json(res, 201, await importProjectSessions(project, body.includeNested === true));
+      } catch (error) { return json(res, 400, { error: error.message }); }
+    }
     const projectSessionMatch = /^\/desktop-api\/projects\/([^/]+)\/sessions$/.exec(path);
     if (path === API_PATH.PROJECTS && req.method === 'GET') return json(res, 200, { projects: store.projects(), homeDir: homedir() });
     if (projectSessionMatch && req.method === 'GET') {
       try {
-        if (phase !== 'ready') throw new Error('채팅 환경이 아직 준비되지 않았습니다.');
         const project = store.projects().find(project => String(project.id) === decodeURIComponent(projectSessionMatch[1]));
         if (!project) return json(res, 404, { error: '등록되지 않은 프로젝트입니다.' });
         const params = new URL(req.url, 'http://localhost').searchParams;
         const offset = Number(params.get('offset') || 0);
         const limit = params.get('limit') === 'all' ? undefined : Number(params.get('limit') || 30);
         if (!Number.isSafeInteger(offset) || offset < 0 || (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))) throw new Error('페이지 범위를 확인해 주세요.');
-        return json(res, 200, await getProjectSessions(project, offset, limit));
+        const scope = projectScope(project, params.get('includeNested') === 'true');
+        const page = store.sessionRepository.list(scope.map(row => row.id), offset, limit ?? null);
+        return json(res, 200, { ...page, rows: undefined, sessions: page.rows.map(sessionEntry) });
       } catch (error) { return json(res, 400, { error: error.message }); }
     }
     const sessionResource = /^\/desktop-api\/projects\/([^/]+)\/sessions\/([^/]+)(\/read-receipts)?$/.exec(path);
@@ -206,16 +303,26 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         if (!project) return json(res, 404, { error: '등록되지 않은 프로젝트입니다.' });
         const sessionId = decodeURIComponent(sessionResource[2]);
         if (!/^[a-zA-Z0-9-]+$/.test(sessionId)) throw new Error('세션 ID를 확인해 주세요.');
-        const page = await getProjectSessions(project);
-        const row = page.sessions?.find(row => row.sessionId === sessionId);
+        const savedSession = store.sessionRepository.find(sessionId);
+        const owner = store.projects().find(item => item.id === savedSession?.projectId);
+        const row = savedSession && owner && projectScope(project, true).some(item => item.id === owner.id) ? sessionEntry({ session: savedSession, project: owner }) : null;
         if (!row) return json(res, 404, { error: '이 프로젝트에 없는 세션입니다.' });
         const body = req.method === 'PATCH' ? await readBody(req) : {};
         if (req.method === 'PATCH' && (typeof body.title !== 'string' || !body.title.trim())) throw new Error('세션 이름을 입력해 주세요.');
-        const type = sessionResource[3] ? 'MARK_SESSION_READ' : req.method === 'PATCH' ? 'RENAME_SESSION' : 'DELETE_SESSION';
-        const result = await backendRequest(backend, type, { sessionId, workingDir: row.sessionDir || project.path, ...(body.title ? { title: body.title.trim() } : {}) });
+        if (req.method === 'PATCH') {
+          await sourceSync.discover([row]);
+          const source = await sourceSync.syncSessionSource(sessionId);
+          await renameSession({ uid: sessionId, title: body.title.trim(), workingDir: row.sessionDir || project.path, src: source.src });
+          const synced = await sourceSync.syncSessionSource(sessionId);
+          sessionsRevision++; broadcast();
+          return json(res, 200, { status: 'ok', session: synced });
+        }
+        const type = sessionResource[3] ? 'MARK_SESSION_READ' : 'DELETE_SESSION';
+        const result = await backendRequest(backend, type, { sessionId, workingDir: row.sessionDir || project.path });
         if (result.status === 'error') throw new Error(result.error || '세션을 변경하지 못했습니다.');
+        if (req.method === 'DELETE') store.sessionRepository.remove(sessionId);
         if (req.method === 'DELETE') for (const client of sessions.values()) {
-          if (client.chatUrl?.split('?')[0] === '/sessions/' + sessionId) { client.project = null; client.chatUrl = null; }
+          if (client.chatUrl && new URL(client.chatUrl).pathname === '/sessions/' + sessionId) { client.project = null; client.chatUrl = null; }
         }
         if (!sessionResource[3]) sessionsRevision++;
         broadcast();
@@ -285,10 +392,10 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
       if (path === API_PATH.WORKSPACE) {
         if (phase !== 'ready') throw new Error('채팅 환경이 아직 준비되지 않았습니다.');
         const body = await readBody(req);
-        if (typeof body.path !== 'string' || !body.path.trim()) throw new Error('프로젝트 폴더 경로를 입력해 주세요.');
-        const input = body.path.trim();
-        const absolute = resolve(input === '~' ? homedir() : input.startsWith('~/') ? join(homedir(), input.slice(2)) : input);
-        if (!require('node:path').isAbsolute(input) && input !== '~' && !input.startsWith('~/')) throw new Error('절대 경로 또는 ~/로 시작하는 경로를 입력해 주세요.');
+        if (!Number.isSafeInteger(body.projectId) || body.projectId < 1) throw new Error('프로젝트 ID를 확인해 주세요.');
+        const project = store.projects().find(row => row.id === body.projectId && row.hiddenAt === 0);
+        if (!project) throw new Error('등록되지 않은 프로젝트입니다.');
+        const absolute = project.path;
         let folder;
         try { folder = statSync(absolute); } catch { throw new Error('프로젝트 폴더를 찾을 수 없습니다. 경로를 확인해 주세요.'); }
         if (!folder.isDirectory()) throw new Error('파일이 아닌 프로젝트 폴더를 선택해 주세요.');
@@ -298,11 +405,8 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         const { code } = await response.json();
         if (typeof code !== 'string' || !code) throw new Error('채팅 인증 코드를 받지 못했습니다.');
         if (body.sessionId !== undefined && (typeof body.sessionId !== 'string' || !/^[a-f0-9-]{36}$/i.test(body.sessionId))) throw new Error('올바른 세션을 선택해 주세요.');
-        const url = new URL(body.sessionId ? `/sessions/${body.sessionId}` : '/sessions/new', `http://${req.headers.host}`);
-        url.searchParams.set('workingDir', absolute);
-        url.searchParams.set('pair', code);
         session.project = absolute;
-        session.chatUrl = url.pathname + url.search;
+        session.chatUrl = sessionUrl(absolute, body.sessionId, code, backend.port);
         store.remember(absolute);
         broadcast();
         return json(res, 200, state(session));
@@ -359,6 +463,8 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
       for (const res of streams.keys()) res.end();
       streams.clear();
       if (starting) await starting;
+      if (hydration) await hydration;
+      await Promise.allSettled([...imports.values(), sessionEventSync]);
       await backend.stop(); store.close();
     },
   };

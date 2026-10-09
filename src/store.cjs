@@ -1,10 +1,12 @@
 const { openDatabase } = require('./database/connection.cjs');
 const { ProjectRepository } = require('./database/project.repository.cjs');
+const { SessionRepository } = require('./database/session.repository.cjs');
 
 function openStore(home) {
   const connection = openDatabase(home);
   const projects = new ProjectRepository(connection.db);
   return {
+    sessionRepository: new SessionRepository(connection.db),
     recent: () => projects.recent(),
     projects: () => projects.all(),
     hasProject: path => Boolean(projects.findByPath(path)),

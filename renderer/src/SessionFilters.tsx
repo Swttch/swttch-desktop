@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import tippy from 'tippy.js';
 import { SessionActivity } from './desktop';
-import { ACTIVITY_LABEL } from './SessionRow';
+import { ACTIVITY_LABEL } from './SessionStatus';
 import { Tooltip } from './Tooltip';
 export enum TabFilter { Open = '열린 탭', Closed = '닫힌 탭' }
 export const STATUS_FILTERS = [SessionActivity.Awaiting, SessionActivity.Running, SessionActivity.Done];

@@ -20,5 +20,20 @@ const projects = sqliteTable('projects', {
 const projectRelations = relations(projects, ({ one, many }) => ({
   parent: one(projects, { fields: [projects.projectId], references: [projects.id], relationName: 'projectHierarchy' }),
   children: many(projects, { relationName: 'projectHierarchy' }),
+  sessions: many(sessions),
 }));
-module.exports = { projects, projectRelations };
+const sessions = sqliteTable('sessions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  uid: text('uid').notNull().unique(),
+  projectId: integer('project_id').references(() => projects.id, { onDelete: 'set null' }),
+  src: text('src'), title: text('title'), customTitle: text('custom_title'), alias: text('alias'),
+  createdAt: text('created_at'), lastTimestamp: text('last_timestamp'),
+  isOpen: integer('is_open', { mode: 'boolean' }).notNull().default(false),
+  activity: text('activity').notNull().default('idle'),
+  activityUpdatedAt: integer('activity_updated_at').notNull().default(0),
+  sourceSyncedAt: integer('source_synced_at').notNull().default(0),
+  sourceMtime: integer('source_mtime'), sourceSize: integer('source_size'),
+  data: text('data', { mode: 'json' }).notNull().default({}),
+});
+const sessionRelations = relations(sessions, ({ one }) => ({ project: one(projects, { fields: [sessions.projectId], references: [projects.id] }) }));
+module.exports = { projects, projectRelations, sessions, sessionRelations };

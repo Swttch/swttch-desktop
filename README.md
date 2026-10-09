@@ -46,9 +46,13 @@ standalone tgz를 풀어 사용하려면 `SWTTCH_RUNTIME_DIR`을 backend.mjs와 
 - 세션 목록은 기존 백엔드 `GET_SESSIONS`의 최근 30개 응답을 원본 필드 그대로 전달받는다. 세션 선택·새 채팅·목록 검색을 제공한다.
 - iframe은 React 레이아웃에 따라 창 크기 및 사이드바 토글에 맞춰 배치된다. Electron bounds IPC는 사용하지 않는다.
 - 공통 Node.js 서비스가 프로젝트 경로 검증·SQLite 최근 목록·백엔드 재시도를 처리한다. Electron preload는 네이티브 폴더 선택만 제공하며, 선택한 경로는 같은 공통 API로 전달한다.
-- 전용 임시 포트와 loopback으로 실행한다. 기존 로컬 WebSocket 인증을 사용한다.
+- CCG 채팅 백엔드는 loopback의 고정 포트 `19836`을 사용한다. 앱 시작 시 기존 `/version`과 인증된 `/internal/status`를 확인해 실행 중인 CCG 백엔드를 재사용하고, 없으면 같은 `backend.mjs`를 직접 실행한다. `ccg run`의 브라우저 open 단계는 호출하지 않는다. 다른 서비스나 인증 불일치 시 임의 포트로 우회하거나 기존 프로세스를 종료하지 않는다.
 - 브라우저 탭을 닫아도 로컬 서버는 실행 주체가 관리한다. 개발 서버 종료 시 그 서버가 실행한 채팅 백엔드를 정리한다. 설치형 Electron의 앱 종료 시에는 앱이 실행한 Node.js 호스트가 백엔드를 정리한다.
-- 앱 데이터는 `~/.swttch`: `desktop.sqlite`, `browser/`, `desktop-backend.log`, `runtime-secret`, 기존 백엔드의 엔티티 데이터. 런타임 비밀은 로컬 서비스가 소유하고 제어 토큰을 파생한다. Node 서비스 재실행에도 인증 식별자를 유지한다.
+- 앱 데이터는 `~/.swttch`: `desktop.sqlite`, `browser/`, `desktop-backend.log`다. CCG 인증은 CLI·플러그인과 같은 `~/.claude-code-gui/auth-secret`(XDG_CONFIG_HOME 설정 시 그 디렉터리)에서 HMAC-SHA256(secret, `ccg-auth`)로 파생한다. 제어 토큰은 URL에 넣지 않고, 각 웹뷰 진입마다 `/internal/local-pair`가 발급한 일회용 코드만 URL에 포함해 기존 POST /pair·WebSocket 인증 흐름을 사용한다.
+
+세션 원본 URL은 `http://localhost:19836/sessions/new?workingDir=...` 또는 `/sessions/:sessionId?workingDir=...`다. URL 생성기는 비어 있거나 상대 경로인 workingDir를 거부한다. 기존 백엔드의 SAMEORIGIN 프레임 정책 때문에 브라우저 셸 iframe은 동일 출처 프록시를 통해 이 경로와 모든 쿼리 파라미터를 보존해 연결한다. 원본 포트는 19836이며 토큰·프레임 보안 정책은 변경하지 않는다. 앱 종료는 앱이 직접 실행한 백엔드만 종료하고, 기존 CLI·IDE 백엔드는 유지한다.
+
+셸 URL은 앱·프로젝트 탐색에만 사용한다. 개별 세션의 ID와 workingDir는 작업 뷰의 iframe URL에만 둔다. 새 채팅·세션 선택은 프로젝트 ID를 API로 보내고 백엔드가 DB의 path를 조회해 /sessions/new 또는 /sessions/:sessionId URL을 만든다. 작업 뷰는 자신의 세션 URL을 보유하며 서버 상태 이벤트로 다른 뷰의 세션으로 전환하지 않는다.
 - 기존 백엔드의 전역 설정·설치 프로필 일부는 `~/.claude-code-gui`를 사용한다. CLI 원본 대화는 기존 `~/.claude` 경로에 유지한다. 전체 저장 경로 분리는 후속 작업이다.
 - 개발용 데이터 루트를 바꾸려면 `SWTTCH_DESKTOP_HOME`을 지정한다. CLI 원본 및 기존 전역 설정 경로까지 바꾸지는 않는다.
 
@@ -107,3 +111,7 @@ Electron도 ORM 드라이버의 Node ABI가 동일하도록 시스템 Node.js 24
 프로젝트 상세 라우트와 REST 프로젝트 리소스는 /projects/:projectId 형식의 정수 ID를 사용합니다. SQLite v4 업그레이드는 원본 JSONL의 정수 ID를 기본키로 보존하며, ID가 없는 기존 항목에만 새 ID를 부여합니다. 폴더 경로는 데이터 필드와 기존 채팅 백엔드 작업 디렉터리로만 사용합니다.
 
 프로젝트 상세의 세션 목록은 플러그인 세션 패널의 검색·날짜 그룹·페이징·활동/탭 필터·수정·삭제·키보드 동작을 적용한다. 전체 스펙과 환경별 적용은 [세션 목록](docs/session-list.md)을 참고한다.
+
+SQLite v7 세션 테이블, Promise 기반 단건·여러 건·전체 소스 싱크, CLI 이름 변경은 [세션 소스 싱크](docs/session-source-sync.md)를 참고한다. 데스크탑은 플러그인 별칭 파일을 읽기만 하고, GUI 이름 변경은 CLI의 `--resume`/`--name`으로 원본을 변경한 후 DB에 소스 싱크한다.
+
+iframe src는 셸 origin을 포함한 절대 URL로 만든다(개발: http://localhost:3000/sessions/...). 이 origin은 프록시 입구이며 실제 CCG 서버는 localhost:19836이다. 세션 상태는 셸 주소에 추가하지 않는다.

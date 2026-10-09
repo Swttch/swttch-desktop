@@ -13,7 +13,8 @@
     "react-router": "8.4.0",
     "drizzle-orm": "0.45.4",
     "better-sqlite3": "13.0.3",
-    "@tanstack/react-query": "5.104.1"
+    "@tanstack/react-query": "5.104.1",
+    "node-pty": "1.1.0"
   },
   "devDependencies": {
     "electron": "44.7.0",
@@ -24,5 +25,8 @@
     "typescript": "^5.9.3",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0"
+  },
+  "scripts": {
+    "postinstall": "node scripts/prepare-pty.cjs"
   }
 }

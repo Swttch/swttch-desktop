@@ -5,6 +5,7 @@ PLUGIN_ROOT=$(dirname "$(dirname "$ROOT")")
 case "${1:--h}" in
   install) npm --prefix "$ROOT" install ;;
   build)
+    node "$ROOT/scripts/build-source-reader.cjs"
     for source in "$ROOT"/src/*.cjs "$ROOT"/src/database/*.cjs; do node --check "$source"; done
     node --check "$ROOT/scripts/dev.mjs"
     node "$ROOT/node_modules/typescript/lib/tsc.js" --project "$ROOT/renderer/tsconfig.json"
@@ -14,8 +15,8 @@ case "${1:--h}" in
     bash "$PLUGIN_ROOT/scripts/build.sh" be-build
     bash "$PLUGIN_ROOT/scripts/build.sh" wv-build
     ;;
-  test) node --test "$ROOT"/test/*.test.cjs ;;
-  dev) node "$ROOT/scripts/dev.mjs" "${@:2}" ;;
+  test) node "$ROOT/scripts/build-source-reader.cjs"; node --test "$ROOT"/test/*.test.cjs ;;
+  dev) node "$ROOT/scripts/build-source-reader.cjs"; node "$ROOT/scripts/dev.mjs" "${@:2}" ;;
   dev-electron) node "$ROOT/scripts/dev.mjs" --electron ;;
   serve) node "$ROOT/src/host.cjs" ;;
   start) unset ELECTRON_RUN_AS_NODE; "$ROOT/node_modules/.bin/electron" "$ROOT" "${@:2}" ;;

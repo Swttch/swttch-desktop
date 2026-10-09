@@ -1,1 +1,1 @@
-module.exports = { FRONTEND_PORT: 3000, API_PORT: 3030 };
+module.exports = { FRONTEND_PORT: 3000, API_PORT: 3030, WEBVIEW_PORT: 19836 };

@@ -20,3 +20,10 @@
 - 준비·로딩·빈 목록·오류·disabled 상태를 성공으로 오인하지 않도록 확인.
 - 수정 전 화면은 `artifacts/pre-reference-layout/`에 보존한다. 결과 캡처를 남겨 사용자 검수를 요청한다.
 - 검사 한 번, 발견한 문제를 한 번에 수정, 최종 확인 한 번으로 끝낸다. 추가 기능 실패는 기능 검증으로 따로 해결하고 무한 시각 폴리싱을 하지 않는다.
+
+## 사이드바 섹션 상태
+
+- 활성 세션·프로젝트 섹션의 펼침 상태는 SidebarStateProvider의 React Context로 공유한다.
+- localStorage의 swttch-sidebar-sections-v1에 저장하고, 같은 출처의 다른 창에도 storage 이벤트로 반영한다.
+- 서버 데이터는 계속 TanStack Query가 소유한다. Context에 프로젝트·세션 응답을 복제하지 않는다.
+- 제목 바로 오른쪽 chevron으로 전환하며, 접힌 내용은 DOM을 유지하고 inert/aria-hidden으로 탐색에서 제외한다. 높이·불투명도 전환은 기존 sidebar-session-collapse를 사용하며 reduced-motion을 따른다.

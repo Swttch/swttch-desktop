@@ -30,6 +30,7 @@
   .header-context { @apply ml-3 border-l border-divider pl-4; }
   .icon-button { @apply relative flex size-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-hover hover:text-foreground; }
   .session-title > .tooltip-anchor { @apply flex w-full; }
+  .session-title > div > .tooltip-anchor { @apply flex w-full; }
   .tooltip-anchor { @apply inline-flex min-w-0; }
   .project-row, .session-row { width: 100%; }
   .session-list > .tooltip-anchor, section > .tooltip-anchor { @apply flex w-full; }
@@ -47,6 +48,9 @@
   .project-row { @apply flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm hover:bg-hover; }
   .session-row { @apply block w-full truncate rounded-xl py-2 pr-3 pl-8 text-left text-[13px] leading-5 hover:bg-hover; }
   .session-row.selected { @apply bg-selected; }
+  .session-row > div > .tooltip-anchor { @apply flex w-full; }
+  .sidebar-session-collapse { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 220ms ease, opacity 160ms ease; }
+  .sidebar-session-collapse.is-expanded { grid-template-rows: 1fr; opacity: 1; }
   .list-note { @apply py-2 pr-3 pl-8 text-xs leading-5 text-muted; }
   .workspace { @apply border-l border-divider/60; transition: border-top-left-radius 240ms cubic-bezier(0.16, 1, 0.3, 1); }
   .sidebar-collapsed .workspace { @apply rounded-tl-2xl; }
@@ -60,7 +64,7 @@
 .tippy-box[data-theme~='swttch'] .tippy-arrow { color: var(--color-chrome); }
 @media (max-width: 800px) { :root { --sidebar-width: 14rem; } .header-context { @apply ml-0 gap-2 pl-3; } }
 @media (prefers-reduced-motion: reduce) {
-  .icon-button, .shell-body, .sidebar-content, .workspace { transition: none; }
+  .icon-button, .shell-body, .sidebar-content, .workspace, .sidebar-session-collapse { transition: none; }
   .sidebar-collapsed #sidebar { transition-delay: 0s; }
   .sidebar-collapsed .sidebar-content { transform: none; }
 }

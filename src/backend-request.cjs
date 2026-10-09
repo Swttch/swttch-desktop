@@ -1,8 +1,15 @@
 const { randomUUID } = require('node:crypto');
 
+const pendingReads = new WeakMap();
+
 // Transport adapter only: preserve the original backend payload without reshaping.
 function backendRequest(backend, type, payload) {
-  return new Promise((resolve, reject) => {
+  const read = type.startsWith('GET_');
+  let requests = pendingReads.get(backend);
+  if (!requests) { requests = new Map(); pendingReads.set(backend, requests); }
+  const key = JSON.stringify([type, payload]);
+  if (read && requests.has(key)) return requests.get(key);
+  const promise = new Promise((resolve, reject) => {
     const requestId = randomUUID();
     const socket = new WebSocket(`ws://127.0.0.1:${backend.port}/ws?env=BROWSER`, ['ccg-auth', backend.token]);
     let settled = false;
@@ -25,5 +32,11 @@ function backendRequest(backend, type, payload) {
       else if (message.type === 'ACK') finish(null, message.payload);
     };
   });
+  if (read) {
+    requests.set(key, promise);
+    const clear = () => { if (requests.get(key) === promise) requests.delete(key); };
+    promise.then(clear, clear);
+  }
+  return promise;
 }
 module.exports = { backendRequest };

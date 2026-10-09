@@ -34,6 +34,7 @@ export interface DesktopState {
   backendId: string;
   sessionActivity?: { activity: Record<string, SessionActivity>; open: string[] };
   sessionsRevision?: number;
+  activityRevision?: number;
 }
 
 // Original GET_SESSIONS entry fields; the transport retains the full payload.
@@ -43,6 +44,8 @@ export interface SessionListEntry {
   title: string;
   lastTimestamp: string | null;
   createdAt: string;
+  isOpen?: boolean;
+  activity?: SessionActivity;
   messageCount: number | null;
   isSidechain: boolean;
 }

@@ -1,4 +1,5 @@
-export { PATH } from '../../src/paths.mjs';
+import { PATH } from '../../src/paths.mjs';
+export { PATH };
 
 /** Replace required :parameters as URL-safe path segments. */
 export function replacePathParams(path: string, params: Readonly<Record<string, string | number>>) {

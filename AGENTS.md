@@ -17,3 +17,5 @@
 
 - 데스크탑 프론트의 HTTP 조회·변경은 반드시 TanStack Query (`useQuery`/`useMutation`)로 관리한다. 서버 상태를 별도 React state로 복제하지 않는다. SSE는 이벤트 수신 후 Query 캐시를 갱신한다. 기존 임베딩 채팅의 WebSocket 구현은 재사용한다.
 - 백엔드는 RESTful API를 원칙으로 한다. 리소스 중심 경로, 조회 GET, 생성 POST, 전체 변경 PUT, 부분 변경 PATCH, 삭제 DELETE를 사용한다. 경로 상수는 공유 `src/api-paths.mjs`에서 관리한다.
+
+- 셸 URL은 앱·프로젝트 탐색 전용이다. 개별 세션 URL은 각 작업 뷰의 iframe에서 관리하며 sessions 복수형 명칭을 사용한다. 세션 열기 API는 프로젝트 ID를 받아 DB path를 조회하고, iframe URL에 workingDir를 반드시 포함한다.

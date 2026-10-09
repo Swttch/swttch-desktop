@@ -7,7 +7,7 @@ const { backendRequest } = require('../src/backend-request.cjs');
 test('session adapter forwards original backend payload and field names without loss', async t => {
   const server = createServer();
   const sockets = new Set();
-  let forwarded;
+  let forwarded; let requestCount = 0;
   const original = { sessions: [{ sessionId: 'session-1', sessionDir: '/project', title: '원본 제목', createdAt: '2026-10-09', futureMetadata: { keep: true } }], total: 1, hasMore: false, nextOffset: 1, scopeDirCount: 1, futurePageField: ['keep'] };
   server.on('upgrade', (req, socket) => {
     sockets.add(socket); socket.on('close', () => sockets.delete(socket));
@@ -26,7 +26,7 @@ test('session adapter forwards original backend payload and field names without 
       const mask = pending.subarray(offset, offset + 4);
       const body = Buffer.from(pending.subarray(offset + 4, offset + 4 + length));
       for (let index = 0; index < body.length; index++) body[index] ^= mask[index % 4];
-      forwarded = JSON.parse(body.toString());
+      requestCount++; forwarded = JSON.parse(body.toString());
       pending = pending.subarray(offset + 4 + length);
       const payload = Buffer.from(JSON.stringify({ type: 'ACK', payload: { ...original, requestId: forwarded.requestId } }));
       const header = Buffer.alloc(4); header[0] = 0x81; header[1] = 126; header.writeUInt16BE(payload.length, 2);
@@ -35,8 +35,17 @@ test('session adapter forwards original backend payload and field names without 
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(async () => { for (const socket of sockets) socket.destroy(); await new Promise(resolve => server.close(resolve)); });
-  const result = await backendRequest({ port: server.address().port, token: 'test-token' }, 'GET_SESSIONS', { workingDir: '/project', limit: 30 });
+  const backend = { port: server.address().port, token: 'test-token' };
+  const first = backendRequest(backend, 'GET_SESSIONS', { workingDir: '/project', limit: 30 });
+  const duplicate = backendRequest(backend, 'GET_SESSIONS', { workingDir: '/project', limit: 30 });
+  assert.equal(first, duplicate);
+  const [result, duplicateResult] = await Promise.all([first, duplicate]);
+  assert.deepEqual(result, duplicateResult);
+  assert.equal(requestCount, 1);
+  const firstRequestId = forwarded.requestId;
+  await backendRequest(backend, 'GET_SESSIONS', { workingDir: '/project', limit: 30 });
+  assert.equal(requestCount, 2); // Completed reads are not cached: changes remain visible.
   assert.equal(forwarded.type, 'GET_SESSIONS');
   assert.deepEqual(forwarded.payload, { workingDir: '/project', limit: 30 });
-  assert.deepEqual(result, { ...original, requestId: forwarded.requestId });
+  assert.deepEqual(result, { ...original, requestId: firstRequestId });
 });

@@ -3,9 +3,12 @@ const { randomBytes } = require('node:crypto');
 const { existsSync } = require('node:fs');
 const { join } = require('node:path');
 const { createInterface } = require('node:readline');
+const { WEBVIEW_PORT } = require('./ports.cjs');
+const { getControlToken } = require('./launcher-auth.cjs');
+const { sessionUrl } = require('./session-url.cjs');
 
 class Backend {
-  constructor({ runtime, home, executable = process.execPath, token = randomBytes(32).toString('hex'), onExit = () => {}, onLog = () => {} }) {
+  constructor({ runtime, home, executable = process.execPath, token = getControlToken(), port = WEBVIEW_PORT, onExit = () => {}, onLog = () => {} }) {
     this.runtime = runtime;
     this.home = home;
     this.executable = executable;
@@ -15,10 +18,25 @@ class Backend {
     this.port = null;
     this.token = token;
     this.pairCode = null;
+    this.targetPort = port;
   }
 
-  start() {
-    if (this.child) return Promise.reject(new Error('Backend is already running'));
+  async start() {
+    if (this.child || this.port) throw new Error('Backend is already running');
+    let existing;
+    try { existing = await fetch(`http://127.0.0.1:${this.targetPort}/version`, { signal: AbortSignal.timeout(1500) }); }
+    catch (error) {
+      if (error.cause?.code !== 'ECONNREFUSED') throw new Error('고정 웹뷰 포트의 백엔드 상태를 확인하지 못했습니다.');
+    }
+    if (existing) {
+      let version;
+      try { version = await existing.json(); } catch { /* Foreign server. */ }
+      if (!existing.ok || typeof version?.version !== 'string') throw new Error('고정 웹뷰 포트를 다른 서비스가 사용 중입니다.');
+      const status = await fetch(`http://127.0.0.1:${this.targetPort}/internal/status`, { headers: { 'x-ccg-token': this.token }, signal: AbortSignal.timeout(1500) });
+      if (!status.ok) throw new Error('실행 중인 CCG 백엔드의 인증을 확인하지 못했습니다.');
+      this.port = this.targetPort;
+      return this.port;
+    }
     const entry = join(this.runtime, 'backend.mjs');
     const webview = this.webview || join(this.runtime, 'webview');
     if (!existsSync(entry) || !existsSync(join(webview, 'index.html'))) {
@@ -31,7 +49,7 @@ class Backend {
       env: {
         ...process.env,
         ELECTRON_RUN_AS_NODE: '1', NODE_ENV: 'production', JETBRAINS_MODE: 'false',
-        PORT: '0', CCG_BIND: '127.0.0.1', WEBVIEW_DIR: webview,
+        PORT: String(this.targetPort), CCG_BIND: '127.0.0.1', WEBVIEW_DIR: webview,
         CCG_AUTH_TOKEN: this.token, CCG_INITIAL_PAIR_CODE: this.pairCode,
         CCG_HOME: this.home, CCG_HOST_PID: String(process.pid),
         // This preview owns the process even while its project picker is shown.
@@ -52,6 +70,7 @@ class Backend {
         if (!match || ready) return;
         const port = Number(match[1]);
         if (port < 1 || port > 65535) return;
+        if (port !== this.targetPort) { finish(); reject(new Error('백엔드가 고정 웹뷰 포트에서 시작되지 않았습니다.')); void this.stop(); return; }
         this.port = port;
         ready = true;
         finish();
@@ -72,15 +91,12 @@ class Backend {
 
   url(project) {
     if (!this.port) throw new Error('Backend is not ready');
-    const url = new URL(`http://127.0.0.1:${this.port}/sessions/new`);
-    url.searchParams.set('workingDir', project);
-    url.searchParams.set('pair', this.pairCode);
-    return url.href;
+    return sessionUrl(project, undefined, this.pairCode, this.port);
   }
 
   async stop() {
     const child = this.child;
-    if (!child) return;
+    if (!child) { this.port = null; return; }
     await new Promise(resolve => {
       const timer = setTimeout(() => child.kill('SIGKILL'), 5_000);
       child.once('exit', () => { clearTimeout(timer); resolve(); });

@@ -7,7 +7,7 @@ const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 const { createLocalService } = require('../src/local-service.cjs');
 
-async function setup(t, allowedOrigins = []) {
+async function setup(t, allowedOrigins = [], registerProject = true, sourceConfig = () => ({}), seedSessions = true) {
   const home = mkdtempSync(join(tmpdir(), 'swttch-api-test-'));
   const project = join(home, '한글 project & space');
   mkdirSync(project);
@@ -64,7 +64,7 @@ async function setup(t, allowedOrigins = []) {
   });
   await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve));
   const backend = { port: upstream.address().port, token: 'private-token', async start() {}, async stop() {} };
-  const service = createLocalService({ home, backend, allowedOrigins, folderDialog: { async select() { return project; }, stop() {} } });
+  const service = createLocalService({ home, backend, allowedOrigins, ...await sourceConfig(home), folderDialog: { async select() { return project; }, stop() {} } });
   const server = createServer((req, res) => service.middleware(req, res, () => res.end('shell')));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   service.bind(server);
@@ -83,6 +83,12 @@ async function setup(t, allowedOrigins = []) {
     const { csrf } = await response.json();
     return { cookie: response.headers.get('set-cookie').split(';')[0], 'x-swttch-csrf': csrf, 'Content-Type': 'application/json' };
   }
+  if (registerProject) await fetch(base + '/desktop-api/projects', { method: 'POST', headers: await client(), body: JSON.stringify({ path: project, alias: '', description: '' }) });
+  if (registerProject && seedSessions) {
+    const headers = await client();
+    const row = (await (await fetch(base + '/desktop-api/projects', { headers })).json()).projects.find(row => row.path === project);
+    assert.equal((await fetch(base + '/desktop-api/projects/' + row.id + '/session-imports', { method: 'POST', headers, body: '{}' })).status, 201);
+  }
   return { base, project, client, backendRequests, port: server.address().port };
 }
 
@@ -92,21 +98,28 @@ test('common API validates directories, persists recents, and isolates browser p
   const second = await client();
   let response = await fetch(`${base}/desktop-api/workspace`, { method: 'PUT', headers: first, body: JSON.stringify({ path: '/missing-directory' }) });
   assert.equal(response.status, 400);
-  response = await fetch(`${base}/desktop-api/workspace`, { method: 'PUT', headers: first, body: JSON.stringify({ path: project }) });
+  assert.equal((await fetch(base + '/desktop-api/workspace', { method: 'PUT', headers: first, body: JSON.stringify({ projectId: 999999 }) })).status, 400);
+  response = await fetch(`${base}/desktop-api/workspace`, { method: 'PUT', headers: first, body: JSON.stringify({ projectId: 1 }) });
   const opened = await response.json();
   assert.equal(opened.phase, 'chat');
   assert.equal(opened.project, project);
   assert.equal(new URL(opened.chatUrl, base).searchParams.get('workingDir'), project);
+  assert.equal(new URL(opened.chatUrl).hostname, 'localhost');
+  assert.equal(new URL(opened.chatUrl).pathname, '/sessions/new');
   assert.equal(opened.chatUrl.includes('private-token'), false);
   response = await fetch(`${base}/desktop-api/workspace`, { headers: second });
   const other = await response.json();
   assert.equal(other.project, null);
   assert.deepEqual(other.recent, [project]);
-  response = await fetch(`${base}${opened.chatUrl}`, { headers: first });
+  response = await fetch(opened.chatUrl);
   assert.equal(await response.text(), 'chat-app');
   assert.equal(response.headers.get('x-frame-options'), 'SAMEORIGIN');
   response = await fetch(`${base}/internal/local-pair`, { headers: first });
   assert.equal(response.status, 401); // The proxy never adds backend credentials for clients.
+  const sessionId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const existing = await (await fetch(`${base}/desktop-api/workspace`, { method: 'PUT', headers: first, body: JSON.stringify({ projectId: 1, sessionId }) })).json();
+  assert.equal(new URL(existing.chatUrl).pathname, '/sessions/' + sessionId);
+  assert.equal(new URL(existing.chatUrl).searchParams.get('workingDir'), project);
 });
 
 test('local API rejects missing sessions, forged origins, and mutations without CSRF', async t => {
@@ -116,7 +129,7 @@ test('local API rejects missing sessions, forged origins, and mutations without 
   assert.equal((await fetch(`${base}/desktop-api/sessions`, { method: 'POST', headers: { 'x-swttch-client': 'web', Origin: 'https://evil.example' } })).status, 403);
   const headers = await client();
   delete headers['x-swttch-csrf'];
-  assert.equal((await fetch(`${base}/desktop-api/workspace`, { method: 'PUT', headers, body: JSON.stringify({ path: project }) })).status, 403);
+  assert.equal((await fetch(`${base}/desktop-api/workspace`, { method: 'PUT', headers, body: JSON.stringify({ projectId: 1 }) })).status, 403);
   const validHeaders = await client();
   assert.equal((await fetch(`${base}/desktop-api/workspace`, { method: 'PUT', headers: validHeaders, body: JSON.stringify({ path: '~invalid-relative-path' }) })).status, 400);
 });
@@ -125,7 +138,7 @@ test('API permits the configured frontend origin and rejects other local ports',
   const { base, project, client } = await setup(t, ['http://localhost:3000']);
   const headers = { ...await client(), Origin: 'http://localhost:3000', 'Sec-Fetch-Site': 'same-site' };
   assert.equal((await fetch(`${base}/desktop-api/workspace`, {
-    method: 'PUT', headers, body: JSON.stringify({ path: project }),
+    method: 'PUT', headers, body: JSON.stringify({ projectId: 1 }),
   })).status, 200);
   assert.equal((await fetch(`${base}/desktop-api/workspace`, {
     headers: { ...headers, Origin: 'http://localhost:3001' },
@@ -135,7 +148,7 @@ test('API permits the configured frontend origin and rejects other local ports',
 test('REST project resources persist aliases and pins while enforcing CSRF and methods', async t => {
   const { base, project, client } = await setup(t);
   const headers = await client();
-  await fetch(`${base}/desktop-api/workspace`, { method: 'PUT', headers, body: JSON.stringify({ path: project }) });
+  await fetch(`${base}/desktop-api/workspace`, { method: 'PUT', headers, body: JSON.stringify({ projectId: 1 }) });
   const resource = `${base}/desktop-api/projects/${encodeURIComponent((await (await fetch(base + '/desktop-api/projects', { headers })).json()).projects.find(item => item.path === project).id)}`;
   const updated = await fetch(resource, { method: 'PATCH', headers, body: JSON.stringify({ alias: '새 이름', description: '프로젝트 메모', favorite: true }) });
   assert.equal(updated.status, 200);
@@ -153,7 +166,7 @@ test('REST project resources persist aliases and pins while enforcing CSRF and m
 });
 
 test('folder selections and project creation register a project without changing the workspace', async t => {
-  const { base, project, client } = await setup(t);
+  const { base, project, client } = await setup(t, [], false);
   const headers = await client();
   const selected = await fetch(`${base}/desktop-api/folder-selections`, { method: 'POST', headers, body: '{}' });
   assert.equal(selected.status, 201);
@@ -183,7 +196,7 @@ test('folder selections and project creation register a project without changing
 test('REST delete delegates transcript removal and hides the ORM row only after backend success', async t => {
   const { base, project, client } = await setup(t);
   const headers = await client();
-  await fetch(`${base}/desktop-api/workspace`, { method: 'PUT', headers, body: JSON.stringify({ path: project }) });
+  await fetch(`${base}/desktop-api/workspace`, { method: 'PUT', headers, body: JSON.stringify({ projectId: 1 }) });
   const response = await fetch(`${base}/desktop-api/projects/${encodeURIComponent((await (await fetch(base + '/desktop-api/projects', { headers })).json()).projects.find(item => item.path === project).id)}`, { method: 'DELETE', headers });
   assert.equal(response.status, 204);
   const list = await (await fetch(`${base}/desktop-api/projects`, { headers })).json();
@@ -218,25 +231,29 @@ test('session REST paging preserves raw entries and mutations resolve nested ses
   const listUrl = base + '/desktop-api/projects/' + created.id + '/sessions';
   mkdirSync(join(project, 'nested'));
   await fetch(base + '/desktop-api/projects', { method: 'POST', headers, body: JSON.stringify({ path: join(project, 'nested') }) });
-  const first = await (await fetch(listUrl, { headers })).json();
+  await fetch(base + '/desktop-api/projects/' + created.id + '/session-imports', { method: 'POST', headers, body: '{"includeNested":true}' });
+  const requestCount = backendRequests.length;
+  const first = await (await fetch(listUrl + '?includeNested=true', { headers })).json();
   assert.equal(first.sessions.length, 30); assert.equal(first.hasMore, true); assert.equal(first.nextOffset, 30);
   assert.deepEqual(first.sessions[0].originalExtra, { preserved: true }); assert.equal(first.scopeDirCount, 2);
   assert.equal(backendRequests.at(-1).payload.includeNested, false);
-  const last = await (await fetch(listUrl + '?offset=30', { headers })).json();
+  assert.equal(backendRequests.at(-1).payload.limit, 30);
+  assert.equal(backendRequests.length, requestCount);
+  const last = await (await fetch(listUrl + '?offset=30&includeNested=true', { headers })).json();
   assert.equal(last.sessions.length, 5); assert.equal(last.hasMore, false);
-  assert.equal((await (await fetch(listUrl + '?limit=all', { headers })).json()).sessions.length, 35);
+  assert.equal((await (await fetch(listUrl + '?limit=all&includeNested=true', { headers })).json()).sessions.length, 35);
   assert.equal((await fetch(listUrl + '?offset=-1', { headers })).status, 400);
   const resource = listUrl + '/session-34';
   assert.equal((await fetch(resource, { method: 'PATCH', headers: { cookie: headers.cookie }, body: '{"title":"rename"}' })).status, 403);
   assert.equal((await fetch(resource, { method: 'PATCH', headers, body: '{"title":" "}' })).status, 400);
-  assert.equal((await fetch(resource, { method: 'PATCH', headers, body: '{"title":"  Renamed  "}' })).status, 200);
-  assert.equal(backendRequests.at(-1).type, 'RENAME_SESSION'); assert.equal(backendRequests.at(-1).payload.workingDir, join(project, 'nested')); assert.equal(backendRequests.at(-1).payload.title, 'Renamed');
+  assert.equal((await fetch(resource, { method: 'PATCH', headers, body: '{"title":"  Renamed  "}' })).status, 400);
+  assert.equal(backendRequests.some(row => row.type === 'RENAME_SESSION'), false);
   assert.equal((await fetch(resource + '/read-receipts', { method: 'POST', headers, body: '{}' })).status, 204);
   assert.equal(backendRequests.at(-1).type, 'MARK_SESSION_READ');
   assert.equal((await fetch(listUrl + '/missing', { method: 'DELETE', headers })).status, 404);
   assert.equal((await fetch(resource, { method: 'DELETE', headers })).status, 204);
   assert.equal(backendRequests.at(-1).type, 'DELETE_SESSION'); assert.equal(backendRequests.at(-1).payload.workingDir, join(project, 'nested'));
-  assert.equal((await (await fetch(listUrl + '?limit=all', { headers })).json()).sessions.length, 34);
+  assert.equal((await (await fetch(listUrl + '?limit=all&includeNested=true', { headers })).json()).sessions.length, 34);
 });
 
 
@@ -266,11 +283,12 @@ test('project session scope persists through the backend and lists only register
   const command = backendRequests.find(message => message.type === 'SAVE_SETTINGS');
   assert.deepEqual(command.payload, { key: 'includeNestedSessions', value: false, scope: 'project', workingDir: project });
   assert.equal((await (await fetch(url, { headers })).json()).includeNestedSessions, false);
+  await fetch(base + '/desktop-api/projects/' + parent.id + '/session-imports', { method: 'POST', headers, body: '{"includeNested":true}' });
   const listUrl = base + '/desktop-api/projects/' + parent.id + '/sessions?limit=all';
   const local = await (await fetch(listUrl, { headers })).json();
   assert.equal(local.sessions.length, 34); assert.equal(local.scopeDirCount, 1);
   await fetch(url, { method: 'PATCH', headers, body: '{"includeNestedSessions":true}' });
-  assert.equal((await (await fetch(listUrl, { headers })).json()).sessions.length, 35);
+  assert.equal((await (await fetch(listUrl + '&includeNested=true', { headers })).json()).sessions.length, 35);
   const childUrl = base + '/desktop-api/projects/' + child.id;
   assert.equal((await fetch(base + '/desktop-api/projects/' + parent.id, { method: 'PATCH', headers, body: JSON.stringify({ projectId: child.id }) })).status, 400);
   assert.equal((await fetch(childUrl, { method: 'PATCH', headers, body: '{"projectId":99999}' })).status, 400);
@@ -280,6 +298,109 @@ test('project session scope persists through the backend and lists only register
   // An explicit parent outside the folder hierarchy also determines session scope.
   const siblingProject = (await (await fetch(base + '/desktop-api/projects', { headers })).json()).projects.find(row => row.path === sibling);
   await fetch(childUrl, { method: 'PATCH', headers, body: JSON.stringify({ projectId: siblingProject.id }) });
-  const siblingSessions = await (await fetch(base + '/desktop-api/projects/' + siblingProject.id + '/sessions?limit=all', { headers })).json();
+  const siblingSessions = await (await fetch(base + '/desktop-api/projects/' + siblingProject.id + '/sessions?limit=all&includeNested=true', { headers })).json();
   assert.deepEqual(siblingSessions.sessions.map(row => row.sessionId), ['session-34']);
+});
+
+test('desktop rename uses the CLI adapter, syncs the source into ORM, and leaves legacy aliases intact', async t => {
+  const fs = require('node:fs/promises');
+  const { pathToFileURL } = require('node:url');
+  let aliasFile, calls = [];
+  const { base, client, backendRequests } = await setup(t, [], true, async home => {
+    const source = join(home, 'source'); await fs.mkdir(source);
+    const src = join(source, 'session-0.jsonl');
+    await fs.writeFile(src, JSON.stringify({ type: 'user', timestamp: '2026-10-01T00:00:00Z', message: { role: 'user', content: 'Original title' } }) + '\n');
+    aliasFile = join(source, '.claude-code-gui-session-titles.json'); await fs.writeFile(aliasFile, '{"session-0":"Legacy alias"}');
+    const parser = await import(pathToFileURL(join(__dirname, '../dist/session-source.mjs')).href);
+    return { sourceReader: async () => ({ ...parser, getProjectSessionsPath: async () => source }), renameSession: async args => { calls.push(args); await fs.appendFile(args.src, JSON.stringify({ type: 'custom-title', customTitle: args.title, sessionId: args.uid }) + '\n'); } };
+  });
+  const headers = await client(), resource = base + '/desktop-api/projects/1/sessions/session-0';
+  const response = await fetch(resource, { method: 'PATCH', headers, body: '{"title":" Renamed via CLI "}' });
+  assert.equal(response.status, 200);
+  const result = await response.json(); assert.equal(result.session.customTitle, 'Renamed via CLI'); assert.equal(result.session.alias, 'Legacy alias'); assert.equal(result.session.title, 'Original title');
+  assert.equal(calls.length, 1); assert.equal(calls[0].uid, 'session-0'); assert.ok(result.session.sourceSyncedAt);
+  assert.equal(backendRequests.some(row => row.type === 'RENAME_SESSION'), false);
+  assert.equal(await fs.readFile(aliasFile, 'utf8'), '{"session-0":"Legacy alias"}');
+  const syncUrl = base + '/desktop-api/session-source-syncs';
+  assert.equal((await fetch(syncUrl, { method: 'POST', headers: { cookie: headers.cookie }, body: '{}' })).status, 403);
+  const batch = await (await fetch(syncUrl, { method: 'POST', headers, body: '{"uids":["session-0","missing"]}' })).json();
+  assert.deepEqual(batch.results.map(row => row.status), ['fulfilled', 'rejected']);
+  const bulk = await (await fetch(syncUrl, { method: 'POST', headers, body: '{}' })).json(); assert.equal(bulk.results.length, 34); assert.equal(bulk.results.filter(row => row.status === 'fulfilled').length, 1);
+});
+
+test('active sessions REST reads DB only and backend activity hydrates missing rows before subsequent queries', async t => {
+  let publish;
+  const { base, client, backendRequests } = await setup(t, [], true, () => ({
+    subscribe(_backend, callback) { publish = callback; return () => {}; },
+  }), false);
+  const headers = await client();
+  const before = backendRequests.length;
+  let response = await fetch(base + '/desktop-api/active-sessions', { headers });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).rows.length, 0);
+  assert.equal(backendRequests.length, before);
+  const projectResponse = await fetch(base + '/desktop-api/projects', { headers });
+  const project = (await projectResponse.json()).projects[0];
+  const uid = 'session-0';
+  publish('activity', { open: [uid], activity: { [uid]: 'running' } });
+  for (let attempt = 0; attempt < 50; attempt++) {
+    response = await fetch(base + '/desktop-api/active-sessions', { headers });
+    if ((await response.json()).rows[0]?.session.sessionId === uid) break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.equal((await (await fetch(base + '/desktop-api/active-sessions', { headers })).json()).rows[0].session.sessionId, uid);
+  // This UID was never fetched by a UI list. Event hydration must discover it.
+  publish('activity', { open: ['session-32'], activity: { 'session-32': 'awaiting' } });
+  let hydrated;
+  for (let attempt = 0; attempt < 50; attempt++) {
+    hydrated = await (await fetch(base + '/desktop-api/active-sessions', { headers })).json();
+    if (hydrated.rows[0]?.session.sessionId === 'session-32') break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.equal(hydrated.rows[0].session.sessionId, 'session-32');
+  assert.equal(hydrated.rows[0].session.originalExtra.preserved, true);
+  const queriesBefore = backendRequests.filter(row => row.type === 'GET_SESSIONS').length;
+  await fetch(base + '/desktop-api/active-sessions?offset=0&limit=5', { headers });
+  assert.equal(backendRequests.filter(row => row.type === 'GET_SESSIONS').length, queriesBefore);
+  publish('activity', { open: [], activity: {} });
+  response = await fetch(base + '/desktop-api/active-sessions', { headers });
+  assert.equal((await response.json()).rows.length, 0);
+  assert.equal((await fetch(base + '/desktop-api/active-sessions?offset=-1', { headers })).status, 400);
+});
+
+test('session migration is explicit, paged and repeatable; list GET stays DB-only and exposes event-driven state', async t => {
+  let publish;
+  const { base, project, client, backendRequests } = await setup(t, [], true, () => ({ subscribe(_backend, callback) { publish = callback; return () => {}; } }), false);
+  const headers = await client();
+  const owner = (await (await fetch(base + '/desktop-api/projects', { headers })).json()).projects.find(row => row.path === project);
+  const listUrl = base + '/desktop-api/projects/' + owner.id + '/sessions';
+  const importUrl = base + '/desktop-api/projects/' + owner.id + '/session-imports';
+  const before = backendRequests.length;
+  assert.equal((await (await fetch(listUrl, { headers })).json()).total, 0);
+  assert.equal(backendRequests.length, before);
+  assert.equal((await fetch(importUrl, { method: 'POST', headers: { cookie: headers.cookie }, body: '{}' })).status, 403);
+  assert.equal((await fetch(importUrl, { method: 'POST', headers, body: '{"includeNested":"yes"}' })).status, 400);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const imported = await (await fetch(importUrl, { method: 'POST', headers, body: '{}' })).json();
+    assert.equal(imported.imported, 34);
+  }
+  const after = backendRequests.length;
+  const first = await (await fetch(listUrl + '?limit=5', { headers })).json();
+  assert.equal(first.sessions.length, 5); assert.equal(first.total, 34); assert.equal(first.hasMore, true);
+  assert.equal((await (await fetch(listUrl + '?limit=all', { headers })).json()).sessions.length, 34);
+  assert.equal(backendRequests.length, after);
+  publish('activity', { open: ['session-0'], activity: { 'session-0': 'running' } });
+  let entries = (await (await fetch(listUrl + '?limit=all', { headers })).json()).sessions;
+  assert.equal(entries.find(row => row.sessionId === 'session-0').isOpen, true);
+  assert.equal(entries.find(row => row.sessionId === 'session-0').activity, 'running');
+  publish('activity', { open: ['session-0'], activity: { 'session-0': 'done' } });
+  entries = (await (await fetch(listUrl + '?limit=all', { headers })).json()).sessions;
+  assert.equal(entries.find(row => row.sessionId === 'session-0').activity, 'done');
+  publish('sessions', { action: 'delete', session: { sessionId: 'session-0' } });
+  for (let attempt = 0; attempt < 50; attempt++) {
+    entries = (await (await fetch(listUrl + '?limit=all', { headers })).json()).sessions;
+    if (!entries.some(row => row.sessionId === 'session-0')) break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.equal(entries.some(row => row.sessionId === 'session-0'), false);
 });
