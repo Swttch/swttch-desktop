@@ -9,6 +9,7 @@
   --color-divider: #393939;
   --color-hover: #303030;
   --color-selected: #353535;
+  --color-text-selection: #365578;
   --color-dev-line: #c4ff46;
   --color-status: #a8c1b6;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -19,7 +20,7 @@
   button { @apply cursor-pointer; }
   button:disabled { @apply cursor-default opacity-40; }
   button:focus-visible { @apply outline-2 outline-offset-[-2px] outline-foreground/70; }
-  ::selection { @apply bg-selected text-foreground; }
+  ::selection, input::selection, textarea::selection { @apply bg-text-selection text-white; }
   ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-thumb { @apply rounded-full bg-divider; }
 }

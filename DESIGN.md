@@ -19,6 +19,7 @@ Tailwind v4 `@theme`의 단일 소스는 `renderer/src/shell.css`다.
 | foreground | `#ededed` | 주요 텍스트 |
 | muted | `#a1a1a1` | 보조 텍스트·아이콘 |
 | selected | `#353535` | 선택된 세션·메뉴 |
+| text-selection | `#365578` | 텍스트 범위 선택 배경, 인풋·텍스트 영역 포함. 선택 텍스트는 흰색 |
 | divider | `#393939` | 미세한 영역 구분 |
 | dev-line | `#c4ff46` | 상단의 개발 모드 2px 라인 |
 

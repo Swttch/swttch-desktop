@@ -27,3 +27,4 @@
 - localStorage의 swttch-sidebar-sections-v1에 저장하고, 같은 출처의 다른 창에도 storage 이벤트로 반영한다.
 - 서버 데이터는 계속 TanStack Query가 소유한다. Context에 프로젝트·세션 응답을 복제하지 않는다.
 - 제목 바로 오른쪽 chevron으로 전환하며, 접힌 내용은 DOM을 유지하고 inert/aria-hidden으로 탐색에서 제외한다. 높이·불투명도 전환은 기존 sidebar-session-collapse를 사용하며 reduced-motion을 따른다.
+- 즐겨찾기·활성 세션·프로젝트 섹션을 펼치는 클릭에서 해당 목록의 Query 캐시를 무효화해 한 번 백그라운드 갱신한다. 캐시된 목록과 페이지네이션 상태는 유지하고, 접는 클릭은 갱신을 요청하지 않는다.
