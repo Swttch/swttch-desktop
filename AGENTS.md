@@ -7,7 +7,7 @@
 - Electron과 localhost 브라우저에서 같은 React + TypeScript 프론트 및 로컬 Node.js 백엔드를 사용한다.
 - 브라우저에서도 공통 기능이 실제로 동작해야 한다. Electron 전용 preload 의존이나 브라우저 목업을 공통 기능의 구현 완료로 간주하지 않는다.
 - 일반적인 프론트 구현·구동·검증은 Codex 브라우저의 localhost에서 진행한다. Electron 전용 통합만 네이티브 앱에서 따로 검증한다.
-- 빌드·테스트·개발 실행은 이 디렉토리의 `bash ./scripts/build.sh <command>`를 사용한다.
+- 데스크탑 패키지는 npm scripts를 사용한다: `npm run dev` (Electron 개발환경), `npm run dev:browser` (브라우저), `npm start` (일반 앱), `npm run build`, `npm test`. 상위 CCG 런타임 빌드는 `npm run runtime:build`에서 상위 저장소의 공식 빌드 스크립트를 호출한다.
 - 기존 채팅 앱과 백엔드는 재사용한다. 셸에 CLI·세션 비즈니스 로직을 중복 구현하지 않는다.
 - MVP의 단일 패널·단일 탭 범위를 유지한다.
 - 기본 외부 탭바는 표시하지 않는다. 왼쪽 레일은 유지하고 `⇧⌘S`로 중간 프로젝트·세션 사이드바만 토글한다.

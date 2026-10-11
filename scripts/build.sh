@@ -1,25 +1,18 @@
 #!/usr/bin/env bash
+# Compatibility entry point; desktop commands are defined in package.json.
 set -euo pipefail
 ROOT=$(dirname "$(dirname "$(realpath "$0")")")
-PLUGIN_ROOT=$(dirname "$(dirname "$ROOT")")
-case "${1:--h}" in
-  install) npm --prefix "$ROOT" install ;;
-  build)
-    node "$ROOT/scripts/build-source-reader.cjs"
-    for source in "$ROOT"/src/*.cjs "$ROOT"/src/database/*.cjs; do node --check "$source"; done
-    node --check "$ROOT/scripts/dev.mjs"
-    node "$ROOT/node_modules/typescript/lib/tsc.js" --project "$ROOT/renderer/tsconfig.json"
-    node "$ROOT/node_modules/vite/bin/vite.js" build --config "$ROOT/renderer/vite.config.mjs"
-    ;;
-  runtime-build)
-    bash "$PLUGIN_ROOT/scripts/build.sh" be-build
-    bash "$PLUGIN_ROOT/scripts/build.sh" wv-build
-    ;;
-  test) node "$ROOT/scripts/build-source-reader.cjs"; node --test "$ROOT"/test/*.test.cjs ;;
-  dev) node "$ROOT/scripts/build-source-reader.cjs"; node "$ROOT/scripts/dev.mjs" "${@:2}" ;;
-  dev-electron) node "$ROOT/scripts/dev.mjs" --electron ;;
-  serve) node "$ROOT/src/host.cjs" ;;
-  start) unset ELECTRON_RUN_AS_NODE; "$ROOT/node_modules/.bin/electron" "$ROOT" "${@:2}" ;;
-  -h|--help) echo 'Commands: install | build | runtime-build | test | dev | dev-electron | serve | start' ;;
-  *) echo "Unknown command: $1" >&2; exit 1 ;;
+COMMAND=${1:--h}
+if (($#)); then shift; fi
+case "$COMMAND" in
+  install) npm --prefix "$ROOT" install "$@" ;;
+  build) npm --prefix "$ROOT" run build -- "$@" ;;
+  runtime-build) npm --prefix "$ROOT" run runtime:build -- "$@" ;;
+  test) npm --prefix "$ROOT" test -- "$@" ;;
+  dev) npm --prefix "$ROOT" run dev:browser -- "$@" ;;
+  dev-electron) npm --prefix "$ROOT" run dev -- "$@" ;;
+  serve) npm --prefix "$ROOT" run serve -- "$@" ;;
+  start) unset ELECTRON_RUN_AS_NODE; npm --prefix "$ROOT" start -- "$@" ;;
+  -h|--help) echo "Use npm scripts: install | run build | run runtime:build | test | run dev | run dev:browser | run serve | start" ;;
+  *) echo "Unknown command: $COMMAND" >&2; exit 1 ;;
 esac

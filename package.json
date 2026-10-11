@@ -27,6 +27,17 @@
     "@types/react-dom": "^19.0.0"
   },
   "scripts": {
-    "postinstall": "node scripts/prepare-pty.cjs"
+    "postinstall": "node scripts/prepare-pty.cjs",
+    "start": "electron .",
+    "predev": "node scripts/build-source-reader.cjs",
+    "dev": "node scripts/dev.mjs --electron",
+    "predev:browser": "node scripts/build-source-reader.cjs",
+    "dev:browser": "node scripts/dev.mjs",
+    "prebuild": "node scripts/build-source-reader.cjs",
+    "build": "node scripts/check-syntax.mjs && tsc --project renderer/tsconfig.json && vite build --config renderer/vite.config.mjs",
+    "runtime:build": "bash ../../scripts/build.sh be-build && bash ../../scripts/build.sh wv-build",
+    "pretest": "node scripts/build-source-reader.cjs",
+    "test": "node --test test/*.test.cjs",
+    "serve": "node src/host.cjs"
   }
 }

@@ -9,11 +9,11 @@
    html/body는 14px, 툴팁은 공통 Tippy, 토스트는 react-hot-toast의 단일 Toaster를 사용한다.
 3. 가짜 프로젝트·세션·탭을 보여주지 않는다. 로딩·빈 목록·오류를 각각 표시한다.
 4. 세션 목록은 원본 백엔드의 응답을 그대로 받아 프론트에서 표시한다. 제목·식별자 필드명을 바꾸지 않는다.
-5. `bash ./scripts/build.sh build`로 strict TypeScript와 Tailwind/Vite 빌드를 확인한다.
+5. `npm run build`로 strict TypeScript와 Tailwind/Vite 빌드를 확인한다.
 
 ## 브라우저에서 확인할 때
 
-- `bash ./scripts/build.sh dev`, Codex 브라우저의 localhost 사용.
+- `npm run dev:browser`, Codex 브라우저의 localhost 사용.
 - 상단·레일의 배경 일치, 중간 사이드바만 접히는지, 외부 기본 탭바가 없는지 확인.
 - 버튼과 `⇧⌘S` 양쪽 토글 확인. iframe 입력에 포커스가 있어도 단축키 확인.
 - 실제 프로젝트·세션 선택, 선택 행, 대화 제목, 검색 및 새 채팅 확인.

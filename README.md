@@ -18,22 +18,22 @@ Google·GitHub·이메일 로그인, 기존 계정 연동, 중앙 API, 설치 �
 이 디렉토리를 작업 디렉토리로 사용한다. 개발 실행에는 Node.js 24 이상과 상위 플러그인 소스가 필요하다.
 
 ```bash
-bash ./scripts/build.sh install
-bash ./scripts/build.sh runtime-build
-bash ./scripts/build.sh build
-bash ./scripts/build.sh test
-bash ./scripts/build.sh dev
+npm install
+npm run runtime:build
+npm run build
+npm test
+npm run dev
 ```
 
-`dev`는 Electron을 실행하지 않고 프론트 Vite를 `localhost:3000`, 공통 Node.js API를 `localhost:3030`에서 실행한다. 두 포트는 고정이며 이미 사용 중이면 다른 포트로 이동하지 않고 실행을 실패한다. API·채팅·WebSocket은 Vite 프록시를 통해 같은 origin으로 연결한다. **Codex 브라우저에서 [localhost](http://localhost:3000/)를 연다.**
+`npm run dev`는 데스크탑 API와 Vite 개발 서버를 시작하고 Electron 앱을 실행한다. CCG 백엔드는 데스크탑 API 시작 시 자동으로 준비한다. `npm run dev:browser`는 Electron 없이 같은 서버를 실행한다. 프론트 Vite는 `localhost:3000`, 공통 Node.js API를 `localhost:3030`에서 실행한다. 두 포트는 고정이며 이미 사용 중이면 다른 포트로 이동하지 않고 실행을 실패한다. API·채팅·WebSocket은 Vite 프록시를 통해 같은 origin으로 연결한다. **Codex 브라우저에서 [localhost](http://localhost:3000/)를 연다.**
 **프로젝트 폴더 열기**에서 로컬 절대 경로 또는 `~/Projects/...`를 입력한다. 최근 프로젝트도 같은 API로 열린다. 기존 Claude Code CLI 설치 및 인증 상태를 사용한다.
 React Fast Refresh로 프론트 수정이 반영된다. Node.js 서비스·Electron 메인·preload 수정은 실행 주체 재시작이 필요하다.
 프론트 소스는 TypeScript(`.tsx`·`.ts`)이며 빌드 시 strict 타입체크를 실행한다.
-`bash ./scripts/build.sh serve`는 빌드한 프론트와 같은 로컬 API를 localhost에서 제공한다.
-`bash ./scripts/build.sh dev-electron`은 Vite 개발 서버에 Electron 호스트를 연결한다. `start`는 Electron이 별도 Node.js 로컬 호스트를 실행하고 같은 웹앱을 여는 경로다. 네이티브 통합 검증에만 사용한다.
+`npm run serve`는 빌드한 프론트와 같은 로컬 API를 localhost에서 제공한다.
+`npm run dev`는 Vite 개발 서버에 Electron 호스트를 연결한다. `npm start`는 `electron .`을 실행한다. Electron이 별도 Node.js 로컬 호스트를 실행하고 같은 웹앱을 여는 경로다. 네이티브 통합 검증에만 사용한다.
 최근 프로젝트를 선택하면 같은 폴더에서 새 채팅 화면을 연다. 마지막 세션 자동 복원·작업 자동 재개는 없다.
 
-`runtime-build`는 상위 저장소의 공식 빌드 스크립트를 호출한다. 이미 빌드 산출물이 있으면 생략할 수 있다.
+`npm run runtime:build`는 상위 저장소의 공식 빌드 스크립트를 호출한다. 이미 빌드 산출물이 있으면 생략할 수 있다.
 standalone tgz를 풀어 사용하려면 `SWTTCH_RUNTIME_DIR`을 backend.mjs와 webview 디렉토리가 들어 있는 폴더로 지정한다.
 
 ## 첫 버전의 동작과 데이터
