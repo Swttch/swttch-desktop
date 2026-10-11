@@ -441,6 +441,22 @@ test('project order REST enforces CSRF, validates full membership and atomically
   assert.deepEqual((await (await fetch(base + '/desktop-api/projects', { headers })).json()).projects, saved);
 });
 
+test('provider usage REST requires app authentication and protects refreshes with CSRF', async t => {
+  const reads = [];
+  const snapshot = { profile: { account: { display_name: 'Test' } }, usage: { future: { preserved: true } }, errors: { profile: null, usage: null }, checkedAt: 123 };
+  const { base, client } = await setup(t, [], false, () => ({ providerUsage: { async read(options) { reads.push(options); return snapshot; } } }), false);
+  const path = base + '/desktop-api/provider-usage';
+  const refreshPath = base + '/desktop-api/provider-usage-refreshes';
+  assert.equal((await fetch(path)).status, 401);
+  const headers = await client();
+  assert.deepEqual(await (await fetch(path, { headers })).json(), snapshot);
+  assert.equal((await fetch(path, { method: 'POST', headers })).status, 405);
+  assert.equal((await fetch(refreshPath, { method: 'POST', headers: { cookie: headers.cookie } })).status, 403);
+  assert.equal((await fetch(path, { headers: { ...headers, Origin: 'https://foreign.test' } })).status, 403);
+  assert.deepEqual(await (await fetch(refreshPath, { method: 'POST', headers })).json(), snapshot);
+  assert.deepEqual(reads, [{ refresh: false }, { refresh: true }]);
+});
+
 test('desktop clients restore their view while browser clients remain isolated', async t => {
   const { base, project, client } = await setup(t);
   async function desktop() {

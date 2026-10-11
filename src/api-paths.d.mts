@@ -1,4 +1,6 @@
 export const API_PATH: {
+  readonly PROVIDER_USAGE: '/desktop-api/provider-usage';
+  readonly PROVIDER_USAGE_REFRESHES: '/desktop-api/provider-usage-refreshes';
   readonly SESSIONS: '/desktop-api/sessions';
   readonly FAVORITE_SESSIONS: '/desktop-api/favorite-sessions';
   readonly ACTIVE_SESSIONS: '/desktop-api/active-sessions';

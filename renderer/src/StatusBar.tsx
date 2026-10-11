@@ -1,16 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import type { UsageBucket } from '@swttch/extend-kit/battery';
 import { desktopApi } from './api';
 import { DesktopPhase, type DesktopState } from './desktop';
 import { QUERY_KEY, queryClient } from './query-client';
 import { Tooltip } from './Tooltip';
+import claudeLogo from './assets/claude-logo.svg';
 
-enum Panel { Connection = 'connection' }
+enum Panel { Account = 'account', Connection = 'connection' }
+const percent = (value: number) => Math.round(Math.min(100, Math.max(0, value)));
+const resetTime = (value: string | null | undefined) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '초기화 시각 없음';
+const labels: Record<string, string> = { five_hour: '5시간', seven_day: '주간', seven_day_opus: 'Opus 주간', seven_day_sonnet: 'Sonnet 주간', seven_day_oauth_apps: 'OAuth 앱 주간', seven_day_cowork: 'Cowork 주간' };
 
 export function StatusBar({ state }: { state: DesktopState }) {
   const [panel, setPanel] = useState<Panel | null>(null);
   const root = useRef<HTMLElement>(null);
+  const accountButton = useRef<HTMLButtonElement>(null);
   const connectionButton = useRef<HTMLButtonElement>(null);
+  const query = useQuery({ queryKey: QUERY_KEY.providerUsage, queryFn: ({ signal }) => desktopApi.providerUsage(signal), staleTime: 60_000, refetchInterval: 60_000 });
+  const refresh = useMutation({ mutationFn: desktopApi.refreshProviderUsage, onSuccess: data => queryClient.setQueryData(QUERY_KEY.providerUsage, data) });
   const reconnect = useMutation({ mutationFn: desktopApi.retry, onSuccess: data => queryClient.setQueryData(QUERY_KEY.workspace, data) });
   useEffect(() => {
     if (!panel) return;
@@ -18,7 +26,7 @@ export function StatusBar({ state }: { state: DesktopState }) {
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       setPanel(null);
-      connectionButton.current?.focus();
+      (panel === Panel.Account ? accountButton : connectionButton).current?.focus();
     };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', escape);
@@ -26,9 +34,44 @@ export function StatusBar({ state }: { state: DesktopState }) {
     window.addEventListener('blur', blur);
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); window.removeEventListener('blur', blur); };
   }, [panel]);
+  const data = query.data;
+  const usage = data?.usage;
+  const account = data?.profile?.account;
+  const windows = usage ? Object.entries(usage).flatMap(([key, value]) => {
+    if (!value || typeof value !== 'object' || !('utilization' in value) || typeof value.utilization !== 'number' || !Number.isFinite(value.utilization) || !('resets_at' in value)) return [];
+    return [{ label: labels[key] || key, value: value as UsageBucket }];
+  }) : [];
+  const namedLimits = usage?.limits?.filter(limit => {
+    if (!Number.isFinite(limit.percent)) return false;
+    // The provider also describes the standard windows in limits. Keep the
+    // original response intact and avoid showing those windows twice here.
+    const duplicate = limit.kind === 'session' ? usage.five_hour : limit.kind === 'weekly_all' ? usage.seven_day : null;
+    return !duplicate || duplicate.utilization !== limit.percent || duplicate.resets_at !== limit.resets_at;
+  }) || [];
   const ready = state.phase === DesktopPhase.Ready || state.phase === DesktopPhase.Chat;
   const connectionLabel = ready ? '로컬 연결됨' : state.phase === DesktopPhase.Error ? '연결 종료' : '연결 중';
-  return <footer ref={root} className="relative flex h-8 shrink-0 items-center justify-end gap-3 border-t border-divider bg-navigation px-3 text-xs text-muted" aria-label="공통 상태바">
+  const compact = [usage?.five_hour && `5시간 ${percent(usage.five_hour.utilization)}%`, usage?.seven_day && `주간 ${percent(usage.seven_day.utilization)}%`].filter(Boolean).join(' · ');
+  const error = refresh.error?.message || query.error?.message;
+  return <footer ref={root} className="relative flex h-8 shrink-0 items-center justify-between gap-3 border-t border-divider bg-navigation px-3 text-xs text-muted" aria-label="공통 상태바">
+    <Tooltip content="로컬 Claude 계정과 구독 사용량" placement="top-start">
+      <button ref={accountButton} type="button" className="flex min-w-0 items-center gap-2 rounded px-2 py-1 hover:bg-selected focus-visible:outline-2 focus-visible:outline-foreground" aria-label="Claude 계정 및 사용량" aria-expanded={panel === Panel.Account} aria-controls="provider-usage-panel" onClick={() => setPanel(panel === Panel.Account ? null : Panel.Account)}>
+        <img src={claudeLogo} alt="" className="size-3.5" /><span>Claude</span><span className="hidden tabular-nums min-[560px]:inline">{query.isPending ? '조회 중…' : compact ? `사용 ${compact}` : '사용량 확인'}</span>
+      </button>
+    </Tooltip>
+    {panel === Panel.Account && <section id="provider-usage-panel" aria-label="Claude 계정 및 사용량 상세" className="absolute bottom-full left-3 z-50 mb-2 max-h-[min(36rem,75dvh)] w-[min(24rem,calc(100vw-1.5rem))] overflow-y-auto rounded-lg border border-divider bg-navigation p-4 text-sm text-foreground">
+      <div className="flex items-center justify-between gap-4"><h2 className="font-medium">Claude 계정·사용량</h2><button type="button" className="secondary-button text-xs" disabled={query.isFetching || refresh.isPending} onClick={() => refresh.mutate()}>{query.isFetching || refresh.isPending ? '조회 중…' : '새로고침'}</button></div>
+      <p className="mt-2 text-xs leading-5 text-muted">이 컴퓨터의 기본 Claude 로그인 기준입니다. 세션별 계정·컨텍스트 사용량과는 별개입니다.</p>
+      {query.isPending && <p role="status" className="mt-4">계정 정보를 조회하고 있습니다.</p>}
+      {error && <p role="alert" className="mt-4 text-muted">{error}</p>}
+      {account && <div className="mt-4 break-words"><p>{account.display_name || account.full_name || 'Claude 계정'}</p><p className="mt-1 text-xs text-muted">{account.email}</p><p className="mt-1 text-xs text-muted">{account.has_claude_max ? 'Claude Max' : account.has_claude_pro ? 'Claude Pro' : data?.profile?.organization.organization_type}</p></div>}
+      {data?.errors.profile && <p role="status" className="mt-4 text-xs leading-5 text-muted">{data.errors.profile.message}</p>}
+      {windows.map(({ label, value }) => <div key={label} className="mt-4"><div className="flex justify-between gap-3"><span>{label}</span><span className="tabular-nums">사용 {percent(value.utilization)}%</span></div><div role="progressbar" aria-label={`${label} 사용량`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent(value.utilization)} className="mt-2 h-1.5 overflow-hidden rounded bg-selected"><div className="h-full rounded bg-muted" style={{ width: `${percent(value.utilization)}%` }} /></div><p className="mt-1 text-xs text-muted">{resetTime(value.resets_at)}</p></div>)}
+      {namedLimits.map((limit, index) => <div key={`${limit.kind}-${index}`} className="mt-4"><div className="flex justify-between gap-3"><span>{limit.scope?.model?.display_name || limit.kind}</span><span className="tabular-nums">사용 {percent(limit.percent)}%</span></div><p className="mt-1 text-xs text-muted">{resetTime(limit.resets_at)}</p></div>)}
+      {usage?.extra_usage && <p className="mt-4 text-xs text-muted">추가 사용 {usage.extra_usage.is_enabled ? '활성화' : '비활성화'}{typeof usage.extra_usage.utilization === 'number' && ` · 사용 ${percent(usage.extra_usage.utilization)}%`}</p>}
+      {data?.errors.usage && <p role="status" className="mt-4 text-xs leading-5 text-muted">{data.errors.usage.message}</p>}
+      {usage && windows.length === 0 && namedLimits.length === 0 && <p className="mt-4 text-muted">제공된 사용 한도 정보가 없습니다.</p>}
+      {data && <p className="mt-4 text-xs text-muted">마지막 조회 {new Date(data.checkedAt).toLocaleTimeString('ko-KR')} · 1분마다 조회, 요청 제한 시 대기</p>}
+    </section>}
     <Tooltip content="CCG 백엔드 연결 상태" placement="top-end">
       <button ref={connectionButton} type="button" className="flex shrink-0 items-center gap-2 rounded px-2 py-1 hover:bg-selected focus-visible:outline-2 focus-visible:outline-foreground" aria-expanded={panel === Panel.Connection} aria-controls="backend-connection-panel" onClick={() => setPanel(panel === Panel.Connection ? null : Panel.Connection)}><span aria-hidden="true" className={`size-1.5 rounded-full ${ready ? 'bg-status' : 'bg-muted'}`} /><span>{connectionLabel}</span></button>
     </Tooltip>

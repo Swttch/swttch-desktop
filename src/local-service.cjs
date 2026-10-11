@@ -15,8 +15,9 @@ const { backendRequest } = require('./backend-request.cjs');
 const { sessionUrl } = require('./session-url.cjs');
 const { displayTitle, createSessionSourceSync } = require('./session-source-sync.cjs');
 const { renameSessionWithCli } = require('./session-rename.cjs');
+const { createProviderUsage } = require('./provider-usage.cjs');
 
-function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(homedir(), '.swttch'), backend: suppliedBackend, allowedOrigins = [], folderDialog: suppliedFolderDialog, sourceReader, renameSession = renameSessionWithCli, subscribe = subscribeBackend } = {}) {
+function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(homedir(), '.swttch'), backend: suppliedBackend, allowedOrigins = [], folderDialog: suppliedFolderDialog, sourceReader, renameSession = renameSessionWithCli, subscribe = subscribeBackend, providerUsage = createProviderUsage() } = {}) {
   mkdirSync(home, { recursive: true, mode: 0o700 });
   const store = openStore(home);
   const sourceSync = createSessionSourceSync({ repository: store.sessionRepository, projects: store.projects, reader: sourceReader });
@@ -202,6 +203,13 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
       return json(res, 201, { csrf: session.csrf, state: state(session) });
     }
     if (!session) return json(res, 401, { error: '앱 연결이 만료됐습니다. 새로고침해 주세요.' });
+    if (path === API_PATH.PROVIDER_USAGE || path === API_PATH.PROVIDER_USAGE_REFRESHES) {
+      const refresh = path === API_PATH.PROVIDER_USAGE_REFRESHES;
+      const method = refresh ? 'POST' : 'GET';
+      if (req.method !== method) { res.setHeader('Allow', method); return json(res, 405, { error: 'Method not allowed' }); }
+      if (refresh && req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      return json(res, 200, await providerUsage.read({ refresh }));
+    }
     if ([API_PATH.ACTIVE_SESSIONS, API_PATH.FAVORITE_SESSIONS].includes(path) && req.method === 'GET') {
       const params = new URL(req.url, 'http://localhost').searchParams;
       const offset = Number(params.get('offset') || 0), limit = Number(params.get('limit') || 5);

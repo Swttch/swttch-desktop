@@ -1,4 +1,6 @@
 export const API_PATH = Object.freeze({
+  PROVIDER_USAGE: '/desktop-api/provider-usage',
+  PROVIDER_USAGE_REFRESHES: '/desktop-api/provider-usage-refreshes',
   SESSIONS: '/desktop-api/sessions',
   FAVORITE_SESSIONS: '/desktop-api/favorite-sessions',
   ACTIVE_SESSIONS: '/desktop-api/active-sessions',
