@@ -65,13 +65,14 @@ export function StatusBar({ state }: { state: DesktopState }) {
   const connectionContent = <section id="backend-connection-panel" aria-label="백엔드 연결 상세" className="w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-divider bg-navigation p-4 text-sm text-foreground"><h2 className="font-medium">CCG 백엔드</h2><p role="status" className="mt-3">{connectionLabel}</p><p className="mt-2 text-xs leading-5 text-muted">{ready ? '채팅 환경에 연결돼 있습니다.' : state.message}</p>{state.phase === DesktopPhase.Error && <button type="button" className="secondary-button mt-4" disabled={reconnect.isPending} onClick={() => reconnect.mutate()}>{reconnect.isPending ? '연결 중…' : '다시 연결'}</button>}{reconnect.error && <p role="alert" className="mt-3 text-xs text-muted">{reconnect.error.message}</p>}</section>;
   return <footer className="relative flex h-8 shrink-0 items-center justify-between gap-3 border-t border-divider bg-navigation px-3 text-xs text-muted" aria-label="공통 상태바">
     <div className="flex min-w-0 items-center gap-1">
+    <AccountSwitcher connected={ready} />
+    <span aria-hidden="true" className="mx-1 h-3 w-px shrink-0 bg-divider" />
     <Dropdown content={usageContent}>
       <button type="button" className="flex min-w-0 items-center gap-2 rounded px-2 py-1 hover:bg-selected focus-visible:outline-2 focus-visible:outline-foreground" aria-label="Claude 계정 및 사용량" aria-expanded="false" aria-controls="provider-usage-panel">
         <img src={claudeLogo} alt="" className="size-3.5 shrink-0" /><svg aria-hidden="true" viewBox="0 0 16 16" style={{ color: batteryColor(remaining) }} className={`size-5 shrink-0 ${remaining !== null && remaining < 20 ? 'animate-pulse motion-reduce:animate-none' : ''} ${query.isFetching ? 'opacity-50' : ''}`} fill="currentColor"><rect x="1" y="4" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none" /><rect x="13" y="6.5" width="1.5" height="3" rx=".5" />{remaining !== null && <rect x="2.5" y="5.5" width={9 * remaining / 100} height="5" rx=".5" />}</svg><span className="tabular-nums" style={{ color: batteryColor(remaining) }}>{query.isPending ? '…' : compact || '—'}</span>
       </button>
     </Dropdown>
     <RefreshButton pending={query.isFetching || refresh.isPending} onClick={() => refresh.mutate()} />
-    <AccountSwitcher connected={ready} />
     </div>
 
     <Dropdown content={connectionContent}>
