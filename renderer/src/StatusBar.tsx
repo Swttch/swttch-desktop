@@ -68,15 +68,19 @@ export function StatusBar({ state }: { state: DesktopState }) {
     <AccountSwitcher connected={ready} />
     <span aria-hidden="true" className="mx-1 h-3 w-px shrink-0 bg-divider" />
     <Dropdown content={usageContent}>
+      <Tooltip content="Claude 구독 사용률 · 배터리 채움은 5h 잔여 한도" placement="top-start">
       <button type="button" className="flex min-w-0 items-center gap-2 rounded px-2 py-1 hover:bg-selected focus-visible:outline-2 focus-visible:outline-foreground" aria-label="Claude 계정 및 사용량" aria-expanded="false" aria-controls="provider-usage-panel">
         <img src={claudeLogo} alt="" className="size-3.5 shrink-0" /><svg aria-hidden="true" viewBox="0 0 16 16" style={{ color: batteryColor(remaining) }} className={`size-5 shrink-0 ${remaining !== null && remaining < 20 ? 'animate-pulse motion-reduce:animate-none' : ''} ${query.isFetching ? 'opacity-50' : ''}`} fill="currentColor"><rect x="1" y="4" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none" /><rect x="13" y="6.5" width="1.5" height="3" rx=".5" />{remaining !== null && <rect x="2.5" y="5.5" width={9 * remaining / 100} height="5" rx=".5" />}</svg><span className="tabular-nums" style={{ color: batteryColor(remaining) }}>{query.isPending ? '…' : compact || '—'}</span>
       </button>
+      </Tooltip>
     </Dropdown>
     <RefreshButton pending={query.isFetching || refresh.isPending} onClick={() => refresh.mutate()} />
     </div>
 
     <Dropdown content={connectionContent}>
+      <Tooltip content="CCG 백엔드 연결 상태" placement="top-end">
       <button type="button" className="flex shrink-0 items-center gap-2 rounded px-2 py-1 hover:bg-selected focus-visible:outline-2 focus-visible:outline-foreground" aria-expanded="false" aria-controls="backend-connection-panel"><span aria-hidden="true" className={`size-1.5 rounded-full ${ready ? 'bg-status' : 'bg-muted'}`} /><span>{connectionLabel}</span></button>
+      </Tooltip>
     </Dropdown>
 
   </footer>;

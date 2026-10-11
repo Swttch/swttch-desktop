@@ -4,6 +4,7 @@
 프론트 작업에서는 [디자인 시스템](DESIGN.md)과 [UI 플레이북](docs/design-playbook.md)을 함께 읽는다. Tailwind 유틸리티 및 공통 토큰을 사용한다.
 - html/body 기본 크기는 14px. 공통 툴팁은 Tippy, 공통 토스트는 react-hot-toast를 사용한다.
 - 모든 드롭다운은 Tippy로 구현한다. 직접 position 배치와 전역 바깥 클릭 리스너로 대체하지 않는다. 새 드롭다운은 공통 `Dropdown.tsx`를 사용하고 바깥 클릭·Esc·상호 배타적 열기를 유지한다.
+- 클릭 드롭다운으로 리팩토링하더라도 기존 hover·focus 툴팁은 유지한다. 툴팁과 드롭다운은 서로 다른 Tippy 인스턴스로 공존하며, 툴팁 표시가 열린 드롭다운을 닫아서는 안 된다.
 
 - Electron과 localhost 브라우저에서 같은 React + TypeScript 프론트 및 로컬 Node.js 백엔드를 사용한다.
 - 브라우저에서도 공통 기능이 실제로 동작해야 한다. Electron 전용 preload 의존이나 브라우저 목업을 공통 기능의 구현 완료로 간주하지 않는다.
