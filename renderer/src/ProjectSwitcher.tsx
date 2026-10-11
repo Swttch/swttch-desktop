@@ -1,0 +1,13 @@
+import { useRef, useState } from 'react';
+import type { Project } from './desktop';
+import { Dropdown } from './Dropdown';
+import { Tooltip } from './Tooltip';
+
+const nameOf = (project: Project) => project.alias || project.path.replace(/\/$/, '').split('/').pop() || project.path;
+export function ProjectSwitcher({ projects, selected, disabled, onSelect }: { projects: Project[]; selected?: Project; disabled: boolean; onSelect: (id: number) => void }) {
+  const close = useRef<(() => void) | null>(null);
+  const [search, setSearch] = useState('');
+  const filtered = projects.filter(project => nameOf(project).toLowerCase().includes(search.trim().toLowerCase()));
+  const content = <section id="project-switcher" aria-label="프로젝트 전환 목록" className="w-[min(20rem,calc(100vw-1.5rem))] rounded-lg border border-divider bg-navigation p-2 text-sm text-foreground"><input type="search" aria-label="전환할 프로젝트 검색" placeholder="프로젝트 검색" className="field mb-2" value={search} onChange={event => setSearch(event.target.value)} /><div className="max-h-[45dvh] overflow-y-auto">{filtered.map(project => <button key={project.id} type="button" aria-current={selected?.id === project.id ? 'true' : undefined} className="flex w-full items-center gap-2 rounded px-2 py-2 text-left hover:bg-selected" onClick={() => { close.current?.(); onSelect(project.id); }}><span className="min-w-0 flex-1 truncate">{nameOf(project)}</span>{selected?.id === project.id && <svg aria-label="현재 프로젝트" className="size-4 shrink-0 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="1.6"><path d="m4.5 12.75 6 6 9-13.5" /></svg>}</button>)}{filtered.length === 0 && <p className="px-2 py-3 text-xs text-muted">{projects.length ? '일치하는 프로젝트가 없습니다.' : '등록된 프로젝트가 없습니다.'}</p>}</div></section>;
+  return <Dropdown content={content} closeRef={close} onOpen={() => setSearch('')}><Tooltip content={selected ? nameOf(selected) : '프로젝트 선택'} placement="bottom-start"><button type="button" aria-label="프로젝트 전환" aria-controls="project-switcher" aria-expanded="false" disabled={disabled} className="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-selected"><svg aria-hidden="true" className="size-5 shrink-0 fill-none stroke-current text-muted" viewBox="0 0 24 24" strokeWidth="1.6"><path d="M3 7V5h6l2 2h10v13H3z" /></svg><span className="min-w-0 flex-1 truncate text-[13px] font-medium">{selected ? nameOf(selected) : '프로젝트 선택'}</span><svg aria-hidden="true" className="size-3 shrink-0 fill-none stroke-current text-muted" viewBox="0 0 24 24" strokeWidth="1.6"><path d="m6 9 6 6 6-6" /></svg></button></Tooltip></Dropdown>;
+}

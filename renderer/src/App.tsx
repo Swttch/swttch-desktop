@@ -21,6 +21,7 @@ import { sessionFrameUrl } from './session-view';
 import { SidebarProject } from './SidebarProject';
 import { readProjectSort, saveProjectSort, sortProjects, SortOrder } from './projects/projectSort';
 import { StatusBar } from './StatusBar';
+import { ProjectSwitcher } from './ProjectSwitcher';
 
 enum IconName { Folder, Chat, Sidebar, SidebarCollapsed, Plus, Home, History, Search, Refresh, Compose }
 function Icon({ name, solid = false, className = '' }: { name: IconName; solid?: boolean; className?: string }) {
@@ -43,7 +44,6 @@ function IconButton({ label, icon, shortcut, className = '', solid = false, ...p
     <button type="button" className={`icon-button ${className}`} aria-label={label} {...props}><Icon name={icon} solid={solid} /></button>
   </Tooltip>;
 }
-const basename = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() || path;
 const sidebarShortcut = (event: KeyboardEvent) => event.shiftKey && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's';
 
 export function App() {
@@ -72,7 +72,7 @@ export function App() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState(readProjectSort);
   const [sessionId, setSessionId] = useState('');
-  const [sessionTitle, setSessionTitle] = useState('새 채팅');
+  const [, setSessionTitle] = useState('새 채팅');
   const [frameReadyUrl, setFrameReadyUrl] = useState('');
   const [frameFailure, setFrameFailure] = useState<{ url: string; message: string } | null>(null);
   const [accountInfo, setAccountInfo] = useState(false);
@@ -251,6 +251,8 @@ export function App() {
   const search = query.trim().toLowerCase();
   const visibleProjects = sortProjects((projectsQuery.data?.projects || state.projects).filter(project => project.hiddenAt === 0 && (`${project.path} ${project.alias || ''}`.toLowerCase().includes(search) || project.path === state.project)), sort);
   const sidebarHidden = collapsed || projectsPage;
+  const switcherProjects = sortProjects((projectsQuery.data?.projects || state.projects).filter(project => !project.hiddenAt), sort);
+  const selectedHeaderProject = detailProject || switcherProjects.find(project => project.path === activeProjectPath);
   const feedback = error || workspaceQuery.error?.message || (state.phase === DesktopPhase.Error || state.phase === DesktopPhase.Starting ? state.message : '');
 
   return <div style={{ '--sidebar-width': sidebarWidth.width + 'px' } as React.CSSProperties} className={`app h-dvh overflow-hidden bg-chrome text-foreground${window.desktopHost ? ' electron-host' : ''}`}>
@@ -261,15 +263,19 @@ export function App() {
         .then(project => perform(() => desktopApi.openNewSession(project.id))).catch(error => toast.error(error.message));
     }} />}
     <Toaster position="bottom-right" toastOptions={{ duration: 4000, className: 'swttch-toast', style: { background: 'var(--color-navigation)', color: 'var(--color-foreground)', border: '1px solid var(--color-divider)', borderRadius: '12px', fontSize: '13px' } }} />
-    <header className="titlebar relative flex h-(--header-height) items-center gap-3 pr-3 pl-[calc(env(titlebar-area-x,0px)+0.75rem)] before:pointer-events-none before:absolute before:top-0 before:left-0 before:h-[2px] before:w-full before:bg-dev-line">
-      <IconButton label="사이드바 표시/숨기기" icon={sidebarHidden ? IconName.SidebarCollapsed : IconName.Sidebar} shortcut="⇧⌘S" aria-expanded={!sidebarHidden} aria-controls="sidebar" aria-keyshortcuts="Meta+Shift+S Control+Shift+S" onClick={() => { if (projectsPage) { router.push(PATH.HOME); setCollapsed(false); } else setCollapsed(value => !value); }} />
-      <div className="header-context flex min-w-0 flex-1 items-center gap-3">
-        <Icon name={IconName.Folder} className="text-muted" />
-        {detailProject ? <><span className="text-sm text-muted">프로젝트</span><span className="text-muted/40">/</span><span className="truncate text-sm font-medium">{detailProject.alias || basename(detailProject.path)}</span></> : projectsPage ? <span className="text-sm font-medium">프로젝트</span> : activeProjectPath ? <><Tooltip content={activeProjectPath}><span className="block max-w-48 truncate text-[13px] text-muted">{basename(activeProjectPath)}</span></Tooltip><span className="text-muted/40">/</span><span className="truncate text-sm font-medium">{sessionTitle}</span></> : <span className="text-sm font-medium">Swttch</span>}
-      </div>
-      <IconButton label="새 채팅" icon={IconName.Compose} onClick={newChat} disabled={disabled} />
-      <IconButton label="프로젝트 폴더 열기" icon={IconName.Folder} onClick={() => void openProject()} disabled={disabled} />
-    </header>
+    <div className={`titlebar relative grid h-(--header-height) ${sidebarHidden ? 'sidebar-collapsed' : ''} before:pointer-events-none before:absolute before:top-0 before:left-0 before:h-[2px] before:w-full before:bg-dev-line`}>
+      <header aria-label="상단바" className="titlebar-left col-span-2 flex min-w-0 items-center border-r border-divider pl-[calc(env(titlebar-area-x,0px)+0.75rem)]">
+        <IconButton label="사이드바 표시/숨기기" icon={sidebarHidden ? IconName.SidebarCollapsed : IconName.Sidebar} shortcut="⇧⌘S" aria-expanded={!sidebarHidden} aria-controls="sidebar" aria-keyshortcuts="Meta+Shift+S Control+Shift+S" onClick={() => { if (projectsPage) { router.push(PATH.HOME); setCollapsed(false); } else setCollapsed(value => !value); }} />
+        <div className="header-context flex min-w-0 flex-1 items-center pr-2" aria-label="상단바 중간 영역" aria-hidden={sidebarHidden} inert={sidebarHidden}>
+          <ProjectSwitcher projects={switcherProjects} selected={selectedHeaderProject} disabled={disabled} onSelect={chooseProject} />
+        </div>
+        <div className={`shrink-0 items-center pr-1 ${sidebarHidden ? 'hidden' : 'flex'}`}>
+          <IconButton label="새 채팅" icon={IconName.Compose} onClick={newChat} disabled={disabled} />
+          <IconButton label="프로젝트 폴더 열기" icon={IconName.Folder} onClick={() => void openProject()} disabled={disabled} />
+        </div>
+      </header>
+      <div aria-label="탭 영역" className="min-w-0" />
+    </div>
     <div className={`shell-body grid h-[calc(100dvh-var(--header-height)-2rem)] min-h-0 ${sidebarHidden ? 'sidebar-collapsed' : ''}`}>
       <nav className="activity-rail flex flex-col items-center gap-3 py-3" aria-label="앱 메뉴">
         <IconButton label="홈" icon={IconName.Home} solid={!projectNavigation} className={`rail-button ${!projectNavigation ? 'rail-active' : ''}`} aria-current={!projectNavigation ? 'page' : undefined} onClick={() => { router.push(PATH.HOME); setSelecting(false); }} />
