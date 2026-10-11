@@ -10,6 +10,7 @@ import { AccountSwitcher } from './AccountSwitcher';
 import { Dropdown } from './Dropdown';
 import { RefreshButton } from './RefreshButton';
 import { UsageReportSection } from './UsageReportSection';
+import { StatusClock } from './StatusClock';
 import { AccountIdentity, ActiveAccountMark } from './AccountIdentity';
 
 const percent = (value: number) => Math.round(Math.min(100, Math.max(0, value)));
@@ -98,11 +99,13 @@ export function StatusBar({ state }: { state: DesktopState }) {
     <RefreshButton pending={query.isFetching || refresh.isPending} onClick={() => refresh.mutate()} />
     </div>
 
+    <div className="flex shrink-0 items-center gap-2">
     <Dropdown content={connectionContent}>
       <Tooltip content="CCG 백엔드 연결 상태" placement="top-end">
       <button type="button" className="flex shrink-0 items-center gap-2 rounded px-2 py-1 hover:bg-selected focus-visible:outline-2 focus-visible:outline-foreground" aria-expanded="false" aria-controls="backend-connection-panel"><span aria-hidden="true" className={`size-1.5 rounded-full ${ready ? 'bg-status' : 'bg-muted'}`} /><span>{connectionLabel}</span></button>
       </Tooltip>
     </Dropdown>
-
+    <StatusClock />
+    </div>
   </footer>;
 }
