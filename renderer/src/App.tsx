@@ -3,7 +3,7 @@ import { SidebarSection } from './SidebarSection';
 import { SidebarSectionName } from './SidebarState';
 import { SidebarResize, useSidebarWidth } from './SidebarResize';
 import { useCallback, useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react';
-import { DesktopPhase, type DesktopState, type Project } from './desktop';
+import { DesktopPhase, SessionActivity, type DesktopState, type Project } from './desktop';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { queryClient, QUERY_KEY } from './query-client';
 import { desktopApi } from './api';
@@ -23,6 +23,7 @@ import { readProjectSort, saveProjectSort, sortProjects, SortOrder } from './pro
 import { StatusBar } from './StatusBar';
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { WorkspaceTab } from './WorkspaceTab';
+import { activateTabAction, type DesktopTabAction } from './tab-action';
 
 enum IconName { Folder, Chat, Sidebar, SidebarCollapsed, Plus, Home, History, Search, Refresh, Compose }
 function Icon({ name, solid = false, className = '' }: { name: IconName; solid?: boolean; className?: string }) {
@@ -252,6 +253,11 @@ export function App() {
     router.push(replacePathParams(PATH.PROJECT, { projectId }));
   }
   function openProject() { setError(''); setSelectingForChat(false); setSelecting(true); }
+  function openTabAction(action: DesktopTabAction) {
+    router.push(PATH.HOME);
+    if (!frame.current || frameLoading) { toast.error('채팅 화면을 불러온 뒤 다시 시도해 주세요.'); return; }
+    void activateTabAction(frame.current, action).catch(error => toast.error(error.message));
+  }
   function newChat() {
     const path = detailProject?.path || activeProjectPath;
     if (path) openView(path);
@@ -282,7 +288,7 @@ export function App() {
           <IconButton label="새 채팅" icon={IconName.Plus} onClick={newChat} disabled={disabled} />
         </div>
       </header>
-      <div role="tablist" aria-label="탭 영역" className="flex min-w-0 items-stretch overflow-x-auto">{chat && <WorkspaceTab title={sessionTitle} selected={!projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onClose={() => closeViewMutation.mutate()} />}</div>
+      <div role="tablist" aria-label="탭 영역" className="flex min-w-0 items-stretch overflow-x-auto">{chat && <WorkspaceTab running={state.sessionActivity?.activity[sessionId] === SessionActivity.Running} onAction={openTabAction} title={sessionTitle} selected={!projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onClose={() => closeViewMutation.mutate()} />}</div>
     </div>
     <div className={`shell-body grid h-[calc(100dvh-var(--header-height)-2rem)] min-h-0 ${sidebarHidden ? 'sidebar-collapsed' : ''}`}>
       <nav className="activity-rail flex flex-col items-center gap-3 py-3" aria-label="앱 메뉴">
