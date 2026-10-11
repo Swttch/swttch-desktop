@@ -3,6 +3,7 @@
   "productName": "Swttch",
   "version": "0.1.0-dev",
   "private": true,
+  "license": "AGPL-3.0-only",
   "description": "Swttch Desktop development preview",
   "main": "src/main.cjs",
   "dependencies": {

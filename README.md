@@ -1,5 +1,7 @@
 # Swttch Desktop
 
+Swttch Desktop is licensed under the [GNU Affero General Public License v3.0](LICENSE), the same license used by the Swttch plugin.
+
 스위치의 독립 데스크탑 개발환경 프로젝트.
 설치되는 앱 이름은 **Swttch**, 저장소와 내부 문서에서는 **Swttch Desktop**으로 구분한다.
 

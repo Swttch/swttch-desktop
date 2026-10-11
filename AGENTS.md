@@ -1,23 +1,25 @@
-# Swttch Desktop 에이전트 지침
+# Swttch Desktop Agent Instructions
 
-작업 전에 [핵심 원칙](docs/core-principles.md)을 읽고 따른다.
-프론트 작업에서는 [디자인 시스템](DESIGN.md)과 [UI 플레이북](docs/design-playbook.md)을 함께 읽는다. Tailwind 유틸리티 및 공통 토큰을 사용한다.
-- html/body 기본 크기는 14px. 공통 툴팁은 Tippy, 공통 토스트는 react-hot-toast를 사용한다.
-- 모든 드롭다운은 Tippy로 구현한다. 직접 position 배치와 전역 바깥 클릭 리스너로 대체하지 않는다. 새 드롭다운은 공통 `Dropdown.tsx`를 사용하고 바깥 클릭·Esc·상호 배타적 열기를 유지한다.
-- 클릭 드롭다운으로 리팩토링하더라도 기존 hover·focus 툴팁은 유지한다. 툴팁과 드롭다운은 서로 다른 Tippy 인스턴스로 공존하며, 툴팁 표시가 열린 드롭다운을 닫아서는 안 된다.
+Read and follow the [core principles](docs/core-principles.md) before starting work.
+For frontend work, also read the [design system](DESIGN.md) and [UI playbook](docs/design-playbook.md). Use Tailwind utilities and shared tokens.
 
-- Electron과 localhost 브라우저에서 같은 React + TypeScript 프론트 및 로컬 Node.js 백엔드를 사용한다.
-- 브라우저에서도 공통 기능이 실제로 동작해야 한다. Electron 전용 preload 의존이나 브라우저 목업을 공통 기능의 구현 완료로 간주하지 않는다.
-- 일반적인 프론트 구현·구동·검증은 Codex 브라우저의 localhost에서 진행한다. Electron 전용 통합만 네이티브 앱에서 따로 검증한다.
-- 데스크탑 패키지는 npm scripts를 사용한다: `npm run dev` (Electron 개발환경), `npm run dev:browser` (브라우저), `npm start` (일반 앱), `npm run build`, `npm test`. 상위 CCG 런타임 빌드는 `npm run runtime:build`에서 상위 저장소의 공식 빌드 스크립트를 호출한다.
-- 기존 채팅 앱과 백엔드는 재사용한다. 셸에 CLI·세션 비즈니스 로직을 중복 구현하지 않는다.
-- MVP의 단일 패널·단일 탭 범위를 유지한다.
-- 기본 외부 탭바는 표시하지 않는다. 왼쪽 레일은 유지하고 `⇧⌘S`로 중간 프로젝트·세션 사이드바만 토글한다.
-- 페이지 이동은 React Router 기반 `useRouter()`의 `router.push(PATH.*)`로 구현한다. 경로 리터럴은 `src/paths.mjs`에서 정의하고 프론트는 `renderer/src/routes.ts`에서 import한다. 경로 파라미터는 공통 `replacePathParams`로 치환한다.
+- Use English for public documentation, commit messages, code comments, issues, and pull requests. Localized product copy belongs in i18n resources. Preserve existing commit history.
+- The base html/body font size is 14px. Use Tippy for shared tooltips and react-hot-toast for shared toasts.
+- Implement all dropdowns with Tippy. Do not replace it with manual positioning and global outside-click listeners. Use the shared `Dropdown.tsx` for new dropdowns and preserve outside-click dismissal, Escape dismissal, and mutually exclusive opening.
+- Preserve existing hover and focus tooltips when refactoring to click dropdowns. Tooltips and dropdowns coexist as separate Tippy instances; showing a tooltip must not close an open dropdown.
 
-- 실제 SQLite 데이터 접근은 Drizzle ORM 스키마와 repository를 사용한다. 원시 SQL은 버전 업그레이드 DDL로 한정한다. 프로젝트 가져오기는 `~/.claude-code-gui/entities/project/projects.entity.jsonl`만 대상으로 하며 원본을 변경하지 않는다.
+- Use the same React + TypeScript frontend and local Node.js backend in Electron and localhost browsers.
+- Shared features must actually work in browsers. Electron-only preload dependencies or browser mocks do not establish completion of shared functionality.
+- Perform routine frontend implementation, execution, and verification in the Codex browser on localhost. Verify Electron-specific integrations separately in the native app.
+- Use the desktop package's npm scripts: `npm run dev` (Electron development), `npm run dev:browser` (browser), `npm start` (normal app), `npm run build`, and `npm test`. Use `npm run runtime:build` to invoke the parent repository's official build script for the CCG runtime.
+- Reuse the existing chat app and backend. Do not duplicate CLI or session business logic in the shell.
+- Preserve the MVP scope of one panel and one tab.
+- Hide the outer tab bar by default. Keep the left rail and use `⇧⌘S` to toggle only the middle project/session sidebar.
+- Implement navigation with React Router through `useRouter()` and `router.push(PATH.*)`. Define path literals in `src/paths.mjs` and import them through `renderer/src/routes.ts` in the frontend. Substitute route parameters with the shared `replacePathParams` helper.
 
-- 데스크탑 프론트의 HTTP 조회·변경은 반드시 TanStack Query (`useQuery`/`useMutation`)로 관리한다. 서버 상태를 별도 React state로 복제하지 않는다. SSE는 이벤트 수신 후 Query 캐시를 갱신한다. 기존 임베딩 채팅의 WebSocket 구현은 재사용한다.
-- 백엔드는 RESTful API를 원칙으로 한다. 리소스 중심 경로, 조회 GET, 생성 POST, 전체 변경 PUT, 부분 변경 PATCH, 삭제 DELETE를 사용한다. 경로 상수는 공유 `src/api-paths.mjs`에서 관리한다.
+- Use the Drizzle ORM schema and repositories for SQLite data access. Restrict raw SQL to schema-upgrade DDL. Import projects only from `~/.claude-code-gui/entities/project/projects.entity.jsonl` and never modify the original file.
 
-- 셸 URL은 앱·프로젝트 탐색 전용이다. 개별 세션 URL은 각 작업 뷰의 iframe에서 관리하며 sessions 복수형 명칭을 사용한다. 세션 열기 API는 프로젝트 ID를 받아 DB path를 조회하고, iframe URL에 workingDir를 반드시 포함한다.
+- Manage frontend HTTP reads and writes with TanStack Query (`useQuery`/`useMutation`). Do not duplicate server state in separate React state. Update the Query cache when SSE events arrive. Reuse the embedded chat's existing WebSocket implementation.
+- Follow RESTful API conventions in the backend: resource-oriented routes, GET for reads, POST for creation, PUT for full replacement, PATCH for partial updates, and DELETE for deletion. Keep shared route constants in `src/api-paths.mjs`.
+
+- Reserve the shell URL for app and project navigation. Each work view's iframe manages its own session URL; use the plural resource name `sessions`. Pass the project ID to the session-opening API, resolve its path from the database in the backend, and always include `workingDir` in the iframe URL.

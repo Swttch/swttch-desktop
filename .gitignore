@@ -2,3 +2,11 @@ node_modules/
 artifacts/
 dist/
 .omc/
+
+# Personal agent instructions and local Claude Code state.
+CLAUDE.local.md
+.claude.json
+
+# Keep Claude Code files local by default. Add explicit exceptions when
+# shared contributor skills or configuration are ready for publication.
+.claude/*
