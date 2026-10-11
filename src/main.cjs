@@ -22,14 +22,32 @@ async function startLocalHost() {
   });
   host.stderr.pipe(process.stderr);
   return new Promise((resolve, reject) => {
+    let ready = false;
     const timer = setTimeout(() => { host.kill(); reject(new Error('Local service startup timed out')); }, 30000);
     createInterface({ input: host.stdout }).on('line', line => {
       const match = /^DESKTOP_PORT:(\d+)$/.exec(line);
-      if (match) { clearTimeout(timer); resolve(`http://127.0.0.1:${match[1]}`); }
+      if (match) { ready = true; clearTimeout(timer); resolve(`http://127.0.0.1:${match[1]}`); }
     });
     host.once('error', error => { clearTimeout(timer); reject(error); });
-    host.once('exit', () => { clearTimeout(timer); if (!quitting) reject(new Error('Local service exited')); });
+    host.once('exit', () => {
+      clearTimeout(timer);
+      if (quitting) return;
+      reject(new Error('Local service exited'));
+      if (ready && window && !window.isDestroyed()) void recoverLocalHost();
+    });
   });
+}
+
+async function recoverLocalHost() {
+  const answer = await dialog.showMessageBox(window, {
+    message: '로컬 서버 연결이 종료됐습니다.',
+    detail: '서버를 다시 실행하고 마지막 대화를 엽니다. 중단된 에이전트 작업은 자동으로 재개하지 않습니다.',
+    buttons: ['종료', '다시 연결'], defaultId: 1, cancelId: 0,
+  });
+  if (quitting) return;
+  if (answer.response !== 1) { app.quit(); return; }
+  try { await window.loadURL(await startLocalHost()); }
+  catch (error) { dialog.showErrorBox('로컬 서버를 시작하지 못했습니다.', error.message); }
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -55,6 +73,9 @@ else {
       ...(process.platform === 'darwin' ? [{ label: 'Swttch', submenu: [{ role: 'about' }, { role: 'quit' }] }] : []),
       { role: 'editMenu' }, { label: '보기', submenu: [{ role: 'toggleDevTools' }, { role: 'togglefullscreen' }] },
     ]));
+    window.on('close', event => {
+      if (!quitting) { event.preventDefault(); app.quit(); }
+    });
     await window.loadURL(url);
   }).catch(error => { console.error(error.message); host?.kill(); app.exit(1); });
 }
@@ -67,7 +88,7 @@ app.on('before-quit', event => {
     if (window && !window.isDestroyed()) {
       const answer = await dialog.showMessageBox(window, {
         message: 'Swttch를 종료할까요?',
-        detail: host ? '이 앱의 로컬 서버와 실행 중인 에이전트 작업도 중단됩니다.' : '대화 화면을 닫습니다. 로컬 개발 서버는 실행 주체에서 관리합니다.',
+        detail: host ? '이 앱의 로컬 서버를 종료합니다. 앱이 실행한 채팅 서버와 해당 작업도 중단되며, 별도로 실행한 채팅 서버는 유지됩니다.' : '대화 화면을 닫습니다. 로컬 개발 서버는 실행 주체에서 관리합니다.',
         buttons: ['계속 작업', '종료'], defaultId: 0, cancelId: 0,
       });
       if (answer.response !== 1) { confirming = false; return; }

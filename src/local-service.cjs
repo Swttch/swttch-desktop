@@ -117,6 +117,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
     onLog: line => appendFileSync(join(home, 'desktop-backend.log'), `${line}\n`),
     onExit: () => {
       if (stopping || starting) return;
+      unsubscribeBackend();
       phase = 'error'; message = '채팅 연결이 종료됐습니다. 다시 연결해 주세요.';
       broadcast();
     },
@@ -138,15 +139,17 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
     unsubscribeBackend(); sessionActivity = { activity: {}, open: [] };
     store.sessionRepository.syncActivity(sessionActivity); activityRevision++;
     phase = 'starting'; message = '채팅 환경을 준비하고 있습니다.';
-    for (const session of sessions.values()) { session.project = null; session.chatUrl = null; }
     broadcast();
     starting = (async () => {
       try {
-        await backend.stop();
         await backend.start();
         phase = 'ready'; message = '프로젝트를 선택해 시작하세요.';
         if (!suppliedBackend || subscribe !== subscribeBackend) unsubscribeBackend = subscribe(backend, (type, payload) => {
-          if (type === 'activity') { sessionActivity = payload; store.sessionRepository.syncActivity(payload); activityRevision++; void hydrateOpenSessions(); }
+          if (type === 'connection') {
+            phase = payload.connected ? 'ready' : 'error';
+            message = payload.connected ? '프로젝트를 선택해 시작하세요.' : '채팅 연결이 끊겼습니다. 재연결 중입니다. 서버가 종료됐다면 재시도를 선택해 주세요.';
+          }
+          else if (type === 'activity') { sessionActivity = payload; store.sessionRepository.syncActivity(payload); activityRevision++; void hydrateOpenSessions(); }
           else { syncSessionEvent(payload); void hydrateOpenSessions(); }
           broadcast();
         });
@@ -186,10 +189,13 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
     let session = getSession(req);
     if (path === API_PATH.SESSIONS && req.method === 'POST') {
       // A custom header prevents cross-origin forms/no-cors requests from bootstrapping.
-      if (req.headers['x-swttch-client'] !== 'web') return json(res, 403, { error: 'Missing client header' });
+      if (!['web', 'desktop'].includes(req.headers['x-swttch-client'])) return json(res, 403, { error: 'Missing client header' });
       if (!session) {
         const id = randomBytes(32).toString('hex');
-        session = { csrf: randomBytes(24).toString('hex'), project: null, chatUrl: null };
+        const persist = req.headers['x-swttch-client'] === 'desktop';
+        const saved = persist ? store.workspace() : null;
+        const project = saved && store.projects().find(row => row.id === saved.projectId && !row.hiddenAt);
+        session = { csrf: randomBytes(24).toString('hex'), persist, project: project?.path || null, chatUrl: project ? sessionUrl(project.path, saved.sessionId || undefined, 'restore', backend.targetPort || backend.port) : null };
         sessions.set(id, session);
         res.setHeader('Set-Cookie', `${cookieName()}=${id}; HttpOnly; SameSite=Strict; Path=/`);
       }
@@ -394,6 +400,17 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         res.writeHead(204); res.end(); return;
       } catch (error) { return json(res, 400, { error: error.message }); }
     }
+    if (path === API_PATH.WORKSPACE && req.method === 'PATCH') {
+      if (req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      const body = await readBody(req);
+      if (typeof body.sessionId !== 'string' || !/^[a-f0-9-]{36}$/i.test(body.sessionId)) return json(res, 400, { error: '올바른 세션을 선택해 주세요.' });
+      const project = store.projects().find(row => row.path === session.project && !row.hiddenAt);
+      const row = store.sessionRepository.find(body.sessionId);
+      if (!project || !row || row.projectId !== project.id) return json(res, 400, { error: '현재 프로젝트의 세션을 선택해 주세요.' });
+      const url = new URL(session.chatUrl); url.pathname = PATH.SESSION.replace(':sessionId', body.sessionId); session.chatUrl = url.href;
+      if (session.persist) store.saveWorkspace(project.id, body.sessionId);
+      return json(res, 200, state(session));
+    }
     const expectedMethod = path === API_PATH.WORKSPACE ? 'PUT' : [API_PATH.PROJECT_IMPORTS, API_PATH.BACKEND_RESTARTS].includes(path) ? 'POST' : null;
     if (!expectedMethod) return json(res, 404, { error: 'Not found' });
     if (req.method !== expectedMethod) { res.setHeader('Allow', expectedMethod); return json(res, 405, { error: 'Method not allowed' }); }
@@ -424,6 +441,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         session.project = absolute;
         session.chatUrl = sessionUrl(absolute, body.sessionId, code, backend.port);
         store.remember(absolute);
+        if (session.persist) store.saveWorkspace(project.id, body.sessionId);
         broadcast();
         return json(res, 200, state(session));
       }

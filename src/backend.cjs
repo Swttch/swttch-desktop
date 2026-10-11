@@ -22,7 +22,6 @@ class Backend {
   }
 
   async start() {
-    if (this.child || this.port) throw new Error('Backend is already running');
     let existing;
     try { existing = await fetch(`http://127.0.0.1:${this.targetPort}/version`, { signal: AbortSignal.timeout(1500) }); }
     catch (error) {
@@ -37,6 +36,7 @@ class Backend {
       this.port = this.targetPort;
       return this.port;
     }
+    if (this.child) throw new Error('실행 중인 채팅 서버에 연결하지 못했습니다. 잠시 후 다시 연결해 주세요.');
     const entry = join(this.runtime, 'backend.mjs');
     const webview = this.webview || join(this.runtime, 'webview');
     if (!existsSync(entry) || !existsSync(join(webview, 'index.html'))) {

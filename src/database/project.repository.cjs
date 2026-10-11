@@ -42,7 +42,7 @@ class ProjectRepository {
       }
       return { path: row.path, alias: row.alias, description: row.description, favoritedAt: row.favoritedAt, hiddenAt: row.hiddenAt,
         createdAt: row.createdAt, lastModified: row.lastModified, sessionCount: row.sessionCount, ...row.data, id: row.id, projectId: row.projectId, sessionsExpanded: row.sessionsExpanded, sortOrder: row.sortOrder };
-    });
+    }, { behavior: 'immediate' });
   }
   remember(path) {
     const openedAt = Date.now();
@@ -68,7 +68,7 @@ class ProjectRepository {
         const fields = { sortOrder, ...(id === projectId ? { favoritedAt } : {}) };
         tx.update(projects).set({ ...fields, data: { ...row.data, ...(id === projectId ? { favoritedAt } : {}) } }).where(eq(projects.id, id)).run();
       });
-    });
+    }, { behavior: 'immediate' });
   }
   update(path, fields) {
     const existing = this.findByPath(path);
@@ -81,7 +81,7 @@ class ProjectRepository {
         const ids = rows.map(row => row.id); ids.splice(boundary < 0 ? rows.length : boundary, 0, existing.id);
         this.reorder(ids, existing.id, fields.favoritedAt > 0);
         return this.db.update(projects).set({ ...fields, data: { ...existing.data, ...fields } }).where(eq(projects.path, path)).run();
-      });
+      }, { behavior: 'immediate' });
     }
     return this.db.update(projects).set({ ...fields, data: { ...existing.data, ...fields } }).where(eq(projects.path, path)).run();
   }
@@ -103,7 +103,7 @@ class ProjectRepository {
       validateProjectHierarchy(relations);
       for (const row of relations) tx.update(projects).set({ projectId: row.projectId }).where(eq(projects.id, row.id)).run();
       return { imported, enriched, unchanged, total: rows.length };
-    });
+    }, { behavior: 'immediate' });
   }
 }
 module.exports = { ProjectRepository };

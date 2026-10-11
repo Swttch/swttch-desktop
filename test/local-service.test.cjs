@@ -440,3 +440,19 @@ test('project order REST enforces CSRF, validates full membership and atomically
   assert.equal((await fetch(base + '/desktop-api/project-order', { method: 'PUT', headers, body: JSON.stringify({ ...payload, projectIds: [project.id, project.id], favorite: false }) })).status, 400);
   assert.deepEqual((await (await fetch(base + '/desktop-api/projects', { headers })).json()).projects, saved);
 });
+
+test('desktop clients restore their view while browser clients remain isolated', async t => {
+  const { base, project, client } = await setup(t);
+  async function desktop() {
+    const res = await fetch(base + '/desktop-api/sessions', { method: 'POST', headers: { 'x-swttch-client': 'desktop' } });
+    const body = await res.json();
+    return { state: body.state, headers: { cookie: res.headers.get('set-cookie').split(';')[0], 'x-swttch-csrf': body.csrf, 'Content-Type': 'application/json' } };
+  }
+  const first = await desktop(), uid = '20a9df36-6ab1-421b-ab66-cc1d5b0c3413';
+  assert.equal((await fetch(base + '/desktop-api/workspace', { method: 'PUT', headers: first.headers, body: JSON.stringify({ projectId: 1, sessionId: uid }) })).status, 200);
+  const restored = await desktop();
+  assert.equal(restored.state.project, project);
+  assert.equal(new URL(restored.state.chatUrl).pathname, '/sessions/' + uid);
+  assert.equal((await (await fetch(base + '/desktop-api/workspace', { headers: await client() })).json()).project, null);
+  assert.equal((await fetch(base + '/desktop-api/workspace', { method: 'PATCH', headers: first.headers, body: JSON.stringify({ sessionId: 'wrong' }) })).status, 400);
+});

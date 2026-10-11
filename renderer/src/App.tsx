@@ -90,6 +90,8 @@ export function App() {
   // Each view owns its URL; workspace SSE must not switch embedded sessions.
   const [viewSessionUrl, setViewSessionUrl] = useState<string | null>(null);
   const restoredView = useRef(false);
+  const savedViewSession = useRef('');
+  const saveViewMutation = useMutation({ mutationFn: desktopApi.saveViewSession, scope: { id: 'workspace-view' }, retry: 3, retryDelay: 500 });
   const chat = Boolean(viewSessionUrl);
   const chatUrl = viewSessionUrl ? new URL(viewSessionUrl) : null;
   const activeProjectPath = chatUrl?.searchParams.get('workingDir') || state.project;
@@ -164,6 +166,14 @@ export function App() {
     const id = new URL(state.chatUrl).pathname.split('/').pop();
     void perform(() => id && id !== 'new' ? desktopApi.openSession(id, project.id) : desktopApi.openNewSession(project.id));
   }, [ready, state.backendId]);
+  useEffect(() => {
+    if (!ready || !sessionId || savedViewSession.current === sessionId) return;
+    savedViewSession.current = sessionId;
+    saveViewMutation.mutate(sessionId, { onError: () => {
+      if (savedViewSession.current === sessionId) savedViewSession.current = '';
+      toast.error('마지막 대화를 저장하지 못했습니다.');
+    } });
+  }, [sessionId, state.sessionsRevision, ready]);
   function openView(path: string, id?: string) {
     const project = (projectsQuery.data?.projects || state.projects).find(row => row.path === path);
     if (!project) { toast.error('등록된 프로젝트를 찾을 수 없습니다.'); return; }

@@ -7,7 +7,7 @@ function connect() {
   return queryClient.ensureQueryData({
     queryKey: QUERY_KEY.session, staleTime: Infinity, gcTime: Infinity,
     queryFn: async () => {
-      const response = await fetch(API_PATH.SESSIONS, { method: 'POST', headers: { 'x-swttch-client': 'web' } });
+      const response = await fetch(API_PATH.SESSIONS, { method: 'POST', headers: { 'x-swttch-client': window.desktopHost ? 'desktop' : 'web' } });
       if (!response.ok) throw new Error('로컬 앱 서비스에 연결하지 못했습니다. 새로고침해 주세요.');
       const result = await response.json() as { csrf: string; state: DesktopState };
       if (localStorage.getItem('swttch-backend-id') !== result.state.backendId) {
@@ -61,6 +61,7 @@ export const desktopApi = {
   deleteSession: (projectId: string, sessionId: string) => request<void>(replacePathParams(API_PATH.PROJECT_SESSION, { projectId, sessionId }), 'DELETE'),
   markSessionRead: (projectId: string, sessionId: string) => request<void>(replacePathParams(API_PATH.SESSION_READS, { projectId, sessionId }), 'POST', {}),
   migrateProjects: () => request<{ imported: number; enriched: number; unchanged: number; total: number; state: DesktopState }>(API_PATH.PROJECT_IMPORTS, 'POST', {}),
+  saveViewSession: (sessionId: string) => request<DesktopState>(API_PATH.WORKSPACE, 'PATCH', { sessionId }),
   retry: () => request<DesktopState>(API_PATH.BACKEND_RESTARTS, 'POST', {}),
   subscribe(callback: (state: DesktopState) => void, onError: () => void) {
     let disposed = false;

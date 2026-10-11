@@ -51,6 +51,8 @@ test('launcher reads split readiness, encodes project, and terminates owned chil
   t.after(() => backend.stop());
   assert.equal(await backend.start(), 12345);
   const child = backend.child;
+  await assert.rejects(backend.start(), /실행 중인 채팅 서버/);
+  assert.equal(backend.child, child);
   const url = new URL(backend.url('/work/한글 & project'));
   assert.equal(url.searchParams.get('workingDir'), '/work/한글 & project');
   assert.equal(url.searchParams.has('pair'), true);
@@ -102,4 +104,59 @@ test('session URLs always retain absolute workingDir for new and existing sessio
   }
   for (const path of [undefined, '', ' ', 'relative/path']) assert.throws(() => sessionUrl(path, undefined, 'code'), /workingDir/);
   assert.throws(() => sessionUrl('/work', undefined, ''), /인증/);
+});
+
+test('desktop workspace survives service origins without storing authentication codes', t => {
+  const home = fixture(t);
+  let store = openStore(home);
+  const project = store.createProject('/work/restore');
+  const uid = '20a9df36-6ab1-421b-ab66-cc1d5b0c3413';
+  store.saveWorkspace(project.id, uid); store.close();
+  store = openStore(home);
+  assert.deepEqual(store.workspace(), { id: 'desktop', projectId: project.id, sessionId: uid });
+  store.close();
+});
+
+test('two hosts can synchronize SQLite activity concurrently without snapshot write failures', async t => {
+  const { Worker } = require('node:worker_threads');
+  const home = fixture(t), store = openStore(home);
+  for (let index = 0; index < 50; index++) store.sessionRepository.upsert('uid-' + index, { title: 'Original title' });
+  store.close();
+  const gate = new SharedArrayBuffer(4);
+  const source = `
+    const {workerData, parentPort} = require('node:worker_threads');
+    const store = require(workerData.module).openStore(workerData.home);
+    const gate = new Int32Array(workerData.gate);
+    Atomics.add(gate, 0, 1); Atomics.notify(gate, 0);
+    while (Atomics.load(gate, 0) < 2) Atomics.wait(gate, 0, 1, 1000);
+    for (let i = 0; i < 100; i++) store.sessionRepository.syncActivity({ open: ['uid-' + i % 50], activity: { ['uid-' + i % 50]: 'running' } });
+    store.close(); parentPort.postMessage('ok');
+  `;
+  const workers = [0, 1].map(() => new Worker(source, { eval: true, workerData: { home, gate, module: require.resolve('../src/store.cjs') } }));
+  t.after(() => Promise.all(workers.map(worker => worker.terminate())));
+  await Promise.all(workers.map(worker => new Promise((resolve, reject) => { worker.on('error', reject); worker.on('exit', code => code ? reject(new Error('worker exit ' + code)) : resolve()); })));
+  const reopened = openStore(home);
+  assert.equal(reopened.sessionRepository.all().length, 50);
+  assert.equal(reopened.sessionRepository.find('uid-0').title, 'Original title');
+  reopened.close();
+});
+
+test('host shutdown closes upgraded WebSocket clients without waiting for their tabs', async t => {
+  const { startHost } = require('../src/host.cjs');
+  const { createHash } = require('node:crypto');
+  const home = fixture(t), sockets = new Set();
+  const upstream = createServer();
+  upstream.on('upgrade', (req, socket) => {
+    sockets.add(socket); socket.on('close', () => sockets.delete(socket));
+    const accept = createHash('sha1').update(req.headers['sec-websocket-key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
+    socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n');
+  });
+  await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve));
+  t.after(() => { for (const socket of sockets) socket.destroy(); upstream.close(); });
+  const backend = { token: 'test-token', port: upstream.address().port, async start() {}, async stop() {} };
+  const host = await startHost({ port: 0, home, backend, subscribe: () => () => {} });
+  const client = new WebSocket('ws://127.0.0.1:' + host.port + '/ws');
+  client.onerror = () => {};
+  await new Promise((resolve, reject) => { client.onopen = resolve; client.onerror = reject; });
+  await Promise.race([host.stop(), new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error('upgraded client blocked shutdown')), 2000); timer.unref(); })]);
 });

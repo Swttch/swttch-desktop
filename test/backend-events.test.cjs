@@ -17,12 +17,15 @@ test('backend subscription forwards activity, refresh events and recovers withou
   assert.deepEqual(first.protocols, ['ccg-auth', 'test-token']);
   const activity = { activity: { 'session-1': 'running' }, open: ['session-1'], originalExtra: true };
   first.onmessage({ data: JSON.stringify({ type: 'ACK', payload: { requestId: first.sent.requestId, ...activity } }) });
+  assert.deepEqual(received.shift(), { type: 'connection', payload: { connected: true } });
   assert.deepEqual(received[0].payload.open, activity.open);
   first.onmessage({ data: JSON.stringify({ type: 'SESSION_ACTIVITY_CHANGED', payload: activity }) });
   assert.deepEqual(received[1], { type: 'activity', payload: activity });
   first.onmessage({ data: JSON.stringify({ type: 'SESSIONS_UPDATED', payload: { action: 'rename' } }) });
   assert.equal(received[2].type, 'sessions');
-  first.close(); t.mock.timers.tick(1000);
+  first.close();
+  assert.deepEqual(received.at(-1), { type: 'connection', payload: { connected: false } });
+  t.mock.timers.tick(1000);
   assert.equal(sockets.length, 2);
   stop(); t.mock.timers.tick(2000);
   assert.equal(sockets.length, 2); assert.equal(sockets[1].closed, true);

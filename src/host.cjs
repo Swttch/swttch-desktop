@@ -6,8 +6,8 @@ const { createLocalService } = require('./local-service.cjs');
 const { PATH } = require('./paths.mjs');
 const { API_PORT } = require('./ports.cjs');
 
-async function startHost({ port = API_PORT, home, allowedOrigins = [] } = {}) {
-  const service = createLocalService({ home, allowedOrigins });
+async function startHost({ port = API_PORT, home, allowedOrigins = [], backend, subscribe } = {}) {
+  const service = createLocalService({ home, allowedOrigins, backend, subscribe });
   const renderer = resolve(__dirname, '../renderer/dist');
   const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
   const server = createServer((req, res) => service.middleware(req, res, async () => {
@@ -20,6 +20,8 @@ async function startHost({ port = API_PORT, home, allowedOrigins = [] } = {}) {
       res.end(req.method === 'HEAD' ? undefined : data);
     } catch { res.writeHead(404); res.end('셸 빌드 파일이 없습니다. build를 실행해 주세요.'); }
   }));
+  const connections = new Set();
+  server.on('connection', socket => { connections.add(socket); socket.on('close', () => connections.delete(socket)); });
   try {
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
   } catch (error) { await service.stop(); throw error; }
@@ -27,7 +29,7 @@ async function startHost({ port = API_PORT, home, allowedOrigins = [] } = {}) {
   void service.start();
   return {
     port: server.address().port,
-    async stop() { await service.stop(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); },
+    async stop() { await service.stop(); for (const socket of connections) socket.destroy(); await new Promise(resolve => server.close(resolve)); },
   };
 }
 module.exports = { startHost };

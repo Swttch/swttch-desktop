@@ -37,7 +37,7 @@ class SessionRepository {
         const isOpen = open.has(row.uid), activity = isOpen ? snapshot.activity[row.uid] || 'idle' : 'idle';
         if (row.isOpen !== isOpen || row.activity !== activity) tx.update(sessions).set({ isOpen, activity, activityUpdatedAt: now }).where(eq(sessions.uid, row.uid)).run();
       }
-    });
+    }, { behavior: 'immediate' });
   }
 }
 module.exports = { SessionRepository };

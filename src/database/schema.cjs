@@ -38,4 +38,9 @@ const sessions = sqliteTable('sessions', {
   data: text('data', { mode: 'json' }).notNull().default({}),
 });
 const sessionRelations = relations(sessions, ({ one }) => ({ project: one(projects, { fields: [sessions.projectId], references: [projects.id] }) }));
-module.exports = { projects, projectRelations, sessions, sessionRelations };
+const workspaces = sqliteTable('workspaces', {
+  id: text('id').primaryKey(),
+  projectId: integer('project_id').references(() => projects.id, { onDelete: 'set null' }),
+  sessionId: text('session_id'),
+});
+module.exports = { workspaces, projects, projectRelations, sessions, sessionRelations };
