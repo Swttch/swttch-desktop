@@ -1,4 +1,7 @@
 export const API_PATH: {
+  readonly ACCOUNTS: '/desktop-api/accounts';
+  readonly ACTIVE_ACCOUNT: '/desktop-api/active-account';
+  readonly ACCOUNT_VIEWS: '/desktop-api/account-views';
   readonly PROVIDER_USAGE: '/desktop-api/provider-usage';
   readonly PROVIDER_USAGE_REFRESHES: '/desktop-api/provider-usage-refreshes';
   readonly SESSIONS: '/desktop-api/sessions';

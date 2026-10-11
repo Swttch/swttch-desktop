@@ -3,6 +3,7 @@ import { API_PATH } from '../../src/api-paths.mjs';
 import { replacePathParams } from './routes';
 import { queryClient, QUERY_KEY } from './query-client';
 import type { ProviderUsage } from './provider-usage';
+import type { AccountsResult } from '../../../../webview/src/shared/account';
 
 function connect() {
   return queryClient.ensureQueryData({
@@ -36,6 +37,9 @@ async function request<T>(path: string, method: string, body?: object, signal?: 
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }
 export const desktopApi = {
+  accounts: (signal?: AbortSignal) => request<AccountsResult>(API_PATH.ACCOUNTS, 'GET', undefined, signal),
+  switchAccount: (id: string) => request<AccountsResult>(API_PATH.ACTIVE_ACCOUNT, 'PUT', { id }),
+  accountView: (path: string) => request<{ url: string }>(API_PATH.ACCOUNT_VIEWS, 'POST', { path }),
   providerUsage: (signal?: AbortSignal) => request<ProviderUsage>(API_PATH.PROVIDER_USAGE, 'GET', undefined, signal),
   refreshProviderUsage: () => request<ProviderUsage>(API_PATH.PROVIDER_USAGE_REFRESHES, 'POST', {}),
   activeSessions: (offset: number, signal?: AbortSignal) => request<{ rows: { session: SessionListEntry; projectId: number }[]; total: number; hasMore: boolean; nextOffset: number }>(API_PATH.ACTIVE_SESSIONS + '?offset=' + offset + '&limit=5', 'GET', undefined, signal),

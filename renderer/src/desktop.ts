@@ -36,6 +36,7 @@ export interface DesktopState {
   sessionActivity?: { activity: Record<string, SessionActivity>; open: string[] };
   sessionsRevision?: number;
   activityRevision?: number;
+  accountsRevision?: number;
 }
 
 // Original GET_SESSIONS entry fields; the transport retains the full payload.

@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 
 export const QUERY_KEY = {
+  accounts: ['desktop', 'accounts'] as const,
   providerUsage: ['desktop', 'provider-usage'] as const,
   projectScopes: ['desktop', 'project-scope'] as const,
   projectScope: (projectId: string) => ['desktop', 'project-scope', projectId] as const,

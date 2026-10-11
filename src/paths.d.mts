@@ -1,1 +1,1 @@
-export const PATH: { readonly HOME: '/'; readonly PROJECTS: '/projects'; readonly PROJECT: '/projects/:projectId'; readonly SESSIONS: '/sessions'; readonly NEW_SESSION: '/sessions/new'; readonly SESSION: '/sessions/:sessionId' };
+export const PATH: { readonly HOME: '/'; readonly PROJECTS: '/projects'; readonly PROJECT: '/projects/:projectId'; readonly SESSIONS: '/sessions'; readonly NEW_SESSION: '/sessions/new'; readonly SESSION: '/sessions/:sessionId'; readonly ACCOUNT_LOGIN: '/switch-account'; readonly ACCOUNT_SETTINGS: '/settings/account' };

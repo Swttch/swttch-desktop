@@ -35,6 +35,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
   let sessionActivity = { activity: {}, open: [] };
   let sessionsRevision = 0;
   let activityRevision = 0;
+  let accountsRevision = 0;
   let hydration;
   let hydrationRequested = false;
   async function discoverSessionUids(missing) {
@@ -129,7 +130,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
     phase: phase === 'ready' && session.project ? 'chat' : phase,
     message, project: session.project, chatUrl: phase === 'ready' ? session.chatUrl : null,
     recent: store.recent(), projects: store.projects(),
-    sessionActivity, sessionsRevision, activityRevision,
+    sessionActivity, sessionsRevision, activityRevision, accountsRevision,
     backendId: createHash('sha256').update(backend.token).digest('hex'),
   });
   function broadcast() {
@@ -146,6 +147,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         await backend.start();
         phase = 'ready'; message = '프로젝트를 선택해 시작하세요.';
         if (!suppliedBackend || subscribe !== subscribeBackend) unsubscribeBackend = subscribe(backend, (type, payload) => {
+          if (type === 'accounts') { providerUsage.invalidate(); accountsRevision++; broadcast(); return; }
           if (type === 'connection') {
             phase = payload.connected ? 'ready' : 'error';
             message = payload.connected ? '프로젝트를 선택해 시작하세요.' : '채팅 연결이 끊겼습니다. 재연결 중입니다. 서버가 종료됐다면 재시도를 선택해 주세요.';
@@ -203,6 +205,34 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
       return json(res, 201, { csrf: session.csrf, state: state(session) });
     }
     if (!session) return json(res, 401, { error: '앱 연결이 만료됐습니다. 새로고침해 주세요.' });
+    if ([API_PATH.ACCOUNTS, API_PATH.ACTIVE_ACCOUNT, API_PATH.ACCOUNT_VIEWS].includes(path)) {
+      const method = path === API_PATH.ACCOUNTS ? 'GET' : path === API_PATH.ACTIVE_ACCOUNT ? 'PUT' : 'POST';
+      if (req.method !== method) { res.setHeader('Allow', method); return json(res, 405, { error: 'Method not allowed' }); }
+      if (method !== 'GET' && req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      try {
+        if (path === API_PATH.ACCOUNT_VIEWS) {
+          const body = await readBody(req);
+          if (![PATH.ACCOUNT_LOGIN, PATH.ACCOUNT_SETTINGS].includes(body.path)) return json(res, 400, { error: '계정 화면 경로를 확인해 주세요.' });
+          const paired = await fetch(`http://127.0.0.1:${backend.port}/internal/local-pair`, { headers: { 'x-ccg-token': backend.token }, signal: AbortSignal.timeout(5000) });
+          if (!paired.ok) throw new Error('계정 화면 인증을 준비하지 못했습니다.');
+          const { code } = await paired.json();
+          if (typeof code !== 'string' || !code) throw new Error('계정 화면 인증 코드를 받지 못했습니다.');
+          const url = new URL(body.path, 'http://localhost');
+          url.searchParams.set('workingDir', session.project || homedir()); url.searchParams.set('pair', code);
+          return json(res, 201, { url: url.pathname + url.search });
+        }
+        if (path === API_PATH.ACTIVE_ACCOUNT) {
+          const body = await readBody(req);
+          if (typeof body.id !== 'string' || !body.id.startsWith('acc:') || body.id.length > 128) return json(res, 400, { error: '저장된 계정을 선택해 주세요.' });
+          const result = await backendRequest(backend, 'SWITCH_ACCOUNT', { id: body.id });
+          if (result.status !== 'ok') throw new Error(result.error || '계정 전환에 실패했습니다.');
+          providerUsage.invalidate(); accountsRevision++; broadcast();
+        }
+        const result = await backendRequest(backend, 'GET_ACCOUNTS', {});
+        if (result.status !== 'ok') throw new Error(result.error || '계정을 조회하지 못했습니다.');
+        return json(res, 200, result);
+      } catch (error) { return json(res, 502, { error: error.message }); }
+    }
     if (path === API_PATH.PROVIDER_USAGE || path === API_PATH.PROVIDER_USAGE_REFRESHES) {
       const refresh = path === API_PATH.PROVIDER_USAGE_REFRESHES;
       const method = refresh ? 'POST' : 'GET';

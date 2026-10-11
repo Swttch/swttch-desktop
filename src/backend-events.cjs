@@ -12,6 +12,7 @@ function subscribeBackend(backend, onMessage) {
     socket.onmessage = event => {
       let message; try { message = JSON.parse(event.data); } catch { return; }
       if (message.type === 'SESSION_ACTIVITY_CHANGED' || (message.type === 'ACK' && message.payload?.requestId === requestId)) onMessage('activity', message.payload);
+      else if (message.type === 'ACCOUNTS_CHANGED') onMessage('accounts', message.payload);
       else if (message.type === 'SESSIONS_UPDATED' || message.type === 'SETTINGS_CHANGED' || message.type === 'CLAUDE_SETTINGS_CHANGED') onMessage('sessions', message.payload);
     };
     socket.onerror = () => socket.close();

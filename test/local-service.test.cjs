@@ -14,6 +14,7 @@ async function setup(t, allowedOrigins = [], registerProject = true, sourceConfi
   let pairingCount = 0;
   const upstream = createServer((req, res) => {
     if (req.url === '/internal/local-pair' && req.headers['x-ccg-token'] === 'private-token') {
+      assert.equal(req.method, 'GET');
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ code: `pair-${++pairingCount}` }));
     } else if (req.url.startsWith('/internal/')) { res.writeHead(401); res.end('unauthorized'); }
@@ -21,6 +22,8 @@ async function setup(t, allowedOrigins = [], registerProject = true, sourceConfi
   });
   const backendRequests = [];
   const nestedSettings = new Map();
+  let activeAccount = 'acc:one';
+  const accountRows = [{ id: 'acc:one', emailAddress: 'one@example.test', displayName: 'One', futureField: { preserved: true } }, { id: 'acc:two', emailAddress: 'two@example.test', displayName: 'Two' }];
   let sessionRows = Array.from({ length: 35 }, (_, index) => ({ sessionId: 'session-' + index, title: 'Title ' + index, sessionDir: index === 34 ? join(project, 'nested') : project, createdAt: '2026-10-01T00:00:00Z', lastTimestamp: '2026-10-09T00:00:00Z', isSidechain: false, originalExtra: { preserved: true } }));
   const sockets = new Set();
   upstream.on('upgrade', (req, socket) => {
@@ -44,7 +47,9 @@ async function setup(t, allowedOrigins = [], registerProject = true, sourceConfi
       pending = pending.subarray(offset + 4 + length);
       backendRequests.push(message);
       let result = { status: 'ok' };
-      if (message.type === 'DELETE_PROJECT') assert.equal(message.payload.path, project);
+      if (message.type === 'GET_ACCOUNTS') result = { status: 'ok', accounts: accountRows.map(row => ({ ...row, active: row.id === activeAccount })), accountPools: [], activeEmail: accountRows.find(row => row.id === activeAccount).emailAddress };
+      else if (message.type === 'SWITCH_ACCOUNT') { if (accountRows.some(row => row.id === message.payload.id)) activeAccount = message.payload.id; else result = { status: 'error', error: 'Not found' }; }
+      else if (message.type === 'DELETE_PROJECT') assert.equal(message.payload.path, project);
       else if (message.type === 'GET_SETTINGS') result.settings = { includeNestedSessions: nestedSettings.get(message.payload.workingDir) ?? true };
       else if (message.type === 'SAVE_SETTINGS') nestedSettings.set(message.payload.workingDir, message.payload.value);
       else if (message.type === 'GET_SESSIONS') {
@@ -455,6 +460,36 @@ test('provider usage REST requires app authentication and protects refreshes wit
   assert.equal((await fetch(path, { headers: { ...headers, Origin: 'https://foreign.test' } })).status, 403);
   assert.deepEqual(await (await fetch(refreshPath, { method: 'POST', headers })).json(), snapshot);
   assert.deepEqual(reads, [{ refresh: false }, { refresh: true }]);
+});
+
+test('account dropdown API reuses CCG switching, preserves original accounts and protects account actions', async t => {
+  let invalidations = 0;
+  const { base, client, backendRequests } = await setup(t, [], false, () => ({ providerUsage: { invalidate() { invalidations++; } } }), false);
+  const headers = await client();
+  const list = base + '/desktop-api/accounts';
+  const active = base + '/desktop-api/active-account';
+  assert.equal((await fetch(list)).status, 401);
+  const accounts = await (await fetch(list, { headers })).json();
+  assert.deepEqual(accounts.accounts[0].futureField, { preserved: true });
+  assert.equal(accounts.accounts[0].active, true);
+  assert.equal((await fetch(active, { method: 'PUT', headers: { cookie: headers.cookie }, body: '{"id":"acc:two"}' })).status, 403);
+  assert.equal((await fetch(active, { method: 'PUT', headers, body: '{"id":"not-an-account"}' })).status, 400);
+  assert.equal((await fetch(active, { method: 'PUT', headers: { ...headers, Origin: 'https://foreign.test' }, body: '{"id":"acc:two"}' })).status, 403);
+  const switched = await (await fetch(active, { method: 'PUT', headers, body: '{"id":"acc:two"}' })).json();
+  assert.equal(switched.accounts.find(row => row.id === 'acc:two').active, true);
+  assert.equal(invalidations, 1);
+  assert.equal(backendRequests.filter(row => row.type === 'SWITCH_ACCOUNT').length, 1);
+  assert.equal((await fetch(active, { method: 'PUT', headers, body: '{"id":"acc:missing"}' })).status, 502);
+  const viewPath = base + '/desktop-api/account-views';
+  assert.equal((await fetch(viewPath, { method: 'POST', headers, body: '{"path":"https://foreign.test/"}' })).status, 400);
+  for (const path of ['/switch-account', '/settings/account']) {
+    const view = await (await fetch(viewPath, { method: 'POST', headers, body: JSON.stringify({ path }) })).json();
+    const url = new URL(view.url, base);
+    assert.equal(url.pathname, path);
+    assert.ok(url.searchParams.get('workingDir'));
+    assert.match(url.searchParams.get('pair'), /^pair-/);
+    assert.ok(!view.url.includes('private-token'));
+  }
 });
 
 test('desktop clients restore their view while browser clients remain isolated', async t => {

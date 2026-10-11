@@ -3,6 +3,7 @@ function createProviderUsage({ loadSdk = () => import('@swttch/extend-kit/batter
   let snapshot;
   let expiresAt = 0;
   let pending;
+  let revision = 0;
   const failure = error => {
     const code = error.code || 'unavailable';
     const messages = {
@@ -18,7 +19,8 @@ function createProviderUsage({ loadSdk = () => import('@swttch/extend-kit/batter
   async function read({ refresh = false } = {}) {
     if (pending) return pending;
     if (snapshot && now() < expiresAt && (!refresh || now() - snapshot.checkedAt < 10_000 || snapshot.errors.profile?.code === 'rate_limited' || snapshot.errors.usage?.code === 'rate_limited')) return snapshot;
-    pending = (async () => {
+    const currentRevision = revision;
+    const request = (async () => {
       let result;
       try {
         const sdk = await loadSdk();
@@ -35,13 +37,15 @@ function createProviderUsage({ loadSdk = () => import('@swttch/extend-kit/batter
       } catch (error) {
         result = { profile: null, usage: null, errors: { profile: failure(error), usage: failure(error) } };
       }
+      if (revision !== currentRevision) return read();
       snapshot = { ...result, checkedAt: now() };
       const retry = Math.max(result.errors.profile?.retryAfterSec || 0, result.errors.usage?.retryAfterSec || 0);
       expiresAt = now() + Math.max(60_000, retry * 1000);
       return snapshot;
-    })().finally(() => { pending = null; });
+    })().finally(() => { if (pending === request) pending = null; });
+    pending = request;
     return pending;
   }
-  return { read };
+  return { read, invalidate() { revision++; snapshot = null; expiresAt = 0; pending = null; } };
 }
 module.exports = { createProviderUsage };

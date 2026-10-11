@@ -55,3 +55,26 @@ test('credential failure returns a safe recovery message without exposing creden
   assert.ok(!JSON.stringify(result).includes('secret-token'));
   assert.match(result.errors.usage.message, /로그인/);
 });
+
+test('account invalidation prevents an in-flight old account response from repopulating the usage cache', async () => {
+  let release;
+  let started;
+  let account = 'old';
+  const gate = new Promise(resolve => { release = resolve; });
+  const ready = new Promise(resolve => { started = resolve; });
+  const reader = createProviderUsage({ loadSdk: async () => ({
+    getCredentials: async () => ({ account }), isTokenExpired: () => false, getAccessToken: credentials => credentials.account,
+    ClaudeCodeClient: class { constructor(token) { this.oauth = {
+      getProfile: async () => { if (token === 'old') { started(); await gate; } return { account: { display_name: token } }; },
+      getUsage: async () => ({ source: token }),
+    }; } },
+  }) });
+  const old = reader.read();
+  await ready;
+  account = 'new'; reader.invalidate();
+  const current = await reader.read();
+  release();
+  assert.equal((await old).profile.account.display_name, 'new');
+  assert.equal(current.profile.account.display_name, 'new');
+  assert.equal((await reader.read()).usage.source, 'new');
+});

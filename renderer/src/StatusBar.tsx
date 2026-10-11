@@ -6,6 +6,7 @@ import { DesktopPhase, type DesktopState } from './desktop';
 import { QUERY_KEY, queryClient } from './query-client';
 import { Tooltip } from './Tooltip';
 import claudeLogo from './assets/claude-logo.svg';
+import { AccountSwitcher } from './AccountSwitcher';
 
 enum Panel { Account = 'account', Connection = 'connection' }
 const percent = (value: number) => Math.round(Math.min(100, Math.max(0, value)));
@@ -25,6 +26,13 @@ export function StatusBar({ state }: { state: DesktopState }) {
   const query = useQuery({ queryKey: QUERY_KEY.providerUsage, queryFn: ({ signal }) => desktopApi.providerUsage(signal), staleTime: 60_000, refetchInterval: 60_000 });
   const refresh = useMutation({ mutationFn: desktopApi.refreshProviderUsage, onSuccess: data => queryClient.setQueryData(QUERY_KEY.providerUsage, data) });
   const reconnect = useMutation({ mutationFn: desktopApi.retry, onSuccess: data => queryClient.setQueryData(QUERY_KEY.workspace, data) });
+  const accountsRevision = useRef(state.accountsRevision);
+  useEffect(() => {
+    if (state.accountsRevision === undefined || state.accountsRevision === accountsRevision.current) return;
+    accountsRevision.current = state.accountsRevision;
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEY.accounts });
+    void queryClient.resetQueries({ queryKey: QUERY_KEY.providerUsage });
+  }, [state.accountsRevision]);
   useEffect(() => {
     if (!panel) return;
     const outside = (event: PointerEvent) => { if (event.target instanceof Node && !root.current?.contains(event.target)) setPanel(null); };
@@ -66,6 +74,7 @@ export function StatusBar({ state }: { state: DesktopState }) {
       </button>
     </Tooltip>
     <RefreshButton pending={query.isFetching || refresh.isPending} onClick={() => refresh.mutate()} />
+    <AccountSwitcher connected={ready} onOpen={() => setPanel(null)} />
     </div>
     {panel === Panel.Account && <section id="provider-usage-panel" aria-label="Claude 계정 및 사용량 상세" className="absolute bottom-full left-3 z-50 mb-2 max-h-[min(36rem,75dvh)] w-[min(24rem,calc(100vw-1.5rem))] overflow-y-auto rounded-lg border border-divider bg-navigation p-4 text-sm text-foreground">
       <div className="flex items-center justify-between gap-4"><h2 className="font-medium">Claude 계정·사용량</h2><RefreshButton pending={query.isFetching || refresh.isPending} onClick={() => refresh.mutate()} /></div>
