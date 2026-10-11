@@ -12,7 +12,7 @@ import { Dropdown } from './Dropdown';
 const percent = (value: number) => Math.round(Math.min(100, Math.max(0, value)));
 const batteryColor = (remaining: number | null) => remaining === null ? undefined : remaining > 50 ? '#22c55e' : remaining >= 20 ? '#eab308' : '#ef4444';
 const resetTime = (value: string | null | undefined) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '초기화 시각 없음';
-const labels: Record<string, string> = { five_hour: '5h', seven_day: 'wk', seven_day_opus: 'Opus wk', seven_day_sonnet: 'Sonnet wk', seven_day_oauth_apps: 'OAuth wk', seven_day_cowork: 'Cowork wk' };
+const labels: Record<string, string> = { five_hour: '세션 (5시간)', seven_day: '주간 (7일)', seven_day_opus: '주간 Opus', seven_day_sonnet: '주간 Sonnet', seven_day_oauth_apps: '주간 OAuth 앱', seven_day_cowork: '주간 Cowork' };
 
 function RefreshButton({ pending, onClick }: { pending: boolean; onClick: () => void }) {
   return <Tooltip content="사용량 새로고침" placement="top-start"><button type="button" className="icon-button size-6" aria-label="사용량 새로고침" disabled={pending} onClick={onClick}><svg aria-hidden="true" viewBox="0 0 24 24" className={`size-4 fill-none stroke-current ${pending ? 'animate-spin motion-reduce:animate-none' : ''}`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg></button></Tooltip>;
@@ -68,9 +68,9 @@ export function StatusBar({ state }: { state: DesktopState }) {
     <AccountSwitcher connected={ready} />
     <span aria-hidden="true" className="mx-1 h-3 w-px shrink-0 bg-divider" />
     <Dropdown content={usageContent}>
-      <Tooltip content="Claude 구독 사용률 · 배터리 채움은 5h 잔여 한도" placement="top-start">
+      <Tooltip content="Claude 구독 사용현황" placement="top-start">
       <button type="button" className="flex min-w-0 items-center gap-2 rounded px-2 py-1 hover:bg-selected focus-visible:outline-2 focus-visible:outline-foreground" aria-label="Claude 계정 및 사용량" aria-expanded="false" aria-controls="provider-usage-panel">
-        <img src={claudeLogo} alt="" className="size-3.5 shrink-0" /><svg aria-hidden="true" viewBox="0 0 16 16" style={{ color: batteryColor(remaining) }} className={`size-5 shrink-0 ${remaining !== null && remaining < 20 ? 'animate-pulse motion-reduce:animate-none' : ''} ${query.isFetching ? 'opacity-50' : ''}`} fill="currentColor"><rect x="1" y="4" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none" /><rect x="13" y="6.5" width="1.5" height="3" rx=".5" />{remaining !== null && <rect x="2.5" y="5.5" width={9 * remaining / 100} height="5" rx=".5" />}</svg><span className="tabular-nums" style={{ color: batteryColor(remaining) }}>{query.isPending ? '…' : compact || '—'}</span>
+        <img src={claudeLogo} alt="" className="size-3.5 shrink-0" /><svg aria-hidden="true" viewBox="0 0 16 16" style={{ color: batteryColor(remaining) }} className={`size-5 shrink-0 ${remaining !== null && remaining < 20 ? 'animate-pulse motion-reduce:animate-none' : ''} ${query.isFetching ? 'opacity-50' : ''}`} fill="currentColor"><rect x="1" y="4" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none" /><rect x="13" y="6.5" width="1.5" height="3" rx=".5" />{remaining !== null && <rect x="2.5" y="5.5" width={9 * remaining / 100} height="5" rx=".5" />}</svg><span className="tabular-nums" style={{ color: batteryColor(remaining) }} aria-label="5시간 잔여 한도">{remaining === null ? "—" : `${remaining}%`}</span><span className="tabular-nums" style={{ color: batteryColor(remaining) }}>{query.isPending ? '…' : compact || '—'}</span>
       </button>
       </Tooltip>
     </Dropdown>
