@@ -40,6 +40,7 @@ else {
     if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(url)) throw new Error('Unsupported local host URL');
     window = new BrowserWindow({
       width: 1120, height: 800, minWidth: 680, minHeight: 520, title: 'Swttch', titleBarStyle: 'hiddenInset',
+      ...(process.platform === 'darwin' ? { titleBarOverlay: true } : {}),
       backgroundColor: nativeTheme.shouldUseDarkColors ? '#1a1a1a' : '#ffffff',
       webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true },
     });

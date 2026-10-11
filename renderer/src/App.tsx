@@ -226,7 +226,7 @@ export function App() {
         .then(project => perform(() => desktopApi.openNewSession(project.id))).catch(error => toast.error(error.message));
     }} />}
     <Toaster position="bottom-right" toastOptions={{ duration: 4000, className: 'swttch-toast', style: { background: 'var(--color-navigation)', color: 'var(--color-foreground)', border: '1px solid var(--color-divider)', borderRadius: '12px', fontSize: '13px' } }} />
-    <header className="titlebar relative flex h-(--header-height) items-center gap-3 px-3 before:pointer-events-none before:absolute before:top-0 before:left-0 before:h-[2px] before:w-full before:bg-dev-line">
+    <header className="titlebar relative flex h-(--header-height) items-center gap-3 pr-3 pl-[calc(env(titlebar-area-x,0px)+0.75rem)] before:pointer-events-none before:absolute before:top-0 before:left-0 before:h-[2px] before:w-full before:bg-dev-line">
       <IconButton label="사이드바 표시/숨기기" icon={sidebarHidden ? IconName.SidebarCollapsed : IconName.Sidebar} shortcut="⇧⌘S" aria-expanded={!sidebarHidden} aria-controls="sidebar" aria-keyshortcuts="Meta+Shift+S Control+Shift+S" onClick={() => { if (projectsPage) { router.push(PATH.HOME); setCollapsed(false); } else setCollapsed(value => !value); }} />
       <div className="header-context flex min-w-0 flex-1 items-center gap-3">
         <Icon name={IconName.Folder} className="text-muted" />

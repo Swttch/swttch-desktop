@@ -27,7 +27,6 @@
 @layer components {
   .titlebar { -webkit-app-region: drag; }
   .titlebar button { -webkit-app-region: no-drag; }
-  .electron-host .titlebar { padding-left: 84px; }
   .header-context { @apply ml-3 border-l border-divider pl-4; }
   .icon-button { @apply relative flex size-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-hover hover:text-foreground; }
   .session-title > .tooltip-anchor { @apply flex w-full; }
