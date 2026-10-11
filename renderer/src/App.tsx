@@ -20,6 +20,7 @@ import { useRouter } from './router';
 import { sessionFrameUrl } from './session-view';
 import { SidebarProject } from './SidebarProject';
 import { readProjectSort, saveProjectSort, sortProjects, SortOrder } from './projects/projectSort';
+import { StatusBar } from './StatusBar';
 
 enum IconName { Folder, Chat, Sidebar, SidebarCollapsed, Plus, Home, History, Search, Refresh, Compose }
 function Icon({ name, solid = false, className = '' }: { name: IconName; solid?: boolean; className?: string }) {
@@ -269,7 +270,7 @@ export function App() {
       <IconButton label="새 채팅" icon={IconName.Compose} onClick={newChat} disabled={disabled} />
       <IconButton label="프로젝트 폴더 열기" icon={IconName.Folder} onClick={() => void openProject()} disabled={disabled} />
     </header>
-    <div className={`shell-body grid h-[calc(100dvh-var(--header-height))] min-h-0 ${sidebarHidden ? 'sidebar-collapsed' : ''}`}>
+    <div className={`shell-body grid h-[calc(100dvh-var(--header-height)-2rem)] min-h-0 ${sidebarHidden ? 'sidebar-collapsed' : ''}`}>
       <nav className="activity-rail flex flex-col items-center gap-3 py-3" aria-label="앱 메뉴">
         <IconButton label="홈" icon={IconName.Home} solid={!projectNavigation} className={`rail-button ${!projectNavigation ? 'rail-active' : ''}`} aria-current={!projectNavigation ? 'page' : undefined} onClick={() => { router.push(PATH.HOME); setSelecting(false); }} />
         <IconButton label="새 채팅" icon={IconName.Compose} className="rail-button" onClick={newChat} disabled={disabled} />
@@ -295,7 +296,6 @@ export function App() {
           {search && visibleProjects.length === 0 && <p className="list-note">검색 결과 없음</p>}
           </SidebarSection>
         </div>
-        <div className="flex items-center gap-2 px-5 py-4 text-[11px] text-muted"><span className={`size-1.5 rounded-full ${ready ? 'bg-status' : 'bg-muted'}`} /><span role="status">{ready ? '로컬 연결됨' : state.phase === DesktopPhase.Error ? '연결 종료' : '연결 중'}</span>{state.phase === DesktopPhase.Error && <button className="ml-auto underline" disabled={busy} onClick={() => void perform(desktopApi.retry)}>재시도</button>}</div>
         </div>
         <SidebarResize width={sidebarWidth.width} onResize={sidebarWidth.save} />
       </aside>
@@ -313,5 +313,6 @@ export function App() {
 
       </section>
     </div>
+    <StatusBar state={state} />
   </div>;
 }
