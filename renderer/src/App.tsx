@@ -22,6 +22,7 @@ import { SidebarProject } from './SidebarProject';
 import { readProjectSort, saveProjectSort, sortProjects, SortOrder } from './projects/projectSort';
 import { StatusBar } from './StatusBar';
 import { ProjectSwitcher } from './ProjectSwitcher';
+import { WorkspaceTab } from './WorkspaceTab';
 
 enum IconName { Folder, Chat, Sidebar, SidebarCollapsed, Plus, Home, History, Search, Refresh, Compose }
 function Icon({ name, solid = false, className = '' }: { name: IconName; solid?: boolean; className?: string }) {
@@ -72,7 +73,7 @@ export function App() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState(readProjectSort);
   const [sessionId, setSessionId] = useState('');
-  const [, setSessionTitle] = useState('새 채팅');
+  const [sessionTitle, setSessionTitle] = useState('새 채팅');
   const [frameReadyUrl, setFrameReadyUrl] = useState('');
   const [frameFailure, setFrameFailure] = useState<{ url: string; message: string } | null>(null);
   const [accountInfo, setAccountInfo] = useState(false);
@@ -93,13 +94,20 @@ export function App() {
   const restoredView = useRef(false);
   const savedViewSession = useRef('');
   const saveViewMutation = useMutation({ mutationFn: desktopApi.saveViewSession, scope: { id: 'workspace-view' }, retry: 3, retryDelay: 500 });
+  const closeViewMutation = useMutation({ mutationFn: desktopApi.closeView, scope: { id: 'workspace-view' }, onSuccess: next => {
+    queryClient.setQueryData(QUERY_KEY.workspace, next);
+    frameCleanup.current();
+    setViewSessionUrl(null); setSessionId(''); setSessionTitle('새 채팅'); setFrameReadyUrl(''); setFrameFailure(null);
+    savedViewSession.current = ''; restoredView.current = true;
+    router.push(PATH.HOME);
+  }, onError: error => toast.error(error.message) });
   const chat = Boolean(viewSessionUrl);
   const chatUrl = viewSessionUrl ? new URL(viewSessionUrl) : null;
   const activeProjectPath = chatUrl?.searchParams.get('workingDir') || state.project;
   const frameUrl = viewSessionUrl ? sessionFrameUrl(viewSessionUrl, window.location.origin) : undefined;
   const frameError = frameFailure && frameFailure.url === frameUrl ? frameFailure.message : '';
   const frameLoading = chat && (busy || frameReadyUrl !== frameUrl);
-  const disabled = !ready || busy;
+  const disabled = !ready || busy || closeViewMutation.isPending;
 
   const reorderMutation = useMutation({
     mutationFn: ({ rows, move }: { rows: Project[]; move: ProjectMove }) => desktopApi.reorderProjects(rows.map(project => project.id), move.projectId, move.favorite),
@@ -230,6 +238,7 @@ export function App() {
     inFlight.current = true; setError('');
     try {
       const next = await actionMutation.mutateAsync(action);
+      setSessionTitle('새 채팅'); setSessionId('');
       setViewSessionUrl(next.chatUrl);
       router.push(PATH.HOME);
       setSelecting(false); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessions(state.project) });
@@ -273,7 +282,7 @@ export function App() {
           <IconButton label="새 채팅" icon={IconName.Plus} onClick={newChat} disabled={disabled} />
         </div>
       </header>
-      <div aria-label="탭 영역" className="min-w-0" />
+      <div role="tablist" aria-label="탭 영역" className="flex min-w-0 items-stretch overflow-x-auto">{chat && <WorkspaceTab title={sessionTitle} selected={!projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onClose={() => closeViewMutation.mutate()} />}</div>
     </div>
     <div className={`shell-body grid h-[calc(100dvh-var(--header-height)-2rem)] min-h-0 ${sidebarHidden ? 'sidebar-collapsed' : ''}`}>
       <nav className="activity-rail flex flex-col items-center gap-3 py-3" aria-label="앱 메뉴">
@@ -305,7 +314,7 @@ export function App() {
         <SidebarResize width={sidebarWidth.width} onResize={sidebarWidth.save} />
       </aside>
       <section className="workspace relative min-h-0 min-w-0 overflow-hidden bg-canvas" aria-label="작업 영역">
-        <div id="viewport" className={`relative h-full w-full ${projectsPage || detailId ? 'hidden' : ''}`}>
+        <div id="viewport" role={chat ? 'tabpanel' : undefined} aria-labelledby={chat ? 'current-chat-tab' : undefined} className={`relative h-full w-full ${projectsPage || detailId ? 'hidden' : ''}`}>
           {chat && frameUrl && <iframe key={frameUrl} ref={setFrame} className="block size-full border-0" title="Swttch 채팅" src={frameUrl} onLoad={event => bindFrame(event.currentTarget, frameUrl)} />}
           {chat && (frameLoading || frameError) && <div className="absolute inset-0 grid place-items-center bg-canvas p-6">
             {frameError ? <div role="alert" className="text-center"><p className="text-sm text-muted">{frameError}</p><button className="secondary-button mt-4" disabled={disabled} onClick={() => { if (!chatUrl || !state.project) return; const id = /^\/sessions\/([^/]+)/.exec(chatUrl.pathname)?.[1]; openView(chatUrl.searchParams.get('workingDir') || '', id && id !== 'new' ? id : undefined); }}>다시 시도</button></div> : <div role="status" className="flex items-center gap-3 text-sm text-muted"><span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-divider border-t-foreground motion-reduce:animate-none" />대화를 불러오는 중…</div>}

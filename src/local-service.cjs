@@ -465,6 +465,13 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         res.writeHead(204); res.end(); return;
       } catch (error) { return json(res, 400, { error: error.message }); }
     }
+    if (path === API_PATH.WORKSPACE && req.method === 'DELETE') {
+      if (req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      session.project = null;
+      session.chatUrl = null;
+      if (session.persist) store.saveWorkspace(null, null);
+      return json(res, 200, state(session));
+    }
     if (path === API_PATH.WORKSPACE && req.method === 'PATCH') {
       if (req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
       const body = await readBody(req);

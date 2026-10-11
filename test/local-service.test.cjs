@@ -543,4 +543,11 @@ test('desktop clients restore their view while browser clients remain isolated',
   assert.equal(new URL(restored.state.chatUrl).pathname, '/sessions/' + uid);
   assert.equal((await (await fetch(base + '/desktop-api/workspace', { headers: await client() })).json()).project, null);
   assert.equal((await fetch(base + '/desktop-api/workspace', { method: 'PATCH', headers: first.headers, body: JSON.stringify({ sessionId: 'wrong' }) })).status, 400);
+  assert.equal((await fetch(base + '/desktop-api/workspace', { method: 'DELETE', headers: { ...first.headers, 'x-swttch-csrf': 'wrong' } })).status, 403);
+  assert.equal((await (await fetch(base + '/desktop-api/workspace', { headers: first.headers })).json()).chatUrl !== null, true);
+  const closed = await fetch(base + '/desktop-api/workspace', { method: 'DELETE', headers: first.headers });
+  assert.equal(closed.status, 200);
+  assert.equal((await closed.json()).chatUrl, null);
+  assert.equal((await desktop()).state.chatUrl, null);
+  assert.equal((await (await fetch(base + '/desktop-api/workspace', { headers: restored.headers })).json()).chatUrl !== null, true);
 });
