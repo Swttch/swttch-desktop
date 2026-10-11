@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { desktopApi } from './api';
+import { ProjectOrderList } from './projects/ProjectOrderList';
+import type { ProjectMove } from './projects/projectOrder';
 import { queryClient, QUERY_KEY } from './query-client';
 import { ProjectDialog } from './ProjectDialog';
 import { Tooltip } from './Tooltip';
@@ -44,7 +46,7 @@ function ProjectRow({ project, home, active, disabled, onOpen, onPin, onEdit, on
   }, [menu]);
   const pinned = project.favoritedAt > 0;
   return <div ref={ref} data-active={active || undefined} className={`group relative flex items-start rounded-lg transition-colors ${active ? 'bg-hover' : 'hover:bg-hover'}`}>
-    <button aria-label={`프로젝트 열기: ${nameOf(project)}`} disabled={disabled} onClick={onOpen} className="flex min-w-0 flex-1 items-start gap-3 rounded-lg px-3 py-2.5 text-left">
+    <button aria-label={`프로젝트 열기: ${nameOf(project)}`} disabled={disabled} draggable={false} data-project-drag-handle={project.id} style={{ touchAction: "none", userSelect: "none" }} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" onClick={onOpen} className="flex min-w-0 flex-1 items-start gap-3 rounded-lg px-3 py-2.5 text-left">
       <span aria-hidden="true" style={projectBadgeStyle(project.path)} className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded text-xs font-semibold">{projectInitials(nameOf(project))}</span>
       <span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-3"><span className="flex min-w-0 items-center gap-1"><span className="truncate text-sm font-medium">{nameOf(project)}</span>
         {project.description && <Tooltip content={project.description}><span tabIndex={0} aria-label="설명 보기" className="rounded p-1 text-muted hover:text-foreground"><svg className="size-3.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 5h16v12H9l-5 3z" /></svg></span></Tooltip>}
@@ -56,7 +58,7 @@ function ProjectRow({ project, home, active, disabled, onOpen, onPin, onEdit, on
     </div>
   </div>;
 }
-export function ProjectsPage({ disabled, onOpen, onAdd, sort, onSort }: { disabled: boolean; onOpen: (projectId: number) => void; onAdd: () => void; sort: SortOrder; onSort: (sort: SortOrder) => void }) {
+export function ProjectsPage({ disabled, onOpen, onAdd, sort, onSort, onMove }: { disabled: boolean; onOpen: (projectId: number) => void; onAdd: () => void; sort: SortOrder; onSort: (sort: SortOrder) => void; onMove: (move: ProjectMove) => void }) {
   const projectQuery = useQuery({ queryKey: QUERY_KEY.projects, queryFn: ({ signal }) => desktopApi.projects(signal) });
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -86,12 +88,12 @@ export function ProjectsPage({ disabled, onOpen, onAdd, sort, onSort }: { disabl
   return <main className="projects-page flex h-full min-h-0 flex-col bg-canvas">
     <div className="mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col px-6 pt-6">
       <div className="flex flex-wrap items-center gap-3"><div className="relative min-w-36 flex-1"><svg aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg><input ref={search} className="w-full rounded bg-transparent py-2 pr-3 pl-9 text-sm outline-none placeholder:text-muted" aria-label="프로젝트 검색" placeholder="프로젝트 검색" value={query} onChange={event => { setQuery(event.target.value); setActiveIndex(0); }} onKeyDown={event => { if (!visible.length || pending) return; if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setActiveIndex(index => (index + (event.key === 'ArrowDown' ? 1 : -1) + visible.length) % visible.length); } if (event.key === 'Enter') { event.preventDefault(); onOpen(visible[activeIndex]?.id || visible[0].id); } }} /></div>
-        <div role="group" aria-label="정렬 순서" className="flex rounded-lg bg-navigation p-0.5">{[SortOrder.Recent, SortOrder.Created].map(order => <button key={order} aria-pressed={sort === order} className={`rounded-md px-3 py-1.5 text-xs ${sort === order ? 'bg-selected text-foreground' : 'text-muted hover:text-foreground'}`} onClick={() => onSort(order)}>{order === SortOrder.Recent ? '최근 사용순' : '생성순'}</button>)}</div>
+        <div role="group" aria-label="정렬 순서" className="flex rounded-lg bg-navigation p-0.5">{[SortOrder.Recent, SortOrder.Created, SortOrder.Manual].map(order => <button key={order} aria-pressed={sort === order} className={`rounded-md px-3 py-1.5 text-xs ${sort === order ? 'bg-selected text-foreground' : 'text-muted hover:text-foreground'}`} onClick={() => onSort(order)}>{order === SortOrder.Recent ? '최근 사용순' : order === SortOrder.Created ? '생성순' : '사용자 지정순'}</button>)}</div>
         <button className="secondary-button shrink-0 rounded!" disabled={pending} onClick={onAdd}>프로젝트 추가</button>
       </div><div className="mt-3 border-t border-divider" />
       <div className="flex justify-end py-2"><button className="text-xs text-muted underline underline-offset-4 hover:text-foreground" disabled={pending} onClick={() => importMutation.mutate()}>기존 프로젝트 가져오기</button></div>
       <div className="min-h-0 flex-1 overflow-y-auto py-3 pr-3">
-        {projectQuery.isPending ? <p role="status" className="py-10 text-center text-sm text-muted">프로젝트 불러오는 중...</p> : projectQuery.isError ? <div role="alert" className="py-10 text-center"><p className="text-sm text-red-400">프로젝트를 불러오지 못했습니다</p><button className="mt-3 text-xs underline" onClick={() => void projectQuery.refetch()}>재시도</button></div> : projects.length === 0 ? <div className="mx-auto max-w-md py-10 text-center"><p className="mb-4 text-sm text-muted">사용 가능한 프로젝트가 없습니다</p><button className="w-full rounded-lg border border-dashed border-divider py-2.5 text-sm text-muted hover:text-foreground" disabled={pending} onClick={onAdd}>+ 프로젝트 추가</button></div> : visible.length === 0 ? <p className="py-10 text-center text-sm text-muted">일치하는 프로젝트가 없습니다</p> : visible.map((project, index) => <ProjectRow key={project.path} project={project} home={home} active={index === activeIndex} disabled={pending} onOpen={() => onOpen(project.id)} onPin={() => updateMutation.mutate({ id: project.id, fields: { favorite: project.favoritedAt === 0 } })} onEdit={() => setEditing(project)} onDelete={() => setDeleting(project)} />)}
+        {projectQuery.isPending ? <p role="status" className="py-10 text-center text-sm text-muted">프로젝트 불러오는 중...</p> : projectQuery.isError ? <div role="alert" className="py-10 text-center"><p className="text-sm text-red-400">프로젝트를 불러오지 못했습니다</p><button className="mt-3 text-xs underline" onClick={() => void projectQuery.refetch()}>재시도</button></div> : projects.length === 0 ? <div className="mx-auto max-w-md py-10 text-center"><p className="mb-4 text-sm text-muted">사용 가능한 프로젝트가 없습니다</p><button className="w-full rounded-lg border border-dashed border-divider py-2.5 text-sm text-muted hover:text-foreground" disabled={pending} onClick={onAdd}>+ 프로젝트 추가</button></div> : visible.length === 0 ? <p className="py-10 text-center text-sm text-muted">일치하는 프로젝트가 없습니다</p> : <ProjectOrderList placeholder projects={visible} disabled={pending} onMove={onMove}>{project => <ProjectRow key={project.path} project={project} home={home} active={visible[activeIndex]?.id === project.id} disabled={pending} onOpen={() => onOpen(project.id)} onPin={() => updateMutation.mutate({ id: project.id, fields: { favorite: project.favoritedAt === 0 } })} onEdit={() => setEditing(project)} onDelete={() => setDeleting(project)} />}</ProjectOrderList>}
       </div>
     </div>
     {(editing || deleting) && <ProjectDialog key={(editing || deleting)!.path} project={(editing || deleting)!} deleting={Boolean(deleting)} pending={updateMutation.isPending || deleteMutation.isPending} onClose={() => { setEditing(null); setDeleting(null); }} onSave={(alias, description) => { if (editing) updateMutation.mutate({ id: editing.id, fields: { alias, description } }); }} onDelete={() => { if (deleting) deleteMutation.mutate(deleting.id); }} />}

@@ -336,6 +336,16 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         res.writeHead(204); res.end(); return;
       } catch (error) { return json(res, 400, { error: error.message }); }
     }
+    if (path === API_PATH.PROJECT_ORDER) {
+      if (req.method !== 'PUT') { res.setHeader('Allow', 'PUT'); return json(res, 405, { error: 'Method not allowed' }); }
+      if (req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      try {
+        const body = await readBody(req);
+        store.reorderProjects(body.projectIds, body.projectId, body.favorite);
+        broadcast();
+        return json(res, 200, { projects: store.projects(), homeDir: homedir() });
+      } catch (error) { return json(res, 400, { error: error.message }); }
+    }
     const projectMatch = /^\/desktop-api\/projects\/([^/]+)$/.exec(path);
     if (projectMatch) {
       if (!['GET', 'PATCH', 'DELETE'].includes(req.method)) { res.setHeader('Allow', 'GET, PATCH, DELETE'); return json(res, 405, { error: 'Method not allowed' }); }

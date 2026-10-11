@@ -7,6 +7,8 @@ import { DesktopPhase, type DesktopState, type Project } from './desktop';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { queryClient, QUERY_KEY } from './query-client';
 import { desktopApi } from './api';
+import { ProjectOrderList } from './projects/ProjectOrderList';
+import { moveProjects, type ProjectMove } from './projects/projectOrder';
 import toast, { Toaster } from 'react-hot-toast';
 import { Tooltip } from './Tooltip';
 import { useMatch } from 'react-router';
@@ -17,7 +19,7 @@ import { ProjectsPage } from './ProjectsPage';
 import { useRouter } from './router';
 import { sessionFrameUrl } from './session-view';
 import { SidebarProject } from './SidebarProject';
-import { readProjectSort, saveProjectSort, sortProjects } from './projects/projectSort';
+import { readProjectSort, saveProjectSort, sortProjects, SortOrder } from './projects/projectSort';
 
 enum IconName { Folder, Chat, Sidebar, SidebarCollapsed, Plus, Home, History, Search, Refresh, Compose }
 function Icon({ name, solid = false, className = '' }: { name: IconName; solid?: boolean; className?: string }) {
@@ -96,6 +98,28 @@ export function App() {
   const frameLoading = chat && (busy || frameReadyUrl !== frameUrl);
   const disabled = !ready || busy;
 
+  const reorderMutation = useMutation({
+    mutationFn: ({ rows, move }: { rows: Project[]; move: ProjectMove }) => desktopApi.reorderProjects(rows.map(project => project.id), move.projectId, move.favorite),
+    onMutate: async ({ rows }) => {
+      await queryClient.cancelQueries({ queryKey: QUERY_KEY.projects });
+      const previous = queryClient.getQueryData<{ projects: Project[]; homeDir: string }>(QUERY_KEY.projects);
+      if (previous) queryClient.setQueryData(QUERY_KEY.projects, { ...previous, projects: previous.projects.map(project => rows.find(row => row.id === project.id) || project) });
+      const previousSort = sort; setSort(SortOrder.Manual); saveProjectSort(SortOrder.Manual);
+      return { previous, previousSort };
+    },
+    onSuccess: next => queryClient.setQueryData(QUERY_KEY.projects, next),
+    onError: (error, _, context) => {
+      if (context?.previous) queryClient.setQueryData(QUERY_KEY.projects, context.previous);
+      if (context) { setSort(context.previousSort); saveProjectSort(context.previousSort); }
+      toast.error(error.message);
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: QUERY_KEY.projects }),
+  });
+  function reorderProjects(move: ProjectMove) {
+    if (reorderMutation.isPending) return;
+    const rows = sortProjects((projectsQuery.data?.projects || state.projects).filter(project => !project.hiddenAt), sort);
+    reorderMutation.mutate({ rows: moveProjects(rows, move), move });
+  }
   const expandMutation = useMutation({
     mutationFn: ({ id, expanded }: { id: number; expanded: boolean }) => desktopApi.updateProject(id, { sessionsExpanded: expanded }),
     onMutate: async ({ id, expanded }) => {
@@ -256,7 +280,7 @@ export function App() {
           <SidebarSessions favorites projects={projectsQuery.data?.projects || state.projects} ready={ready} disabled={disabled} sessionId={sessionId} search={search} onSession={(id, path) => openView(path, id)} />
           <SidebarSessions projects={projectsQuery.data?.projects || state.projects} ready={ready} disabled={disabled} sessionId={sessionId} search={search} onSession={(id, path) => openView(path, id)} />
           <SidebarSection name={SidebarSectionName.Projects} title="프로젝트" count={(projectsQuery.data?.projects || state.projects).filter(project => project.hiddenAt === 0).length} action={<IconButton label="프로젝트 추가" icon={IconName.Plus} onClick={() => void openProject()} disabled={disabled} />}>
-          {visibleProjects.map(project => <SidebarProject key={project.id} project={project} expanded={project.sessionsExpanded} selected={detailId ? String(project.id) === detailId : project.path === activeProjectPath} disabled={disabled || expandMutation.isPending} ready={ready} sessionId={sessionId} search={search} onOpen={() => chooseProject(project.id)} onToggle={() => expandMutation.mutate({ id: project.id, expanded: !project.sessionsExpanded })} onSession={(id, path) => openView(path, id)} onNewSession={() => openView(project.path)} />)}
+          <ProjectOrderList projects={visibleProjects} disabled={disabled || reorderMutation.isPending} onMove={reorderProjects}>{project => <SidebarProject key={project.id} project={project} expanded={project.sessionsExpanded} selected={detailId ? String(project.id) === detailId : project.path === activeProjectPath} disabled={disabled || expandMutation.isPending || reorderMutation.isPending} ready={ready} sessionId={sessionId} search={search} onOpen={() => chooseProject(project.id)} onToggle={() => expandMutation.mutate({ id: project.id, expanded: !project.sessionsExpanded })} onSession={(id, path) => openView(path, id)} onNewSession={() => openView(project.path)} />}</ProjectOrderList>
           {state.projects.length === 0 && <button className="navigation-row text-muted" onClick={() => void openProject()} disabled={disabled}><Icon name={IconName.Plus} />프로젝트 열기</button>}
           {search && visibleProjects.length === 0 && <p className="list-note">검색 결과 없음</p>}
           </SidebarSection>
@@ -275,7 +299,7 @@ export function App() {
           {chat && !selecting && error && <div className="connection-error" role="alert">{error}</div>}
         </div>
         {detailId && <ProjectDetailPage projectId={detailId} disabled={disabled} onChat={path => openView(path)} onSession={(sessionId, path) => openView(path, sessionId)} />}
-        {projectsPage && <ProjectsPage disabled={disabled} onOpen={chooseProject} onAdd={() => void openProject()} sort={sort} onSort={order => { setSort(order); saveProjectSort(order); }} />}
+        {projectsPage && <ProjectsPage onMove={reorderProjects} disabled={disabled || reorderMutation.isPending} onOpen={chooseProject} onAdd={() => void openProject()} sort={sort} onSort={order => { setSort(order); saveProjectSort(order); }} />}
 
       </section>
     </div>

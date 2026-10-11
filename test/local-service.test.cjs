@@ -425,3 +425,18 @@ test('session favorites are DB-only mutations, retain source metadata, and pagin
   assert.equal((await fetch(root + 'session-0', { method: 'PATCH', headers, body: '{"favorite":false}' })).status, 200);
   assert.equal((await (await fetch(base + '/desktop-api/favorite-sessions', { headers })).json()).total, 5);
 });
+
+test('project order REST enforces CSRF, validates full membership and atomically changes pin and order', async t => {
+  const { base, client } = await setup(t);
+  const headers = await client();
+  const project = (await (await fetch(base + '/desktop-api/projects', { headers })).json()).projects[0];
+  const payload = { projectIds: [project.id], projectId: project.id, favorite: true };
+  assert.equal((await fetch(base + '/desktop-api/project-order', { method: 'PUT', headers: { ...headers, 'x-swttch-csrf': 'bad' }, body: JSON.stringify(payload) })).status, 403);
+  assert.equal((await fetch(base + '/desktop-api/project-order', { method: 'POST', headers, body: JSON.stringify(payload) })).status, 405);
+  const response = await fetch(base + '/desktop-api/project-order', { method: 'PUT', headers, body: JSON.stringify(payload) });
+  assert.equal(response.status, 200);
+  const saved = (await response.json()).projects;
+  assert.ok(saved[0].favoritedAt > 0); assert.equal(saved[0].sortOrder, 0);
+  assert.equal((await fetch(base + '/desktop-api/project-order', { method: 'PUT', headers, body: JSON.stringify({ ...payload, projectIds: [project.id, project.id], favorite: false }) })).status, 400);
+  assert.deepEqual((await (await fetch(base + '/desktop-api/projects', { headers })).json()).projects, saved);
+});

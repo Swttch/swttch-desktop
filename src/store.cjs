@@ -10,6 +10,7 @@ function openStore(home) {
     recent: () => projects.recent(),
     projects: () => projects.all(),
     hasProject: path => Boolean(projects.findByPath(path)),
+    reorderProjects: (ids, id, favorite) => projects.reorder(ids, id, favorite),
     updateProject: (path, fields) => projects.update(path, fields),
     createProject: (path, fields) => projects.create(path, fields),
     remember: path => projects.remember(path),

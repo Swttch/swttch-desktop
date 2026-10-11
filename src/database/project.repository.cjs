@@ -20,7 +20,7 @@ class ProjectRepository {
   all() {
     return this.db.select().from(projects).orderBy(desc(projects.openedAt), asc(projects.path)).all().map(row => ({
       path: row.path, alias: row.alias, description: row.description, favoritedAt: row.favoritedAt, hiddenAt: row.hiddenAt,
-      createdAt: row.createdAt, lastModified: row.lastModified, sessionCount: row.sessionCount, ...row.data, id: row.id, projectId: row.projectId, sessionsExpanded: row.sessionsExpanded,
+      createdAt: row.createdAt, lastModified: row.lastModified, sessionCount: row.sessionCount, ...row.data, id: row.id, projectId: row.projectId, sessionsExpanded: row.sessionsExpanded, sortOrder: row.sortOrder,
     }));
   }
   create(path, fields = {}) {
@@ -31,7 +31,7 @@ class ProjectRepository {
       if (existing) {
         tx.update(projects).set({ ...fields, hiddenAt: 0, data: { ...existing.data, ...fields, hiddenAt: 0 } }).where(eq(projects.path, path)).run();
       } else {
-        tx.insert(projects).values({ path, openedAt: 0, createdAt: now, lastModified: now, ...fields, data: fields }).run();
+        tx.insert(projects).values({ path, openedAt: 0, createdAt: now, lastModified: now, ...fields, sortOrder: Math.max(-1, ...tx.select().from(projects).all().map(row => row.sortOrder)) + 1, data: fields }).run();
       }
       const row = this.findByPath(path, tx);
       if (!existing && fields.projectId !== undefined) this.validateParent(row.id, fields.projectId);
@@ -41,7 +41,7 @@ class ProjectRepository {
         row.projectId = connected.projectId;
       }
       return { path: row.path, alias: row.alias, description: row.description, favoritedAt: row.favoritedAt, hiddenAt: row.hiddenAt,
-        createdAt: row.createdAt, lastModified: row.lastModified, sessionCount: row.sessionCount, ...row.data, id: row.id, projectId: row.projectId, sessionsExpanded: row.sessionsExpanded };
+        createdAt: row.createdAt, lastModified: row.lastModified, sessionCount: row.sessionCount, ...row.data, id: row.id, projectId: row.projectId, sessionsExpanded: row.sessionsExpanded, sortOrder: row.sortOrder };
     });
   }
   remember(path) {
@@ -49,10 +49,40 @@ class ProjectRepository {
     if (!this.findByPath(path)) this.create(path);
     return this.db.insert(projects).values({ path, openedAt, createdAt: openedAt, lastModified: openedAt }).onConflictDoUpdate({ target: projects.path, set: { openedAt } }).run();
   }
+  reorder(projectIds, projectId, favorite) {
+    return this.db.transaction(tx => {
+      const rows = tx.select().from(projects).all().filter(row => !row.hiddenAt);
+      const ids = new Set(rows.map(row => row.id));
+      if (!Array.isArray(projectIds) || projectIds.length !== ids.size || new Set(projectIds).size !== ids.size || projectIds.some(id => !Number.isSafeInteger(id) || !ids.has(id)) || !ids.has(projectId) || typeof favorite !== 'boolean') throw new Error('프로젝트 목록이 변경됐습니다. 새로고침 후 다시 정렬해 주세요.');
+      const moved = rows.find(row => row.id === projectId);
+      const favoritedAt = favorite ? moved.favoritedAt || Date.now() : 0;
+      let generalSeen = false;
+      for (const id of projectIds) {
+        const row = rows.find(row => row.id === id);
+        const pinned = id === projectId ? favorite : row.favoritedAt > 0;
+        if (pinned && generalSeen) throw new Error('고정 프로젝트는 일반 프로젝트보다 위에 있어야 합니다.');
+        if (!pinned) generalSeen = true;
+      }
+      projectIds.forEach((id, sortOrder) => {
+        const row = rows.find(row => row.id === id);
+        const fields = { sortOrder, ...(id === projectId ? { favoritedAt } : {}) };
+        tx.update(projects).set({ ...fields, data: { ...row.data, ...(id === projectId ? { favoritedAt } : {}) } }).where(eq(projects.id, id)).run();
+      });
+    });
+  }
   update(path, fields) {
     const existing = this.findByPath(path);
     if (!existing) throw new Error('등록되지 않은 프로젝트입니다.');
     if (fields.projectId !== undefined) this.validateParent(existing.id, fields.projectId);
+    if (fields.favoritedAt !== undefined && !fields.hiddenAt && !existing.hiddenAt && (fields.favoritedAt > 0) !== (existing.favoritedAt > 0)) {
+      return this.db.transaction(() => {
+        const rows = this.all().filter(row => !row.hiddenAt && row.id !== existing.id).sort((a, b) => Number(b.favoritedAt > 0) - Number(a.favoritedAt > 0) || a.sortOrder - b.sortOrder || a.id - b.id);
+        const boundary = rows.findIndex(row => !row.favoritedAt);
+        const ids = rows.map(row => row.id); ids.splice(boundary < 0 ? rows.length : boundary, 0, existing.id);
+        this.reorder(ids, existing.id, fields.favoritedAt > 0);
+        return this.db.update(projects).set({ ...fields, data: { ...existing.data, ...fields } }).where(eq(projects.path, path)).run();
+      });
+    }
     return this.db.update(projects).set({ ...fields, data: { ...existing.data, ...fields } }).where(eq(projects.path, path)).run();
   }
   migrate(source) {
@@ -63,7 +93,7 @@ class ProjectRepository {
       for (const row of rows) {
         const existing = this.findByPath(row.path, tx);
         const values = { ...(Number.isSafeInteger(row.id) ? { id: row.id } : {}), sessionCount: row.sessionCount || 0, createdAt: row.createdAt || 0, lastModified: row.lastModified || 0, favoritedAt: row.favoritedAt || 0, hiddenAt: row.hiddenAt || 0, alias: row.alias || null, description: row.description || null, data: row };
-        if (!existing) { inferredPaths.add(row.path); tx.insert(projects).values({ path: row.path, openedAt: 0, ...values }).run(); imported++; }
+        if (!existing) { inferredPaths.add(row.path); tx.insert(projects).values({ path: row.path, openedAt: 0, ...values, sortOrder: Math.max(-1, ...tx.select().from(projects).all().map(item => item.sortOrder)) + 1 }).run(); imported++; }
         else if (Object.keys(existing.data).length === 0) { inferredPaths.add(row.path); tx.update(projects).set(values).where(eq(projects.path, row.path)).run(); enriched++; }
         else unchanged++;
       }

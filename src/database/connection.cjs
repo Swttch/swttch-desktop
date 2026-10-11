@@ -11,7 +11,7 @@ function openDatabase(home) {
     client.pragma('journal_mode = WAL');
     client.pragma('foreign_keys = OFF');
     const version = client.pragma('user_version', { simple: true });
-    if (version > 8) throw new Error('이 앱보다 새로운 데이터베이스입니다. 앱을 업데이트해 주세요.');
+    if (version > 9) throw new Error('이 앱보다 새로운 데이터베이스입니다. 앱을 업데이트해 주세요.');
     // Versioned DDL upgrades preserve the existing MVP database in place.
     client.transaction(() => {
       client.exec("CREATE TABLE IF NOT EXISTS projects (path TEXT PRIMARY KEY, opened_at INTEGER NOT NULL, data TEXT NOT NULL DEFAULT '{}')");
@@ -28,6 +28,7 @@ function openDatabase(home) {
       if (!columns.has('id')) client.exec('ALTER TABLE projects ADD COLUMN id INTEGER');
       if (!columns.has('project_id')) client.exec('ALTER TABLE projects ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL');
       if (!columns.has('sessions_expanded')) client.exec('ALTER TABLE projects ADD COLUMN sessions_expanded INTEGER NOT NULL DEFAULT 0');
+      if (!columns.has('sort_order')) client.exec('ALTER TABLE projects ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0');
       const db = drizzle(client, { schema });
       if (version < 3) {
         for (const row of db.select().from(schema.projects).all()) {
@@ -56,6 +57,7 @@ function openDatabase(home) {
       if (!client.pragma('table_info(projects)').some(column => column.name === 'sessions_expanded')) {
         client.exec('ALTER TABLE projects ADD COLUMN sessions_expanded INTEGER NOT NULL DEFAULT 0');
       }
+      if (!client.pragma('table_info(projects)').some(column => column.name === 'sort_order')) client.exec('ALTER TABLE projects ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0');
       if (version < 5) {
         const rows = db.select().from(schema.projects).all();
         const restored = connectPathParents(rows.map(row => ({ ...row, projectId: row.data.projectId ?? null })));
@@ -70,7 +72,11 @@ function openDatabase(home) {
         client.exec('ALTER TABLE sessions ADD COLUMN favorited_at INTEGER NOT NULL DEFAULT 0');
         client.exec('CREATE INDEX sessions_favorited ON sessions(favorited_at)');
       }
-      client.pragma('user_version = 8');
+      if (version < 9) {
+        const rows = db.select().from(schema.projects).all().sort((a, b) => Number(b.favoritedAt > 0) - Number(a.favoritedAt > 0) || b.lastModified - a.lastModified || a.id - b.id);
+        rows.forEach((row, sortOrder) => db.update(schema.projects).set({ sortOrder }).where(eq(schema.projects.id, row.id)).run());
+      }
+      client.pragma('user_version = 9');
     })();
     client.pragma('foreign_keys = ON');
     if (client.pragma('foreign_key_check').length) throw new Error('프로젝트 관계의 외래키가 올바르지 않습니다.');

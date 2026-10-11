@@ -6,6 +6,7 @@ export const API_PATH: {
   readonly PROJECT: '/desktop-api/projects/:projectId';
   readonly FOLDER_SELECTIONS: '/desktop-api/folder-selections';
   readonly PROJECTS: '/desktop-api/projects';
+  readonly PROJECT_ORDER: '/desktop-api/project-order';
   readonly PROJECT_SCOPE: '/desktop-api/projects/:projectId/session-scope';
   readonly PROJECT_SESSION: '/desktop-api/projects/:projectId/sessions/:sessionId';
   readonly SESSION_READS: '/desktop-api/projects/:projectId/sessions/:sessionId/read-receipts';

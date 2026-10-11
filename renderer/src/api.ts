@@ -45,6 +45,7 @@ export const desktopApi = {
   createProject: (project: { path: string; alias: string; description: string }) => request<Project>(API_PATH.PROJECTS, 'POST', project),
   project: (projectId: string, signal?: AbortSignal) => request<Project>(replacePathParams(API_PATH.PROJECT, { projectId }), 'GET', undefined, signal),
   projects: (signal?: AbortSignal) => request<{ projects: Project[]; homeDir: string }>(API_PATH.PROJECTS, 'GET', undefined, signal),
+  reorderProjects: (projectIds: number[], projectId: number, favorite: boolean) => request<{ projects: Project[]; homeDir: string }>(API_PATH.PROJECT_ORDER, "PUT", { projectIds, projectId, favorite }),
   updateProject: (projectId: number, fields: { projectId?: number | null; sessionsExpanded?: boolean; favorite?: boolean; alias?: string; description?: string }) => request<Project>(replacePathParams(API_PATH.PROJECT, { projectId }), 'PATCH', fields),
   deleteProject: (projectId: number) => request<void>(replacePathParams(API_PATH.PROJECT, { projectId }), 'DELETE'),
   state: (signal?: AbortSignal) => request<DesktopState>(API_PATH.WORKSPACE, 'GET', undefined, signal),

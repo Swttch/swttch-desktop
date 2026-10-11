@@ -9,6 +9,7 @@ export interface Project {
   id: number;
   projectId: number | null;
   sessionsExpanded: boolean;
+  sortOrder: number;
   path: string;
   alias: string | null;
   description: string | null;

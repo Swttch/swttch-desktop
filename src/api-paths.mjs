@@ -4,6 +4,7 @@ export const API_PATH = Object.freeze({
   ACTIVE_SESSIONS: '/desktop-api/active-sessions',
   WORKSPACE: '/desktop-api/workspace',
   FOLDER_SELECTIONS: '/desktop-api/folder-selections',
+  PROJECT_ORDER: '/desktop-api/project-order',
   PROJECTS: '/desktop-api/projects',
   PROJECT: '/desktop-api/projects/:projectId',
   PROJECT_SCOPE: '/desktop-api/projects/:projectId/session-scope',

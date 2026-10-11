@@ -5,6 +5,7 @@ const projects = sqliteTable('projects', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   projectId: integer('project_id').references(() => projects.id, { onDelete: 'set null' }),
   sessionsExpanded: integer('sessions_expanded', { mode: 'boolean' }).notNull().default(false),
+  sortOrder: integer('sort_order').notNull().default(0),
   path: text('path').notNull().unique(),
   openedAt: integer('opened_at').notNull(),
   sessionCount: integer('session_count').notNull().default(0),
