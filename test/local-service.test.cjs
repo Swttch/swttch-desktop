@@ -22,8 +22,8 @@ async function setup(t, allowedOrigins = [], registerProject = true, sourceConfi
   });
   const backendRequests = [];
   const nestedSettings = new Map();
-  let activeAccount = 'acc:one';
-  const accountRows = [{ id: 'acc:one', emailAddress: 'one@example.test', displayName: 'One', futureField: { preserved: true } }, { id: 'acc:two', emailAddress: 'two@example.test', displayName: 'Two' }];
+  let activeAccount = 'acc-11111111-1111-4111-8111-111111111111';
+  const accountRows = [{ id: 'acc-11111111-1111-4111-8111-111111111111', emailAddress: 'one@example.test', displayName: 'One', futureField: { preserved: true } }, { id: 'acc-22222222-2222-4222-8222-222222222222', emailAddress: 'two@example.test', displayName: 'Two' }];
   let sessionRows = Array.from({ length: 35 }, (_, index) => ({ sessionId: 'session-' + index, title: 'Title ' + index, sessionDir: index === 34 ? join(project, 'nested') : project, createdAt: '2026-10-01T00:00:00Z', lastTimestamp: '2026-10-09T00:00:00Z', isSidechain: false, originalExtra: { preserved: true } }));
   const sockets = new Set();
   upstream.on('upgrade', (req, socket) => {
@@ -70,7 +70,7 @@ async function setup(t, allowedOrigins = [], registerProject = true, sourceConfi
   });
   await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve));
   const backend = { port: upstream.address().port, token: 'private-token', async start() {}, async stop() {} };
-  const service = createLocalService({ home, backend, allowedOrigins, ...await sourceConfig(home), folderDialog: { async select() { return project; }, stop() {} } });
+  const service = createLocalService({ home, backend, allowedOrigins, accountUsage: { prepareAccount: async () => {}, invalidate() {}, read: async accounts => ({ accounts }) }, ...await sourceConfig(home), folderDialog: { async select() { return project; }, stop() {} } });
   const server = createServer((req, res) => service.middleware(req, res, () => res.end('shell')));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   service.bind(server);
@@ -473,14 +473,14 @@ test('account dropdown API reuses CCG switching, preserves original accounts and
   const accounts = await (await fetch(list, { headers })).json();
   assert.deepEqual(accounts.accounts[0].futureField, { preserved: true });
   assert.equal(accounts.accounts[0].active, true);
-  assert.equal((await fetch(active, { method: 'PUT', headers: { cookie: headers.cookie }, body: '{"id":"acc:two"}' })).status, 403);
+  assert.equal((await fetch(active, { method: 'PUT', headers: { cookie: headers.cookie }, body: '{"id":"acc-22222222-2222-4222-8222-222222222222"}' })).status, 403);
   assert.equal((await fetch(active, { method: 'PUT', headers, body: '{"id":"not-an-account"}' })).status, 400);
-  assert.equal((await fetch(active, { method: 'PUT', headers: { ...headers, Origin: 'https://foreign.test' }, body: '{"id":"acc:two"}' })).status, 403);
-  const switched = await (await fetch(active, { method: 'PUT', headers, body: '{"id":"acc:two"}' })).json();
-  assert.equal(switched.accounts.find(row => row.id === 'acc:two').active, true);
+  assert.equal((await fetch(active, { method: 'PUT', headers: { ...headers, Origin: 'https://foreign.test' }, body: '{"id":"acc-22222222-2222-4222-8222-222222222222"}' })).status, 403);
+  const switched = await (await fetch(active, { method: 'PUT', headers, body: '{"id":"acc-22222222-2222-4222-8222-222222222222"}' })).json();
+  assert.equal(switched.accounts.find(row => row.id === 'acc-22222222-2222-4222-8222-222222222222').active, true);
   assert.equal(invalidations, 1);
   assert.equal(backendRequests.filter(row => row.type === 'SWITCH_ACCOUNT').length, 1);
-  assert.equal((await fetch(active, { method: 'PUT', headers, body: '{"id":"acc:missing"}' })).status, 502);
+  assert.equal((await fetch(active, { method: 'PUT', headers, body: '{"id":"acc-33333333-3333-4333-8333-333333333333"}' })).status, 502);
   const viewPath = base + '/desktop-api/account-views';
   assert.equal((await fetch(viewPath, { method: 'POST', headers, body: '{"path":"https://foreign.test/"}' })).status, 400);
   for (const path of ['/switch-account', '/settings/account']) {
@@ -509,6 +509,24 @@ test('usage contribution API preserves raw CLI output, uses workspace scope and 
   assert.equal((await fetch(refresh, { method: 'POST', headers: { ...headers, Origin: 'https://foreign.test' } })).status, 403);
   assert.equal((await fetch(refresh, { method: 'POST', headers })).status, 200);
   assert.deepEqual(backendRequests.filter(row => row.type === 'GET_USAGE_REPORT').map(row => row.payload.force), [false, true]);
+});
+
+test('all saved-account usage refreshes validate membership and CSRF while preserving fields', async t => {
+  const calls = [];
+  const { base, client } = await setup(t, [], false, () => ({ accountUsage: { prepareAccount: async () => {}, invalidate() {}, async read(accounts, options) { calls.push(options); return { accounts: accounts.map(account => ({ ...account, usage: { futureField: true } })) }; } } }), false);
+  const headers = await client();
+  const path = base + '/desktop-api/account-usage';
+  assert.equal((await fetch(path)).status, 401);
+  const result = await (await fetch(path, { headers })).json();
+  assert.equal(result.accounts.length, 2);
+  assert.equal(result.accounts[1].active, false);
+  assert.equal(result.accounts[1].usage.futureField, true);
+  const refresh = base + '/desktop-api/account-usage-refreshes';
+  assert.equal((await fetch(refresh, { method: 'POST', headers: { cookie: headers.cookie } })).status, 403);
+  assert.equal((await fetch(refresh, { method: 'POST', headers, body: '{"accountId":"acc-missing"}' })).status, 400);
+  assert.equal((await fetch(refresh, { method: 'POST', headers, body: '{"accountId":"acc-22222222-2222-4222-8222-222222222222"}' })).status, 200);
+  assert.equal((await fetch(refresh, { method: 'POST', headers, body: '{}' })).status, 200);
+  assert.deepEqual(calls.map(call => call.refresh), [false, true, true]);
 });
 
 test('desktop clients restore their view while browser clients remain isolated', async t => {

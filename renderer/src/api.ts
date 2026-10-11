@@ -3,7 +3,7 @@ import { API_PATH } from '../../src/api-paths.mjs';
 import { replacePathParams } from './routes';
 import { queryClient, QUERY_KEY } from './query-client';
 import type { ProviderUsage } from './provider-usage';
-import type { AccountsResult } from '../../../../webview/src/shared/account';
+import type { AccountsResult, AccountListItem } from '../../../../webview/src/shared/account';
 
 function connect() {
   return queryClient.ensureQueryData({
@@ -37,6 +37,8 @@ async function request<T>(path: string, method: string, body?: object, signal?: 
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }
 export const desktopApi = {
+  accountUsage: (signal?: AbortSignal) => request<{ accounts: (AccountListItem & ProviderUsage)[] }>(API_PATH.ACCOUNT_USAGE, 'GET', undefined, signal),
+  refreshAccountUsage: (accountId?: string) => request<{ accounts: (AccountListItem & ProviderUsage)[] }>(API_PATH.ACCOUNT_USAGE_REFRESHES, 'POST', accountId ? { accountId } : {}),
   usageReport: (signal?: AbortSignal) => request<{ status: string; report: string | null; error?: string }>(API_PATH.USAGE_REPORT, 'GET', undefined, signal),
   refreshUsageReport: () => request<{ status: string; report: string | null; error?: string }>(API_PATH.USAGE_REPORT_REFRESHES, 'POST', {}),
   accounts: (signal?: AbortSignal) => request<AccountsResult>(API_PATH.ACCOUNTS, 'GET', undefined, signal),

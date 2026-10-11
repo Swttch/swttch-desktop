@@ -16,8 +16,11 @@ const { sessionUrl } = require('./session-url.cjs');
 const { displayTitle, createSessionSourceSync } = require('./session-source-sync.cjs');
 const { renameSessionWithCli } = require('./session-rename.cjs');
 const { createProviderUsage } = require('./provider-usage.cjs');
+const { createAccountUsage } = require('./account-usage.cjs');
 
-function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(homedir(), '.swttch'), backend: suppliedBackend, allowedOrigins = [], folderDialog: suppliedFolderDialog, sourceReader, renameSession = renameSessionWithCli, subscribe = subscribeBackend, providerUsage = createProviderUsage() } = {}) {
+function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(homedir(), '.swttch'), backend: suppliedBackend, allowedOrigins = [], folderDialog: suppliedFolderDialog, sourceReader, renameSession = renameSessionWithCli, subscribe = subscribeBackend, providerUsage: suppliedProviderUsage, accountUsage: suppliedAccountUsage } = {}) {
+  const accountUsage = suppliedAccountUsage || createAccountUsage({ activeUsage: { read: options => providerUsage.read(options), invalidate: () => providerUsage.invalidate() } });
+  const providerUsage = suppliedProviderUsage || createProviderUsage({ resolveUsage: (client, profile) => accountUsage.fetchLiveUsage(client, profile) });
   mkdirSync(home, { recursive: true, mode: 0o700 });
   const store = openStore(home);
   const sourceSync = createSessionSourceSync({ repository: store.sessionRepository, projects: store.projects, reader: sourceReader });
@@ -147,7 +150,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         await backend.start();
         phase = 'ready'; message = '프로젝트를 선택해 시작하세요.';
         if (!suppliedBackend || subscribe !== subscribeBackend) unsubscribeBackend = subscribe(backend, (type, payload) => {
-          if (type === 'accounts') { providerUsage.invalidate(); accountsRevision++; broadcast(); return; }
+          if (type === 'accounts') { providerUsage.invalidate(); accountUsage.invalidate(); accountsRevision++; broadcast(); return; }
           if (type === 'connection') {
             phase = payload.connected ? 'ready' : 'error';
             message = payload.connected ? '프로젝트를 선택해 시작하세요.' : '채팅 연결이 끊겼습니다. 재연결 중입니다. 서버가 종료됐다면 재시도를 선택해 주세요.';
@@ -205,6 +208,19 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
       return json(res, 201, { csrf: session.csrf, state: state(session) });
     }
     if (!session) return json(res, 401, { error: '앱 연결이 만료됐습니다. 새로고침해 주세요.' });
+    if ([API_PATH.ACCOUNT_USAGE, API_PATH.ACCOUNT_USAGE_REFRESHES].includes(path)) {
+      const refresh = path === API_PATH.ACCOUNT_USAGE_REFRESHES;
+      const method = refresh ? 'POST' : 'GET';
+      if (req.method !== method) { res.setHeader('Allow', method); return json(res, 405, { error: 'Method not allowed' }); }
+      if (refresh && req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      try {
+        const result = await backendRequest(backend, 'GET_ACCOUNTS', {});
+        if (result.status !== 'ok') throw new Error('저장된 계정을 조회하지 못했습니다.');
+        const body = refresh ? await readBody(req) : {};
+        if (body.accountId !== undefined && !result.accounts.some(account => account.id === body.accountId)) return json(res, 400, { error: '저장된 계정을 선택해 주세요.' });
+        return json(res, 200, await accountUsage.read(result.accounts, { refresh, accountId: body.accountId }));
+      } catch { return json(res, 502, { error: '계정별 사용량을 조회하지 못했습니다. 다시 시도해 주세요.' }); }
+    }
     if ([API_PATH.USAGE_REPORT, API_PATH.USAGE_REPORT_REFRESHES].includes(path)) {
       const force = path === API_PATH.USAGE_REPORT_REFRESHES;
       const method = force ? 'POST' : 'GET';
@@ -233,10 +249,11 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         }
         if (path === API_PATH.ACTIVE_ACCOUNT) {
           const body = await readBody(req);
-          if (typeof body.id !== 'string' || !body.id.startsWith('acc:') || body.id.length > 128) return json(res, 400, { error: '저장된 계정을 선택해 주세요.' });
+          if (typeof body.id !== 'string' || !/^acc-[a-f0-9-]+$/i.test(body.id) || body.id.length > 128) return json(res, 400, { error: '저장된 계정을 선택해 주세요.' });
+          try { await accountUsage.prepareAccount(body.id); } catch { return json(res, 400, { error: '저장 계정의 인증을 갱신하지 못했습니다. 해당 계정에 다시 로그인해 주세요.' }); }
           const result = await backendRequest(backend, 'SWITCH_ACCOUNT', { id: body.id });
           if (result.status !== 'ok') throw new Error(result.error || '계정 전환에 실패했습니다.');
-          providerUsage.invalidate(); accountsRevision++; broadcast();
+          providerUsage.invalidate(); accountUsage.invalidate(); accountsRevision++; broadcast();
         }
         const result = await backendRequest(backend, 'GET_ACCOUNTS', {});
         if (result.status !== 'ok') throw new Error(result.error || '계정을 조회하지 못했습니다.');

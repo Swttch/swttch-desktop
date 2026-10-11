@@ -1,4 +1,6 @@
 export const API_PATH = Object.freeze({
+  ACCOUNT_USAGE: '/desktop-api/account-usage',
+  ACCOUNT_USAGE_REFRESHES: '/desktop-api/account-usage-refreshes',
   USAGE_REPORT: '/desktop-api/usage-report',
   USAGE_REPORT_REFRESHES: '/desktop-api/usage-report-refreshes',
   ACCOUNTS: '/desktop-api/accounts',

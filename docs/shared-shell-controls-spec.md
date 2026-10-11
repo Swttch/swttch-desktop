@@ -47,6 +47,8 @@
 
 ### 계정 드롭다운 연결과 플러그인 디테일 일치
 
+계정 전환과 비활성 계정의 실제 SDK 사용량 조회 후속 변경은 [계정 전환·사용량 검증](account-switch-verification.md)에 기록합니다. 해당 변경은 사용자 검수 후 커밋 예정입니다.
+
 - `GET /desktop-api/accounts`는 CCG `GET_ACCOUNTS` 원본 응답을 보존합니다. `PUT /desktop-api/active-account`는 기존 `SWITCH_ACCOUNT` 실행 후 활성 계정을 다시 조회합니다. 변경 요청은 세션·origin·CSRF 검증을 적용합니다.
 - 계정 추가·관리는 기존 `/switch-account`, `/settings/account` 웹뷰를 인증된 iframe으로 엽니다. 인증·계정 저장·전환 비즈니스 로직을 셸에 복제하지 않습니다.
 - 다른 웹뷰에서 계정을 바꿔도 `ACCOUNTS_CHANGED`를 받아 목록·SDK 사용량 캐시를 초기화합니다. 이전 계정의 진행 중인 조회가 뒤늦게 캐시를 채우지 않도록 무효화 세대를 검사합니다.

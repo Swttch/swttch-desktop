@@ -1,5 +1,5 @@
 // Credentials remain inside the SDK. Only provider profile/usage payloads leave Node.
-function createProviderUsage({ loadSdk = () => import('@swttch/extend-kit/battery'), now = Date.now } = {}) {
+function createProviderUsage({ loadSdk = () => import('@swttch/extend-kit/battery'), now = Date.now, resolveCredentials, resolveUsage } = {}) {
   let snapshot;
   let expiresAt = 0;
   let pending;
@@ -24,11 +24,12 @@ function createProviderUsage({ loadSdk = () => import('@swttch/extend-kit/batter
       let result;
       try {
         const sdk = await loadSdk();
-        if (process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_CODE_OAUTH_TOKEN) throw Object.assign(new Error(), { code: 'api_key' });
-        const credentials = await sdk.getCredentials();
+        if (!resolveCredentials && process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_CODE_OAUTH_TOKEN) throw Object.assign(new Error(), { code: 'api_key' });
+        const credentials = resolveCredentials ? await resolveCredentials(sdk) : await sdk.getCredentials();
         if (sdk.isTokenExpired(credentials)) throw Object.assign(new Error(), { code: 'token_expired' });
         const client = new sdk.ClaudeCodeClient(sdk.getAccessToken(credentials));
-        const [profile, usage] = await Promise.allSettled([client.oauth.getProfile(), client.oauth.getUsage()]);
+        const profilePromise = client.oauth.getProfile();
+        const [profile, usage] = await Promise.allSettled([profilePromise, resolveUsage ? resolveUsage(client, profilePromise) : client.oauth.getUsage()]);
         result = {
           profile: profile.status === 'fulfilled' ? profile.value : null,
           usage: usage.status === 'fulfilled' ? usage.value : null,
