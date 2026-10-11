@@ -41,6 +41,6 @@ Tailwind v4 `@theme`의 단일 소스는 `renderer/src/shell.css`다.
 ## 구현 규칙
 
 레이아웃·간격·글자·색·상태는 Tailwind 유틸리티로 작성한다. 반복되는 컨트롤만 `@layer components`로 묶는다. 호스트 의존 CSS(창 드래그)와 3열 grid 규칙만 최소한으로 남긴다.
-툴팁은 공통 `Tooltip.tsx`의 Tippy를 기본으로 사용한다. 브라우저 `title`과 임의 CSS 툴팁을 새로 만들지 않는다. 토스트는 react-hot-toast와 앱 루트의 단일 Toaster를 사용한다. 폼 오류는 입력 위치에도 남긴다.
+툴팁은 공통 `Tooltip.tsx`의 Tippy를 기본으로 사용한다. 모든 드롭다운도 Tippy로 구현하며 신규 드롭다운은 공통 `Dropdown.tsx`를 사용한다. 드롭다운은 바깥 클릭·Esc로 닫고 동시에 하나만 연다. 브라우저 `title`과 임의 CSS 툴팁을 새로 만들지 않는다. 토스트는 react-hot-toast와 앱 루트의 단일 Toaster를 사용한다. 폼 오류는 입력 위치에도 남긴다.
 원본 채팅 앱 내부는 수정하지 않는다. 셸 레퍼런스 변경은 데스크탑 패키지 안에서만 진행한다.
 일반 UI 확인은 Codex 브라우저에서 한다. [플레이북](docs/design-playbook.md)을 따른다.

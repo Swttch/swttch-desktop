@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { UsageBucket } from '@swttch/extend-kit/battery';
 import { desktopApi } from './api';
@@ -7,8 +7,8 @@ import { QUERY_KEY, queryClient } from './query-client';
 import { Tooltip } from './Tooltip';
 import claudeLogo from './assets/claude-logo.svg';
 import { AccountSwitcher } from './AccountSwitcher';
+import { Dropdown } from './Dropdown';
 
-enum Panel { Account = 'account', Connection = 'connection' }
 const percent = (value: number) => Math.round(Math.min(100, Math.max(0, value)));
 const batteryColor = (remaining: number | null) => remaining === null ? undefined : remaining > 50 ? '#22c55e' : remaining >= 20 ? '#eab308' : '#ef4444';
 const resetTime = (value: string | null | undefined) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '초기화 시각 없음';
@@ -19,10 +19,6 @@ function RefreshButton({ pending, onClick }: { pending: boolean; onClick: () => 
 }
 
 export function StatusBar({ state }: { state: DesktopState }) {
-  const [panel, setPanel] = useState<Panel | null>(null);
-  const root = useRef<HTMLElement>(null);
-  const accountButton = useRef<HTMLButtonElement>(null);
-  const connectionButton = useRef<HTMLButtonElement>(null);
   const query = useQuery({ queryKey: QUERY_KEY.providerUsage, queryFn: ({ signal }) => desktopApi.providerUsage(signal), staleTime: 60_000, refetchInterval: 60_000 });
   const refresh = useMutation({ mutationFn: desktopApi.refreshProviderUsage, onSuccess: data => queryClient.setQueryData(QUERY_KEY.providerUsage, data) });
   const reconnect = useMutation({ mutationFn: desktopApi.retry, onSuccess: data => queryClient.setQueryData(QUERY_KEY.workspace, data) });
@@ -33,20 +29,6 @@ export function StatusBar({ state }: { state: DesktopState }) {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEY.accounts });
     void queryClient.resetQueries({ queryKey: QUERY_KEY.providerUsage });
   }, [state.accountsRevision]);
-  useEffect(() => {
-    if (!panel) return;
-    const outside = (event: PointerEvent) => { if (event.target instanceof Node && !root.current?.contains(event.target)) setPanel(null); };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setPanel(null);
-      (panel === Panel.Account ? accountButton : connectionButton).current?.focus();
-    };
-    document.addEventListener('pointerdown', outside);
-    document.addEventListener('keydown', escape);
-    const blur = () => { if (document.activeElement instanceof HTMLIFrameElement) setPanel(null); };
-    window.addEventListener('blur', blur);
-    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); window.removeEventListener('blur', blur); };
-  }, [panel]);
   const data = query.data;
   const usage = data?.usage;
   const account = data?.profile?.account;
@@ -66,17 +48,7 @@ export function StatusBar({ state }: { state: DesktopState }) {
   const compact = [usage?.five_hour && `${percent(usage.five_hour.utilization)}% 5h`, usage?.seven_day && `${percent(usage.seven_day.utilization)}% wk`].filter(Boolean).join(' · ');
   const remaining = usage?.five_hour ? 100 - percent(usage.five_hour.utilization) : null;
   const error = refresh.error?.message || query.error?.message;
-  return <footer ref={root} className="relative flex h-8 shrink-0 items-center justify-between gap-3 border-t border-divider bg-navigation px-3 text-xs text-muted" aria-label="공통 상태바">
-    <div className="flex min-w-0 items-center gap-1">
-    <Tooltip content="Claude 구독 사용률 · 배터리 채움은 5h 잔여 한도" placement="top-start">
-      <button ref={accountButton} type="button" className="flex min-w-0 items-center gap-2 rounded px-2 py-1 hover:bg-selected focus-visible:outline-2 focus-visible:outline-foreground" aria-label="Claude 계정 및 사용량" aria-expanded={panel === Panel.Account} aria-controls="provider-usage-panel" onClick={() => setPanel(panel === Panel.Account ? null : Panel.Account)}>
-        <img src={claudeLogo} alt="" className="size-3.5 shrink-0" /><svg aria-hidden="true" viewBox="0 0 16 16" style={{ color: batteryColor(remaining) }} className={`size-5 shrink-0 ${remaining !== null && remaining < 20 ? 'animate-pulse motion-reduce:animate-none' : ''} ${query.isFetching ? 'opacity-50' : ''}`} fill="currentColor"><rect x="1" y="4" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none" /><rect x="13" y="6.5" width="1.5" height="3" rx=".5" />{remaining !== null && <rect x="2.5" y="5.5" width={9 * remaining / 100} height="5" rx=".5" />}</svg><span className="tabular-nums" style={{ color: batteryColor(remaining) }}>{query.isPending ? '…' : compact || '—'}</span>
-      </button>
-    </Tooltip>
-    <RefreshButton pending={query.isFetching || refresh.isPending} onClick={() => refresh.mutate()} />
-    <AccountSwitcher connected={ready} onOpen={() => setPanel(null)} />
-    </div>
-    {panel === Panel.Account && <section id="provider-usage-panel" aria-label="Claude 계정 및 사용량 상세" className="absolute bottom-full left-3 z-50 mb-2 max-h-[min(36rem,75dvh)] w-[min(24rem,calc(100vw-1.5rem))] overflow-y-auto rounded-lg border border-divider bg-navigation p-4 text-sm text-foreground">
+  const usageContent = <section id="provider-usage-panel" aria-label="Claude 계정 및 사용량 상세" className="max-h-[min(36rem,75dvh)] w-[min(24rem,calc(100vw-1.5rem))] overflow-y-auto rounded-lg border border-divider bg-navigation p-4 text-sm text-foreground">
       <div className="flex items-center justify-between gap-4"><h2 className="font-medium">Claude 계정·사용량</h2><RefreshButton pending={query.isFetching || refresh.isPending} onClick={() => refresh.mutate()} /></div>
       <p className="mt-2 text-xs leading-5 text-muted">이 컴퓨터의 기본 Claude 로그인 기준입니다. 세션별 계정·컨텍스트 사용량과는 별개입니다.</p>
       {query.isPending && <p role="status" className="mt-4">계정 정보를 조회하고 있습니다.</p>}
@@ -89,10 +61,22 @@ export function StatusBar({ state }: { state: DesktopState }) {
       {data?.errors.usage && <p role="status" className="mt-4 text-xs leading-5 text-muted">{data.errors.usage.message}</p>}
       {usage && windows.length === 0 && namedLimits.length === 0 && <p className="mt-4 text-muted">제공된 사용 한도 정보가 없습니다.</p>}
       {data && <p className="mt-4 text-xs text-muted">마지막 조회 {new Date(data.checkedAt).toLocaleTimeString('ko-KR')} · 1분마다 조회, 요청 제한 시 대기</p>}
-    </section>}
-    <Tooltip content="CCG 백엔드 연결 상태" placement="top-end">
-      <button ref={connectionButton} type="button" className="flex shrink-0 items-center gap-2 rounded px-2 py-1 hover:bg-selected focus-visible:outline-2 focus-visible:outline-foreground" aria-expanded={panel === Panel.Connection} aria-controls="backend-connection-panel" onClick={() => setPanel(panel === Panel.Connection ? null : Panel.Connection)}><span aria-hidden="true" className={`size-1.5 rounded-full ${ready ? 'bg-status' : 'bg-muted'}`} /><span>{connectionLabel}</span></button>
-    </Tooltip>
-    {panel === Panel.Connection && <section id="backend-connection-panel" aria-label="백엔드 연결 상세" className="absolute right-3 bottom-full z-50 mb-2 w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-divider bg-navigation p-4 text-sm text-foreground"><h2 className="font-medium">CCG 백엔드</h2><p role="status" className="mt-3">{connectionLabel}</p><p className="mt-2 text-xs leading-5 text-muted">{ready ? '채팅 환경에 연결돼 있습니다.' : state.message}</p>{state.phase === DesktopPhase.Error && <button type="button" className="secondary-button mt-4" disabled={reconnect.isPending} onClick={() => reconnect.mutate()}>{reconnect.isPending ? '연결 중…' : '다시 연결'}</button>}{reconnect.error && <p role="alert" className="mt-3 text-xs text-muted">{reconnect.error.message}</p>}</section>}
+    </section>;
+  const connectionContent = <section id="backend-connection-panel" aria-label="백엔드 연결 상세" className="w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-divider bg-navigation p-4 text-sm text-foreground"><h2 className="font-medium">CCG 백엔드</h2><p role="status" className="mt-3">{connectionLabel}</p><p className="mt-2 text-xs leading-5 text-muted">{ready ? '채팅 환경에 연결돼 있습니다.' : state.message}</p>{state.phase === DesktopPhase.Error && <button type="button" className="secondary-button mt-4" disabled={reconnect.isPending} onClick={() => reconnect.mutate()}>{reconnect.isPending ? '연결 중…' : '다시 연결'}</button>}{reconnect.error && <p role="alert" className="mt-3 text-xs text-muted">{reconnect.error.message}</p>}</section>;
+  return <footer className="relative flex h-8 shrink-0 items-center justify-between gap-3 border-t border-divider bg-navigation px-3 text-xs text-muted" aria-label="공통 상태바">
+    <div className="flex min-w-0 items-center gap-1">
+    <Dropdown content={usageContent}>
+      <button type="button" className="flex min-w-0 items-center gap-2 rounded px-2 py-1 hover:bg-selected focus-visible:outline-2 focus-visible:outline-foreground" aria-label="Claude 계정 및 사용량" aria-expanded="false" aria-controls="provider-usage-panel">
+        <img src={claudeLogo} alt="" className="size-3.5 shrink-0" /><svg aria-hidden="true" viewBox="0 0 16 16" style={{ color: batteryColor(remaining) }} className={`size-5 shrink-0 ${remaining !== null && remaining < 20 ? 'animate-pulse motion-reduce:animate-none' : ''} ${query.isFetching ? 'opacity-50' : ''}`} fill="currentColor"><rect x="1" y="4" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none" /><rect x="13" y="6.5" width="1.5" height="3" rx=".5" />{remaining !== null && <rect x="2.5" y="5.5" width={9 * remaining / 100} height="5" rx=".5" />}</svg><span className="tabular-nums" style={{ color: batteryColor(remaining) }}>{query.isPending ? '…' : compact || '—'}</span>
+      </button>
+    </Dropdown>
+    <RefreshButton pending={query.isFetching || refresh.isPending} onClick={() => refresh.mutate()} />
+    <AccountSwitcher connected={ready} />
+    </div>
+
+    <Dropdown content={connectionContent}>
+      <button type="button" className="flex shrink-0 items-center gap-2 rounded px-2 py-1 hover:bg-selected focus-visible:outline-2 focus-visible:outline-foreground" aria-expanded="false" aria-controls="backend-connection-panel"><span aria-hidden="true" className={`size-1.5 rounded-full ${ready ? 'bg-status' : 'bg-muted'}`} /><span>{connectionLabel}</span></button>
+    </Dropdown>
+
   </footer>;
 }

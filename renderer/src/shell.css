@@ -62,6 +62,8 @@
 .tippy-box[data-theme~='swttch'] { background: var(--color-chrome); color: var(--color-foreground); border: 1px solid var(--color-divider); border-radius: 12px; box-shadow: 0 8px 24px #0003; font-size: 13px; }
 .tippy-box[data-theme~='swttch'] .tippy-content { padding: 8px 12px; }
 .tippy-box[data-theme~='swttch'] .tippy-arrow { color: var(--color-chrome); }
+.tippy-box[data-theme~='swttch-dropdown'] { background: transparent; color: var(--color-foreground); font-size: 14px; }
+.tippy-box[data-theme~='swttch-dropdown'] .tippy-content { padding: 0; }
 @media (max-width: 800px) { :root { --sidebar-width: 14rem; } .header-context { @apply ml-0 gap-2 pl-3; } }
 @media (prefers-reduced-motion: reduce) {
   .icon-button, .shell-body, .sidebar-content, .workspace, .sidebar-session-collapse { transition: none; }
