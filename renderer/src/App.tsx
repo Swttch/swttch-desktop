@@ -270,8 +270,7 @@ export function App() {
           <ProjectSwitcher projects={switcherProjects} selected={selectedHeaderProject} disabled={disabled} onSelect={chooseProject} />
         </div>
         <div className={`shrink-0 items-center pr-1 ${sidebarHidden ? 'hidden' : 'flex'}`}>
-          <IconButton label="새 채팅" icon={IconName.Compose} onClick={newChat} disabled={disabled} />
-          <IconButton label="프로젝트 폴더 열기" icon={IconName.Folder} onClick={() => void openProject()} disabled={disabled} />
+          <IconButton label="새 채팅" icon={IconName.Plus} onClick={newChat} disabled={disabled} />
         </div>
       </header>
       <div aria-label="탭 영역" className="min-w-0" />
