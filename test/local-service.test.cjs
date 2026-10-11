@@ -48,6 +48,7 @@ async function setup(t, allowedOrigins = [], registerProject = true, sourceConfi
       backendRequests.push(message);
       let result = { status: 'ok' };
       if (message.type === 'GET_ACCOUNTS') result = { status: 'ok', accounts: accountRows.map(row => ({ ...row, active: row.id === activeAccount })), accountPools: [], activeEmail: accountRows.find(row => row.id === activeAccount).emailAddress };
+      else if (message.type === 'GET_USAGE_REPORT') result = { status: 'ok', report: "Last 24h · 288 requests · 9 sessions\n75% of your usage was at >150k context\nTop skills: /worktree 3%\nLast 7d · 500 requests · 15 sessions\nTop MCP servers: claude-code-remote 1%", futureField: { preserved: true } };
       else if (message.type === 'SWITCH_ACCOUNT') { if (accountRows.some(row => row.id === message.payload.id)) activeAccount = message.payload.id; else result = { status: 'error', error: 'Not found' }; }
       else if (message.type === 'DELETE_PROJECT') assert.equal(message.payload.path, project);
       else if (message.type === 'GET_SETTINGS') result.settings = { includeNestedSessions: nestedSettings.get(message.payload.workingDir) ?? true };
@@ -490,6 +491,24 @@ test('account dropdown API reuses CCG switching, preserves original accounts and
     assert.match(url.searchParams.get('pair'), /^pair-/);
     assert.ok(!view.url.includes('private-token'));
   }
+});
+
+test('usage contribution API preserves raw CLI output, uses workspace scope and protects forced refreshes', async t => {
+  const { base, project, client, backendRequests } = await setup(t, [], true, () => ({}), false);
+  const headers = await client();
+  await fetch(base + '/desktop-api/workspace', { method: 'PUT', headers, body: '{"projectId":1}' });
+  const url = base + '/desktop-api/usage-report';
+  assert.equal((await fetch(url)).status, 401);
+  assert.equal((await fetch(url, { method: 'POST', headers })).status, 405);
+  const result = await (await fetch(url + '?workingDir=/not-allowed', { headers })).json();
+  assert.match(result.report, /Last 24h · 288 requests · 9 sessions/);
+  assert.deepEqual(result.futureField, { preserved: true });
+  assert.deepEqual(backendRequests.find(row => row.type === 'GET_USAGE_REPORT').payload, { force: false, workingDir: project });
+  const refresh = base + '/desktop-api/usage-report-refreshes';
+  assert.equal((await fetch(refresh, { method: 'POST', headers: { cookie: headers.cookie } })).status, 403);
+  assert.equal((await fetch(refresh, { method: 'POST', headers: { ...headers, Origin: 'https://foreign.test' } })).status, 403);
+  assert.equal((await fetch(refresh, { method: 'POST', headers })).status, 200);
+  assert.deepEqual(backendRequests.filter(row => row.type === 'GET_USAGE_REPORT').map(row => row.payload.force), [false, true]);
 });
 
 test('desktop clients restore their view while browser clients remain isolated', async t => {

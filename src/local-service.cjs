@@ -205,6 +205,16 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
       return json(res, 201, { csrf: session.csrf, state: state(session) });
     }
     if (!session) return json(res, 401, { error: '앱 연결이 만료됐습니다. 새로고침해 주세요.' });
+    if ([API_PATH.USAGE_REPORT, API_PATH.USAGE_REPORT_REFRESHES].includes(path)) {
+      const force = path === API_PATH.USAGE_REPORT_REFRESHES;
+      const method = force ? 'POST' : 'GET';
+      if (req.method !== method) { res.setHeader('Allow', method); return json(res, 405, { error: 'Method not allowed' }); }
+      if (force && req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      try {
+        // Keep the CLI stdout untouched; the existing webview parser owns display.
+        return json(res, 200, await backendRequest(backend, 'GET_USAGE_REPORT', { force, ...(session.project && { workingDir: session.project }) }, 30000));
+      } catch (error) { return json(res, 502, { error: error.message }); }
+    }
     if ([API_PATH.ACCOUNTS, API_PATH.ACTIVE_ACCOUNT, API_PATH.ACCOUNT_VIEWS].includes(path)) {
       const method = path === API_PATH.ACCOUNTS ? 'GET' : path === API_PATH.ACTIVE_ACCOUNT ? 'PUT' : 'POST';
       if (req.method !== method) { res.setHeader('Allow', method); return json(res, 405, { error: 'Method not allowed' }); }

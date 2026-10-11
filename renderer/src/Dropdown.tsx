@@ -2,10 +2,12 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { createPortal } from 'react-dom';
 import tippy, { hideAll } from 'tippy.js';
 
-export function Dropdown({ children, content, closeRef, onOpen }: { children: ReactNode; content: ReactNode; closeRef?: RefObject<(() => void) | null>; onOpen?: () => void }) {
+export function Dropdown({ children, content, closeRef, onOpen, onClose }: { children: ReactNode; content: ReactNode; closeRef?: RefObject<(() => void) | null>; onOpen?: () => void; onClose?: () => void }) {
   const anchor = useRef<HTMLSpanElement>(null);
   const opened = useRef(onOpen);
   opened.current = onOpen;
+  const closed = useRef(onClose);
+  closed.current = onClose;
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     const button = anchor.current?.querySelector('button');
@@ -19,7 +21,7 @@ export function Dropdown({ children, content, closeRef, onOpen }: { children: Re
       theme: 'swttch-dropdown', role: 'dialog', maxWidth: 'none', duration: [120, 80],
       aria: { content: null, expanded: false },
       onShow: instance => { hideAll({ exclude: instance }); button.setAttribute('aria-expanded', 'true'); opened.current?.(); },
-      onHide: () => { button.setAttribute('aria-expanded', 'false'); },
+      onHide: () => { button.setAttribute('aria-expanded', 'false'); closed.current?.(); },
     });
     if (closeRef) closeRef.current = () => instance.hide();
     const escape = (event: KeyboardEvent) => {

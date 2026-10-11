@@ -3,7 +3,7 @@ const { randomUUID } = require('node:crypto');
 const pendingReads = new WeakMap();
 
 // Transport adapter only: preserve the original backend payload without reshaping.
-function backendRequest(backend, type, payload) {
+function backendRequest(backend, type, payload, timeoutMs = 15000) {
   const read = type.startsWith('GET_');
   let requests = pendingReads.get(backend);
   if (!requests) { requests = new Map(); pendingReads.set(backend, requests); }
@@ -20,7 +20,7 @@ function backendRequest(backend, type, payload) {
       socket.close();
       if (error) reject(error); else resolve(value);
     };
-    const timer = setTimeout(() => finish(new Error('채팅 백엔드 요청 시간이 초과됐습니다.')), 15000);
+    const timer = setTimeout(() => finish(new Error('채팅 백엔드 요청 시간이 초과됐습니다.')), timeoutMs);
     socket.onopen = () => socket.send(JSON.stringify({ type, payload, requestId }));
     socket.onerror = () => finish(new Error('채팅 백엔드에 연결하지 못했습니다.'));
     socket.onclose = () => { if (!settled) finish(new Error('채팅 백엔드 연결이 종료됐습니다.')); };

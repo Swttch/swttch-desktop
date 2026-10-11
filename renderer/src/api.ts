@@ -37,6 +37,8 @@ async function request<T>(path: string, method: string, body?: object, signal?: 
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }
 export const desktopApi = {
+  usageReport: (signal?: AbortSignal) => request<{ status: string; report: string | null; error?: string }>(API_PATH.USAGE_REPORT, 'GET', undefined, signal),
+  refreshUsageReport: () => request<{ status: string; report: string | null; error?: string }>(API_PATH.USAGE_REPORT_REFRESHES, 'POST', {}),
   accounts: (signal?: AbortSignal) => request<AccountsResult>(API_PATH.ACCOUNTS, 'GET', undefined, signal),
   switchAccount: (id: string) => request<AccountsResult>(API_PATH.ACTIVE_ACCOUNT, 'PUT', { id }),
   accountView: (path: string) => request<{ url: string }>(API_PATH.ACCOUNT_VIEWS, 'POST', { path }),
