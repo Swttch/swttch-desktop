@@ -29,6 +29,8 @@
   .titlebar button { -webkit-app-region: no-drag; }
   .workspace-tab > .tooltip-anchor { height: 100%; align-items: center; }
   .workspace-surface [role='tablist'] { -webkit-app-region: drag; }
+  .workspace-surface [role='tablist'] { scrollbar-width: none; -ms-overflow-style: none; overflow-y: hidden; }
+  .workspace-surface [role='tablist']::-webkit-scrollbar { display: none; }
   .workspace-surface [role='tablist'] > .tooltip-anchor { flex-shrink: 0; height: 100%; }
   .workspace-surface button, .workspace-surface [role='separator'] { -webkit-app-region: no-drag; }
   .header-context { @apply ml-2 border-l border-divider pl-2; overflow: hidden; }
