@@ -41,3 +41,9 @@ Vite 페이지가 표시되는 것만으로 브라우저 기능 동등성을 검
 User-approved on 2026-10-12. New functionality and behavior fixes follow Red → Green → Refactor. Before implementation, add the smallest meaningful test for the required behavior and confirm its intended failure. Implement until it passes, then refactor while retaining passing coverage. Bug reports receive regression coverage.
 
 For visual-only changes, define acceptance criteria and observe the existing failing UI before editing, then verify the real result in the target UI. Avoid tests that merely repeat CSS or implementation details. Reports distinguish tests written first from tests added after implementation; earlier work is not retroactively described as TDD.
+
+## Implementation backlog discipline
+
+Every implementation, however minor, starts by locating its backlog item or adding one before editing. The personal backlog is a private, Git-excluded Korean document. Implementation and verification alone do not complete a checklist item: after the task's commit is complete, update its checkbox and record the evidence. Implemented but uncommitted work remains unchecked with its pending status stated explicitly.
+
+When every child item is complete, inform the user and ask whether to mark the parent complete. Only an explicit answer authorizes that parent checkbox. Do not automatically promote child completion to parent completion.

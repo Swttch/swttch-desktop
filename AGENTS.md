@@ -5,6 +5,10 @@ For frontend work, also read the [design system](DESIGN.md) and [UI playbook](do
 
 - Use TDD (Red → Green → Refactor) for new behavior and bug fixes. Write and run a meaningful failing behavior test before implementation, then implement, verify, and refactor while green. Cover regressions without mirroring implementation. For visual-only changes, establish acceptance criteria and observe the failing UI before editing, then verify the actual result. Distinguish test-first work from tests added afterward; never claim retrospective TDD.
 
+- Before every implementation, including minor changes, check the personal backlog at `ignore/할일.md` and add a task if none exists. Keep this private, Git-excluded document in Korean.
+- After implementation, verification, and the task's commit are complete, mark its backlog item complete and record the commit and verification evidence. Leave implemented but uncommitted items unchecked with an explicit pending status.
+- When all children of a backlog item are complete, tell the user and ask whether to mark the parent complete. Check the parent only after an explicit answer; never infer approval from completed children.
+
 - Use English for public documentation, commit messages, code comments, issues, and pull requests. Localized product copy belongs in i18n resources. Preserve existing commit history.
 - The base html/body font size is 14px. Use Tippy for shared tooltips and react-hot-toast for shared toasts.
 - Implement all dropdowns with Tippy. Do not replace it with manual positioning and global outside-click listeners. Use the shared `Dropdown.tsx` for new dropdowns and preserve outside-click dismissal, Escape dismissal, and mutually exclusive opening.
