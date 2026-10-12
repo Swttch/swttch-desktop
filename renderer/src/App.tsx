@@ -1,3 +1,4 @@
+import { WorkPage, isWorkPage } from './WorkPage';
 import { SidebarSessions } from './SidebarSessions';
 import { SidebarSection } from './SidebarSection';
 import { SidebarSectionName } from './SidebarState';
@@ -11,7 +12,7 @@ import { ProjectOrderList } from './projects/ProjectOrderList';
 import { moveProjects, type ProjectMove } from './projects/projectOrder';
 import toast, { Toaster } from 'react-hot-toast';
 import { Tooltip } from './Tooltip';
-import { useMatch } from 'react-router';
+import { useLocation, useMatch } from 'react-router';
 import { AddProjectModal } from './AddProjectModal';
 import { ProjectDetailPage } from './ProjectDetailPage';
 import { PATH, replacePathParams } from './routes';
@@ -64,7 +65,7 @@ export function App() {
     if (legacyProject) router.push(replacePathParams(PATH.PROJECT, { projectId: legacyProject.id }));
   }, [legacyProject?.id, router]);
   const detailProject = state.projects.find(project => String(project.id) === detailId);
-  const projectNavigation = projectsPage || Boolean(detailId);
+  const projectNavigation = !isWorkPage(useLocation().pathname);
   const busy = actionMutation.isPending;
   const sidebarWidth = useSidebarWidth();
   const [collapsed, setCollapsed] = useState(false);
@@ -249,11 +250,13 @@ export function App() {
         </div>
         <SidebarResize width={sidebarWidth.width} onResize={sidebarWidth.save} />
       </aside>
-      <section className="workspace relative min-h-0 min-w-0 bg-canvas" aria-label="작업 영역">
-        <WorkspaceSurface ref={surface} state={state} browsing={projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onActive={tab => setActiveView(tab)} onNew={(pane, path) => { const target = path || detailProject?.path || activeProjectPath; if (target) openView(target, undefined, pane); else { setSelectingForChat(true); setSelecting(true); } }} onEmpty={() => closeViewMutation.mutate()} onHelp={() => setHelpOpen(value => !value)} onSettings={() => setSettingsOpen(true)} onSidebar={() => setCollapsed(value => !value)} />
+      <section className="workspace relative min-h-0 min-w-0 bg-canvas" aria-label={projectNavigation ? '페이지 영역' : '작업 영역'}>
+        <WorkPage active={!projectNavigation}><WorkspaceSurface ref={surface} state={state} browsing={projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onActive={tab => setActiveView(tab)} onNew={(pane, path) => { const target = path || detailProject?.path || activeProjectPath; if (target) openView(target, undefined, pane); else { setSelectingForChat(true); setSelecting(true); } }} onEmpty={() => closeViewMutation.mutate()} onHelp={() => setHelpOpen(value => !value)} onSettings={() => setSettingsOpen(true)} onSidebar={() => setCollapsed(value => !value)} /></WorkPage>
         {!activeView && !projectNavigation && <main className="welcome grid h-full place-items-center p-8"><div className="w-full max-w-sm text-center"><h2 className="mb-3 text-lg font-medium">프로젝트에서 시작하세요.</h2><p className="mb-6 text-sm leading-6 text-muted">프로젝트를 추가하고 에이전트와 작업을 시작하세요.</p><button className="primary-button" onClick={openProject} disabled={disabled}>프로젝트 추가</button><p className="mt-4 text-xs text-muted" role="status">{feedback}</p></div></main>}
+        {projectNavigation && <div data-route-page className="absolute inset-x-0 bottom-0 z-20 bg-canvas" style={{ top: 'calc(-1 * var(--header-height))' }}>
         {detailId && <ProjectDetailPage projectId={detailId} disabled={disabled} onChat={path => openView(path)} onSession={(sessionId, path) => openView(path, sessionId)} />}
         {projectsPage && <ProjectsPage onMove={reorderProjects} disabled={disabled || reorderMutation.isPending} onOpen={chooseProject} onAdd={() => void openProject()} sort={sort} onSort={order => { setSort(order); saveProjectSort(order); }} />}
+        </div>}
 
       </section>
     </div>

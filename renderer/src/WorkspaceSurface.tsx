@@ -1,3 +1,5 @@
+import { canExecuteWorkCommand } from './WorkPage';
+import { hideAll } from 'tippy.js';
 import { Dropdown } from './Dropdown';
 import { NewTabMenuContent } from './NewTabMenuContent';
 import { DndProvider, useDragLayer } from 'react-dnd';
@@ -140,6 +142,7 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
   }
   const commands = useRef<(command: DesktopCommand, source?: string) => void>(() => {});
   commands.current = (command, source) => {
+    if (!canExecuteWorkCommand(!props.browsing, command)) return;
     if (!source && document.querySelector('dialog[open]') && !['help', 'settings'].includes(command)) return;
     const snapshot = current.current;
     const leaves = panels(snapshot.layout);
@@ -178,6 +181,7 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     requestAnimationFrame(() => { if (panels(current.current.layout).some(pane => pane.activeTabId === id)) frames.current.get(id)?.contentWindow?.focus(); });
   }
   useEffect(() => bindScopedShortcuts(window, macShortcuts, command => commands.current(command), browserShortcuts), []);
+  useEffect(() => { if (props.browsing) hideAll(); }, [props.browsing]);
   function metadata(id: string, title: string, sessionId: string, url: string) {
     setLayout(value => {
       const tab = panels(value).flatMap(panel => panel.tabs).find(tab => tab.id === id);

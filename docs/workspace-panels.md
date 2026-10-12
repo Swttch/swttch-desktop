@@ -59,3 +59,11 @@ The panel plus button opens a shared Tippy dropdown, with a separate hover toolt
 When the sidebar is collapsed, the top-left panel view clips its iframe at the same radius as the workspace corner, connecting the icon rail and tab bar smoothly. Other split-panel corners remain unchanged. The status-bar usage refresh icon uses the existing small size, preserving its pointer target.
 
 The chooser's tests were written first and confirmed failing against the previous direct-chat control; implementation then made them pass. Native browser checks covered opening without creating a tab, disabled upcoming choices, one chat created on selection, Escape/outside dismissal, title-bar button removal, the collapsed corner, and the smaller refresh icon. Build and all 74 tests passed.
+
+## Work page and routed pages
+
+The workspace is the Work page and appears only at the exact root pathname (`/`). Other routed pages replace the entire right-hand content area, including the former tab-strip space. The Work page is kept mounted but hidden and inert while another page is active, so panel layout, selected tabs, embedded app instances, terminal processes, and subscriptions survive navigation.
+
+Hidden work views do not execute close, refresh, rename, favorite, movement, or split shortcuts. Shared help/settings/sidebar shortcuts and explicitly opening a new chat remain available. Workspace Tippy menus close when leaving the Work page.
+
+TDD regression tests first failed for non-root visibility and hidden-work command execution, then passed. Browser verification covered Projects and project detail pages, zero visible work tab strips, page content starting at the top of the right-hand viewport, retained view IDs, and a terminal command finishing across navigation. Full browser reload restoration is a separate feature.
