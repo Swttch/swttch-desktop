@@ -2,7 +2,7 @@
 
 SQLite v7의 `sessions`는 숫자 PK `id`, CLI 원본 식별자 `uid`, nullable 프로젝트 FK `projectId`를 가진다. `src`는 원본 JSONL 절대 경로이며 재발견할 수 있는 위치 정보다.
 
-`title`, CLI `/rename`/`--name`의 `customTitle`, 기존 플러그인의 `alias`를 분리해서 저장한다. 표시 우선순위는 플러그인 그대로 `alias → customTitle → title`이다. 기존 별칭 파일은 읽기만 하며 데스크탑에서 쓰거나 지우지 않는다. 따라서 기존 별칭이 있는 세션은 CLI 제목을 바꿔도 별칭이 우선 표시된다.
+`title`, CLI `/rename`/`--name`의 `customTitle`, 기존 플러그인의 `alias`를 분리해서 저장한다. 표시 우선순위는 `customTitle → alias → title`이다. 기존 별칭 파일은 읽기만 하며 데스크탑에서 쓰거나 지우지 않는다. CLI로 저장한 최신 이름을 기존 별칭보다 먼저 표시한다.
 
 원본 해석은 플러그인의 JSONL 파서를 데스크탑 build 단계에서 독립 번들로 만들어 재사용한다. 원본 플러그인 파일은 수정하지 않는다. 원본 목록 필드는 `data`에 보존하고 소스 분석 결과도 함께 기록한다. 메시지 본문 전체를 DB에 복제하지 않는다.
 
@@ -53,3 +53,7 @@ CLI 신뢰 확인이 필요한 프로젝트는 자동 승인하지 않고 오류
 - GET /desktop-api/favorite-sessions는 즐겨찾기 지정 시각 내림차순으로 5개씩 조회하고 전체 total을 함께 반환한다.
 - 활성 세션 GET도 전체 total을 반환한다. 즐겨찾기·활성 세션 제목은 전체 세션 수, 프로젝트 제목은 숨김 처리하지 않은 전체 프로젝트 수를 표시한다.
 - 즐겨찾기 섹션은 활성 세션 위에 놓이며, 기존 SidebarStateProvider의 접힘 상태 저장·부드러운 전환을 공유한다.
+
+### CLI title display correction
+
+A successful rename previously saved the JSONL custom-title but remained hidden by the older plugin alias in Desktop lists and tab queries. Desktop now displays the latest CLI customTitle before the legacy alias. Raw fields and the legacy alias file remain intact. Regression tests cover this precedence and the GET session response after a rename.

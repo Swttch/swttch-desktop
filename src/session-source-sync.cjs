@@ -3,7 +3,7 @@ const { stat } = require('node:fs/promises');
 const { pathToFileURL } = require('node:url');
 
 const sourceReader = () => import(pathToFileURL(join(__dirname, '../dist/session-source.mjs')).href);
-const displayTitle = row => row.alias || row.customTitle || row.title || 'No title';
+const displayTitle = row => row.customTitle || row.alias || row.title || 'No title';
 
 function createSessionSourceSync({ repository, projects, reader = sourceReader }) {
   const pending = new Map();

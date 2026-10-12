@@ -25,7 +25,7 @@ test('source sync reuses plugin titles, preserves alias files and settles missin
     store.sessionRepository.setFavorite(uid, true);
     const result = await sync.syncSessionSource(uid);
     assert.ok(result.favoritedAt > 0);
-    assert.equal(result.title, 'Original prompt'); assert.equal(result.customTitle, 'CLI title'); assert.equal(result.alias, 'Plugin alias'); assert.equal(displayTitle(result), 'Plugin alias');
+    assert.equal(result.title, 'Original prompt'); assert.equal(result.customTitle, 'CLI title'); assert.equal(result.alias, 'Plugin alias'); assert.equal(displayTitle(result), 'CLI title');
     assert.equal(result.src, src); assert.equal(result.isOpen, true); assert.equal(result.activity, 'running'); assert.equal(result.data.extra, 'preserved'); assert.ok(result.sourceSyncedAt);
     await writeFile(src, rows.concat({ type: 'custom-title', customTitle: 'Changed CLI title', sessionId: uid }).map(JSON.stringify).join('\n') + '\n');
     const settled = await sync.syncSessionSources([uid, missing]);

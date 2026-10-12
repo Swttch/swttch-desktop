@@ -331,7 +331,7 @@ test('desktop rename uses the CLI adapter, syncs the source into ORM, and leaves
   assert.equal(blocked.status, 400);
   assert.equal((await blocked.json()).error, 'Project trust is required');
   assert.equal(calls.length, 1);
-  assert.equal((await (await fetch(resource, { headers })).json()).session.title, 'Legacy alias');
+  assert.equal((await (await fetch(resource, { headers })).json()).session.title, 'Renamed via CLI');
   const syncUrl = base + '/desktop-api/session-source-syncs';
   assert.equal((await fetch(syncUrl, { method: 'POST', headers: { cookie: headers.cookie }, body: '{}' })).status, 403);
   const batch = await (await fetch(syncUrl, { method: 'POST', headers, body: '{"uids":["session-0","missing"]}' })).json();
