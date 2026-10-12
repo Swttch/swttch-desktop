@@ -31,3 +31,11 @@ The complete split tree and all open tabs are currently in-memory. Reload/startu
 Closing the focused tab selects the most recently focused surviving view across panels. Each panel also retains its own most-recently-used selection history. Closing background tabs preserves the current selection and keyboard focus; removed IDs are pruned from history.
 
 Verification: with three tabs open, the second tab was focused, then the third; native Option+W closed the third and selected the second while the first remained unselected. Layout tests cover repeated MRU closure and background-tab closure.
+
+## Tab drag and drop
+
+React DnD's HTML5 backend owns tab-strip drags. Each tab can be dropped before or after another tab, or at the end of a different panel's strip. A one-pixel insertion marker shows the position; overflowing strips scroll near their edges. Hover does not mutate the layout, so cancelled drags leave it unchanged. Moving the last tab out of a panel collapses that panel's split. The destination selects the moved tab, and focus history follows the existing view ID.
+
+Tab transfers move the existing view rather than creating a session or iframe. The flat keyed iframe layer stays mounted; iframe pointer targeting is temporarily disabled during a drag so embedded pages cannot swallow its events. Close controls, context menus, tooltips, and keyboard shortcuts retain their behavior.
+
+Native Codex browser dragging verified both order directions within one panel, transfers between nested row/column panels, last-tab panel collapse, unchanged iframe instance IDs, and preservation of a natively typed unsent draft. The verification draft was removed without sending it. Native Electron was not launched. Complete layout persistence remains deferred.

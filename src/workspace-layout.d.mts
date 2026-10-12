@@ -10,3 +10,5 @@ export function updateTab(node: WorkspaceNode, tabId: string, fields: Partial<Wo
 export function closeTabs(node: WorkspaceNode, panelId: string, ids: string[]): WorkspaceNode;
 export function splitPanel(node: WorkspaceNode, panelId: string, tab: WorkspaceView, direction: 'columns' | 'rows', panelIdNew: string, splitId: string): WorkspaceNode;
 export function resizeSplit(node: WorkspaceNode, id: string, ratio: number): WorkspaceNode;
+
+export function moveTab(node: WorkspaceNode, tabId: string, targetPanelId: string, insertionIndex: number): WorkspaceNode;

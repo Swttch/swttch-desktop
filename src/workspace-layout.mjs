@@ -33,3 +33,27 @@ export function resizeSplit(node, id, ratio) {
   if (node.kind === 'panel') return node;
   return { ...node, ratio: node.id === id ? Math.max(.15, Math.min(.85, ratio)) : node.ratio, children: node.children.map(child => resizeSplit(child, id, ratio)) };
 }
+
+export function moveTab(node, tabId, targetPanelId, insertionIndex) {
+  const source = panels(node).find(panel => panel.tabs.some(tab => tab.id === tabId));
+  const target = panels(node).find(panel => panel.id === targetPanelId);
+  if (!source || !target || !Number.isInteger(insertionIndex)) return node;
+  const sourceIndex = source.tabs.findIndex(tab => tab.id === tabId);
+  const tab = source.tabs[sourceIndex];
+  let index = Math.max(0, Math.min(insertionIndex, target.tabs.length));
+  if (source.id === target.id) {
+    if (sourceIndex < index) index--;
+    if (index === sourceIndex) return node;
+    return updatePanel(node, target.id, panel => {
+      const tabs = panel.tabs.filter(item => item.id !== tabId);
+      tabs.splice(index, 0, tab);
+      return { ...panel, tabs };
+    });
+  }
+  // Insert before collapsing an emptied source panel so the destination survives.
+  const inserted = updatePanel(node, target.id, panel => {
+    const tabs = [...panel.tabs]; tabs.splice(index, 0, tab);
+    return { ...panel, tabs, activeTabId: tabId, focusHistory: [tabId, ...(panel.focusHistory || []).filter(id => id !== tabId)] };
+  });
+  return closeTabs(inserted, source.id, [tabId]);
+}

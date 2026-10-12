@@ -1,5 +1,8 @@
+import { DndProvider, useDragLayer } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
+import { DraggableTab, TabDropStrip } from './TabDrag';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
-import { closeTabs, openTab, panels, resizeSplit, selectTab, splitPanel, updateTab, type WorkspaceNode, type WorkspacePanel, type WorkspaceView } from '../../src/workspace-layout.mjs';
+import { closeTabs, moveTab, openTab, panels, resizeSplit, selectTab, splitPanel, updateTab, type WorkspaceNode, type WorkspacePanel, type WorkspaceView } from '../../src/workspace-layout.mjs';
 import { SessionActivity, type DesktopState } from './desktop';
 import { WorkspaceTab } from './WorkspaceTab';
 import { WorkspaceFrame } from './WorkspaceFrame';
@@ -13,21 +16,24 @@ export interface WorkspaceSurfaceHandle { open: (url: string, projectId: number,
 type Rect = { left: number; top: number; width: number; height: number };
 type SurfaceProps = { state: DesktopState; browsing: boolean; pending: boolean; onSelect: () => void; onActive: (tab: WorkspaceView | null) => void; onNew: (panelId: string, projectPath?: string) => void; onEmpty: () => void; onSidebar: () => void; onHelp: () => void; onSettings: () => void };
 
-function PanelLeaf({ panel, active, browsing, pending, state, registerViewport, onActivate, onClose, onCloseOthers, onCloseRight, onSplit, onAction, onRename, onNew, renameTarget, favoriteTarget, onHandled }: { panel: WorkspacePanel; active: boolean; browsing: boolean; pending: boolean; state: DesktopState; registerViewport: (id: string, element: HTMLDivElement | null) => void; onActivate: (panel: string, tab: string) => void; onClose: (panel: string, ids: string[]) => void; onCloseOthers: (panel: string, tab: string) => void; onCloseRight: (panel: string, tab: string) => void; onSplit: (panel: string, tab: string, direction: 'columns' | 'rows') => void; onAction: (panel: string, tab: string, action: DesktopTabAction) => void; onRename: (tab: string, value: string) => void; onNew: (panel: string, path?: string) => void; renameTarget: string; favoriteTarget: string; onHandled: (kind: 'rename' | 'favorite') => void }) {
+function PanelLeaf({ panel, active, browsing, pending, state, registerViewport, onActivate, onClose, onCloseOthers, onCloseRight, onSplit, onAction, onRename, onMove, onNew, renameTarget, favoriteTarget, onHandled }: { panel: WorkspacePanel; active: boolean; browsing: boolean; pending: boolean; state: DesktopState; registerViewport: (id: string, element: HTMLDivElement | null) => void; onActivate: (panel: string, tab: string) => void; onClose: (panel: string, ids: string[]) => void; onCloseOthers: (panel: string, tab: string) => void; onCloseRight: (panel: string, tab: string) => void; onSplit: (panel: string, tab: string, direction: 'columns' | 'rows') => void; onAction: (panel: string, tab: string, action: DesktopTabAction) => void; onRename: (tab: string, value: string) => void; onMove: (id: string, panel: string, index: number) => void; onNew: (panel: string, path?: string) => void; renameTarget: string; favoriteTarget: string; onHandled: (kind: 'rename' | 'favorite') => void }) {
   const register = useCallback((element: HTMLDivElement | null) => registerViewport(panel.id, element), [panel.id, registerViewport]);
-  const strip = useRef<HTMLDivElement>(null);
-  useEffect(() => { strip.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [panel.activeTabId, browsing]);
+  useEffect(() => { document.querySelector<HTMLElement>(`[data-panel-id="${panel.id}"]`)?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [panel.activeTabId, browsing]);
   const current = panel.tabs.find(tab => tab.id === panel.activeTabId);
   return <section aria-label="작업 패널" data-panel-id={panel.id} data-active-panel={active || undefined} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-    <div ref={strip} role="tablist" aria-label="패널 탭" className={`pointer-events-auto flex h-(--header-height) shrink-0 items-stretch overflow-x-auto border-b border-divider bg-chrome ${active ? '' : 'opacity-85'}`}>
-      {panel.tabs.map((tab, index) => <WorkspaceTab key={tab.id} tabId={tab.id} projectId={tab.projectId} sessionId={tab.sessionId} renameRequested={renameTarget === tab.id} favoriteRequested={favoriteTarget === tab.id} onRequestHandled={onHandled} title={tab.title} customName={tab.customTitle} onRename={value => onRename(tab.id, value)} selected={!browsing && panel.activeTabId === tab.id} running={state.sessionActivity?.activity[tab.sessionId] === SessionActivity.Running} pending={pending} onSelect={() => onActivate(panel.id, tab.id)} onClose={() => onClose(panel.id, [tab.id])} onAction={action => onAction(panel.id, tab.id, action)} onCloseOthers={() => onCloseOthers(panel.id, tab.id)} canCloseOthers={panel.tabs.length > 1} onCloseRight={() => onCloseRight(panel.id, tab.id)} canCloseRight={index < panel.tabs.length - 1} onSplit={direction => onSplit(panel.id, tab.id, direction)} />)}
+    <TabDropStrip panelId={panel.id} disabled={pending} onMove={onMove} active={active}>
+      {panel.tabs.map((tab, index) => <DraggableTab key={tab.id} id={tab.id} disabled={pending}><WorkspaceTab tabId={tab.id} projectId={tab.projectId} sessionId={tab.sessionId} renameRequested={renameTarget === tab.id} favoriteRequested={favoriteTarget === tab.id} onRequestHandled={onHandled} title={tab.title} customName={tab.customTitle} onRename={value => onRename(tab.id, value)} selected={!browsing && panel.activeTabId === tab.id} running={state.sessionActivity?.activity[tab.sessionId] === SessionActivity.Running} pending={pending} onSelect={() => onActivate(panel.id, tab.id)} onClose={() => onClose(panel.id, [tab.id])} onAction={action => onAction(panel.id, tab.id, action)} onCloseOthers={() => onCloseOthers(panel.id, tab.id)} canCloseOthers={panel.tabs.length > 1} onCloseRight={() => onCloseRight(panel.id, tab.id)} canCloseRight={index < panel.tabs.length - 1} onSplit={direction => onSplit(panel.id, tab.id, direction)} /></DraggableTab>)}
       <Tooltip content="새 채팅" placement="bottom-start"><button type="button" aria-label="패널 새 채팅" disabled={pending} className="flex h-full w-8 shrink-0 items-center justify-center text-muted hover:bg-selected" onClick={() => onNew(panel.id, current?.projectPath)}><svg aria-hidden="true" className="size-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="1.5"><path d="M12 5v14M5 12h14" /></svg></button></Tooltip>
-    </div>
+    </TabDropStrip>
     <div ref={register} className="relative min-h-0 min-w-0 flex-1" />
   </section>;
 }
 
 export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>(function WorkspaceSurface(props, ref) {
+  return <DndProvider backend={HTML5Backend}><WorkspaceSurfaceContent {...props} ref={ref} /></DndProvider>;
+});
+const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>(function WorkspaceSurfaceContent(props, ref) {
+  const dragging = useDragLayer(monitor => monitor.isDragging());
   const [layout, setLayout] = useState<WorkspaceNode>(() => ({ kind: 'panel', id: crypto.randomUUID(), tabs: [], activeTabId: null }));
   const [activePanel, setActivePanel] = useState(() => panels(layout)[0].id);
   const current = useRef({ layout, activePanel });
@@ -97,6 +103,13 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     if (!remaining.some(panel => panel.tabs.length)) props.onEmpty();
   }
 
+  const move = useCallback((id: string, targetPanel: string, index: number) => {
+    const snapshot = current.current;
+    const next = moveTab(snapshot.layout, id, targetPanel, index);
+    if (next === snapshot.layout) return;
+    setLayout(selectTab(next, targetPanel, id)); setActivePanel(targetPanel); callbacks.current.onSelect();
+    focusView(id);
+  }, []);
   function split(panelId: string, tabId: string, direction: 'columns' | 'rows') {
     const original = allPanels.find(panel => panel.id === panelId)?.tabs.find(tab => tab.id === tabId);
     if (!original) return;
@@ -153,7 +166,7 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     });
   }
   function render(node: WorkspaceNode): React.ReactNode {
-    if (node.kind === 'panel') return <PanelLeaf key={node.id} panel={node} active={node.id === activeLeaf.id} browsing={props.browsing} pending={props.pending} state={props.state} registerViewport={registerViewport} onActivate={activate} onClose={close} onCloseOthers={(pane, tab) => close(pane, node.tabs.filter(item => item.id !== tab).map(item => item.id))} onCloseRight={(pane, tab) => close(pane, node.tabs.slice(node.tabs.findIndex(item => item.id === tab) + 1).map(item => item.id))} onSplit={split} onAction={action} onRename={(id, value) => setLayout(tree => updateTab(tree, id, { customTitle: value }))} renameTarget={renameTarget} favoriteTarget={favoriteTarget} onHandled={kind => kind === 'rename' ? setRenameTarget('') : setFavoriteTarget('')} onNew={(pane, path) => { setActivePanel(pane); props.onNew(pane, path); }} />;
+    if (node.kind === 'panel') return <PanelLeaf key={node.id} panel={node} active={node.id === activeLeaf.id} browsing={props.browsing} pending={props.pending} state={props.state} registerViewport={registerViewport} onActivate={activate} onClose={close} onCloseOthers={(pane, tab) => close(pane, node.tabs.filter(item => item.id !== tab).map(item => item.id))} onCloseRight={(pane, tab) => close(pane, node.tabs.slice(node.tabs.findIndex(item => item.id === tab) + 1).map(item => item.id))} onSplit={split} onAction={action} onMove={move} onRename={(id, value) => setLayout(tree => updateTab(tree, id, { customTitle: value }))} renameTarget={renameTarget} favoriteTarget={favoriteTarget} onHandled={kind => kind === 'rename' ? setRenameTarget('') : setFavoriteTarget('')} onNew={(pane, path) => { setActivePanel(pane); props.onNew(pane, path); }} />;
     const columns = node.direction === 'columns';
     return <div key={node.id} data-split-direction={node.direction} className={`flex min-h-0 min-w-0 flex-1 ${columns ? 'flex-row' : 'flex-col'}`}>
       <div className="flex min-h-0 min-w-0" style={{ flex: `0 0 calc(${node.ratio * 100}% - 2px)` }}>{render(node.children[0])}</div>
@@ -161,7 +174,7 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
       <div className="flex min-h-0 min-w-0 flex-1">{render(node.children[1])}</div>
     </div>;
   }
-  return <div ref={root} className="workspace-surface pointer-events-none absolute inset-x-0 z-10 flex" style={{ top: 'calc(-1 * var(--header-height))', height: 'calc(100% + var(--header-height))' }}>
+  return <div ref={root} data-tab-dragging={dragging || undefined} className="workspace-surface pointer-events-none absolute inset-x-0 z-10 flex" style={{ top: 'calc(-1 * var(--header-height))', height: 'calc(100% + var(--header-height))' }}>
     {render(layout)}
     {allPanels.flatMap(panel => panel.tabs.map(tab => {
       const box = rects[panel.id];

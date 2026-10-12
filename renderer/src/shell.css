@@ -84,3 +84,6 @@
 .project-marquee span { transition: transform 300ms ease-out; }
 .project-marquee:hover span { transform: translateX(calc(-1 * var(--scroll-distance))); transition: transform var(--scroll-duration) linear; }
 @media (prefers-reduced-motion: reduce) { .project-marquee span, .project-marquee:hover span { transform: none; transition: none; } }
+
+.workspace-surface [data-drag-tab] { -webkit-app-region: no-drag; }
+.workspace-surface[data-tab-dragging] iframe { pointer-events: none; }

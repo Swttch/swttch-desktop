@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { panels, openTab, selectTab, closeTabs, splitPanel, resizeSplit, updateTab } = require('../src/workspace-layout.mjs');
+const { panels, moveTab, openTab, selectTab, closeTabs, splitPanel, resizeSplit, updateTab } = require('../src/workspace-layout.mjs');
 const tab = id => ({ id, title: id, sessionId: '', url: 'http://localhost:3031/sessions/new?workingDir=/tmp', projectPath: '/tmp', projectId: 1 });
 const initial = () => ({ kind: 'panel', id: 'p1', tabs: [], activeTabId: null });
 
@@ -45,4 +45,26 @@ test('closing selected tabs restores the most recently focused survivor, not tab
   tree = closeTabs(tree, 'p1', ['c']);
   assert.equal(tree.activeTabId, 'd');
   assert.deepEqual(tree.focusHistory, ['d']);
+});
+
+test('tab moves reorder within a panel and transfer existing views across nested panels', () => {
+  let tree = ['a', 'b', 'c'].reduce((node, id) => openTab(node, 'p1', tab(id)), initial());
+  const original = tree.tabs[0];
+  tree = moveTab(tree, 'a', 'p1', 3);
+  assert.deepEqual(tree.tabs.map(view => view.id), ['b', 'c', 'a']);
+  assert.equal(tree.tabs[2], original);
+  assert.equal(moveTab(tree, 'a', 'p1', 3), tree);
+  tree = moveTab(tree, 'a', 'p1', 0);
+  assert.deepEqual(tree.tabs.map(view => view.id), ['a', 'b', 'c']);
+  tree = splitPanel(tree, 'p1', tab('d'), 'columns', 'p2', 's1');
+  tree = splitPanel(tree, 'p2', tab('e'), 'rows', 'p3', 's2');
+  tree = moveTab(tree, 'a', 'p3', 0);
+  assert.deepEqual(panels(tree).map(panel => panel.tabs.map(view => view.id)), [['b', 'c'], ['d'], ['a', 'e']]);
+  assert.equal(panels(tree)[2].tabs[0], original);
+  assert.equal(panels(tree)[2].activeTabId, 'a');
+  tree = moveTab(tree, 'd', 'p1', 1);
+  assert.deepEqual(panels(tree).map(panel => panel.id), ['p1', 'p3']);
+  assert.deepEqual(panels(tree)[0].tabs.map(view => view.id), ['b', 'd', 'c']);
+  assert.equal(moveTab(tree, 'missing', 'p1', 0), tree);
+  assert.equal(moveTab(tree, 'a', 'missing', 0), tree);
 });

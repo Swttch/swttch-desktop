@@ -57,6 +57,7 @@
 - [x] 23. 여러 탭·여러 패널. 패널별 탭 선택·새 채팅·탭 닫기와 뷰 유지 구현. [구현 기록](workspace-panels.md)
 - [x] 24. 종횡 화면 분할과 패널 배치. 좌우·상하 중첩 분할, 크기 조절과 빈 패널 정리 구현. [구현 기록](workspace-panels.md)
 - [ ] 25. 탭·패널 드래그 이동 및 레이아웃 복원.
+  - Tab reordering within and across panels is implemented with React DnD; existing iframes and unsent drafts survive transfers. Panel dragging and full layout persistence remain open.
 - [ ] 26. 터미널·다른 웹앱 탭.
 - [ ] 27. 여러 프로바이더 지원.
 - [ ] 28. 프로젝트·세션 중앙 동기화.
