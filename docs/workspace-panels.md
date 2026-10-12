@@ -49,3 +49,5 @@ Dropping on an edge creates a sibling panel containing the same view ID and plac
 Native browser verification covered all four edges, new column/row splits, source-panel collapse, rejection of single-tab self-splits, and preservation of the iframe instance ID and a natively typed unsent draft across successive transfers. The test draft was removed without sending it. Strict build and all 72 tests passed. Native Electron was not launched.
 
 The panel drop placeholder has no border. Its geometry and opacity transition over 150 ms with ease-out; it stays mounted throughout the drag so edge changes interpolate rather than recreate the preview. Reduced-motion preferences disable the transition.
+
+Panel separators render a 1 px divider at the same color/opacity as the workspace/sidebar boundary, with an invisible expanded pointer hit area for resizing. The development highlight belongs to the app root and spans the complete viewport above both title bar and panel tabs.

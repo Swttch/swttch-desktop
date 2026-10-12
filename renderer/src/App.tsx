@@ -200,7 +200,7 @@ export function App() {
   const selectedHeaderProject = detailProject || switcherProjects.find(project => project.path === activeProjectPath);
   const feedback = error || workspaceQuery.error?.message || (state.phase === DesktopPhase.Error || state.phase === DesktopPhase.Starting ? state.message : '');
 
-  return <div style={{ '--sidebar-width': sidebarWidth.width + 'px' } as React.CSSProperties} className={`app h-dvh overflow-hidden bg-chrome text-foreground${window.desktopHost ? ' electron-host' : ''}`}>
+  return <div style={{ '--sidebar-width': sidebarWidth.width + 'px' } as React.CSSProperties} className={`app relative h-dvh overflow-hidden bg-chrome text-foreground before:pointer-events-none before:absolute before:top-0 before:left-0 before:h-[2px] before:w-full before:bg-dev-line before:z-40 ${window.desktopHost ? ' electron-host' : ''}`}>
     {helpOpen && <DesktopHelp getShortcuts={() => surface.current?.getShortcuts() || Promise.resolve([])} onClose={() => setHelpOpen(false)} />}
     {settingsOpen && <DesktopSettings onClose={() => setSettingsOpen(false)} onHelp={() => setHelpOpen(value => !value)} />}
     {selecting && <AddProjectModal onClose={() => setSelecting(false)} onAdded={id => {
@@ -210,7 +210,7 @@ export function App() {
         .then(project => perform(() => desktopApi.openNewSession(project.id))).catch(error => toast.error(error.message));
     }} />}
     <Toaster position="bottom-right" toastOptions={{ duration: 4000, className: 'swttch-toast', style: { background: 'var(--color-navigation)', color: 'var(--color-foreground)', border: '1px solid var(--color-divider)', borderRadius: '12px', fontSize: '13px' } }} />
-    <div className={`titlebar relative grid h-(--header-height) ${sidebarHidden ? 'sidebar-collapsed' : ''} before:pointer-events-none before:absolute before:top-0 before:left-0 before:h-[2px] before:w-full before:bg-dev-line`}>
+    <div className={`titlebar relative grid h-(--header-height) ${sidebarHidden ? 'sidebar-collapsed' : ''}`}>
       <header aria-label="상단바" className="titlebar-left col-span-2 flex min-w-0 items-center border-r border-divider pl-[calc(env(titlebar-area-x,0px)+0.75rem)]">
         <IconButton label="사이드바 표시/숨기기" icon={sidebarHidden ? IconName.SidebarCollapsed : IconName.Sidebar} shortcut="⇧⌘S" aria-expanded={!sidebarHidden} aria-controls="sidebar" aria-keyshortcuts="Meta+Shift+S Control+Shift+S" onClick={() => { if (projectsPage) { router.push(PATH.HOME); setCollapsed(false); } else setCollapsed(value => !value); }} />
         <div className="header-context flex min-w-0 flex-1 items-center pr-2" aria-label="상단바 중간 영역" aria-hidden={sidebarHidden} inert={sidebarHidden}>
