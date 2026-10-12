@@ -55,9 +55,9 @@ export function PanelDropZone({ panelId, tabIds, disabled, onMove }: { panelId: 
     drop: (item, monitor) => { if (!monitor.didDrop()) onMove(item.id, panelId, edgeAt(monitor.getClientOffset())); },
     collect: monitor => ({ over: monitor.isOver({ shallow: true }) && monitor.canDrop() }),
   }), [panelId, tabIds, disabled, onMove]);
-  const preview = { left: edge === 'right' ? '50%' : 0, top: edge === 'bottom' ? '50%' : 0,
+  const preview = { left: edge === 'right' ? '50%' : '0%', top: edge === 'bottom' ? '50%' : '0%',
     width: edge === 'left' || edge === 'right' ? '50%' : '100%', height: edge === 'top' || edge === 'bottom' ? '50%' : '100%' };
   return <div ref={element => { area.current = element; drop(element); }} data-panel-drop-zone={panelId} className="pointer-events-auto absolute inset-0 z-30">
-    {over && <div aria-hidden="true" data-panel-drop-preview={edge} className="pointer-events-none absolute border border-muted bg-selected/65" style={preview} />}
+    <div aria-hidden="true" data-panel-drop-preview={over ? edge : undefined} className={`pointer-events-none absolute bg-selected/65 transition-[left,top,width,height,opacity] duration-150 ease-out motion-reduce:transition-none ${over ? 'opacity-100' : 'opacity-0'}`} style={preview} />
   </div>;
 }

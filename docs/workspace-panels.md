@@ -47,3 +47,5 @@ During tab dragging, each panel body becomes a React DnD drop target. Its outer 
 Dropping on an edge creates a sibling panel containing the same view ID and places it before the target for left/top or after it for right/bottom. The original tab is removed from its source; an emptied source collapses. Dropping a panel's only tab on its own edge is ignored, avoiding an empty self-split. Layout mutation happens only on drop, not while hovering.
 
 Native browser verification covered all four edges, new column/row splits, source-panel collapse, rejection of single-tab self-splits, and preservation of the iframe instance ID and a natively typed unsent draft across successive transfers. The test draft was removed without sending it. Strict build and all 72 tests passed. Native Electron was not launched.
+
+The panel drop placeholder has no border. Its geometry and opacity transition over 150 ms with ease-out; it stays mounted throughout the drag so edge changes interpolate rather than recreate the preview. Reduced-motion preferences disable the transition.
