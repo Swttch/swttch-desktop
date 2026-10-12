@@ -3,6 +3,8 @@
 Read and follow the [core principles](docs/core-principles.md) before starting work.
 For frontend work, also read the [design system](DESIGN.md) and [UI playbook](docs/design-playbook.md). Use Tailwind utilities and shared tokens.
 
+- Use TDD (Red → Green → Refactor) for new behavior and bug fixes. Write and run a meaningful failing behavior test before implementation, then implement, verify, and refactor while green. Cover regressions without mirroring implementation. For visual-only changes, establish acceptance criteria and observe the failing UI before editing, then verify the actual result. Distinguish test-first work from tests added afterward; never claim retrospective TDD.
+
 - Use English for public documentation, commit messages, code comments, issues, and pull requests. Localized product copy belongs in i18n resources. Preserve existing commit history.
 - The base html/body font size is 14px. Use Tippy for shared tooltips and react-hot-toast for shared toasts.
 - Implement all dropdowns with Tippy. Do not replace it with manual positioning and global outside-click listeners. Use the shared `Dropdown.tsx` for new dropdowns and preserve outside-click dismissal, Escape dismissal, and mutually exclusive opening.

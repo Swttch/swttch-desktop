@@ -35,3 +35,9 @@ Vite 페이지가 표시되는 것만으로 브라우저 기능 동등성을 검
 - CCG 원본 서버는 localhost:19836이고 iframe은 셸과 동일한 origin의 /sessions/... URL을 사용한다.
 - 개발에서는 Vite(3000) → 데스크탑 API 프록시(3030) → CCG(19836), 앱에서는 데스크탑 호스트 → CCG로 전달한다. HTTP·WebSocket과 workingDir·pair 파라미터를 보존한다.
 - 원본 백엔드의 SAMEORIGIN 정책과 웹뷰 코드는 변경하지 않는다. 셸은 동일 출처 iframe의 제목·세션 경로를 읽어 작업 뷰의 표시 상태를 동기화한다.
+
+## Test-driven development
+
+User-approved on 2026-10-12. New functionality and behavior fixes follow Red → Green → Refactor. Before implementation, add the smallest meaningful test for the required behavior and confirm its intended failure. Implement until it passes, then refactor while retaining passing coverage. Bug reports receive regression coverage.
+
+For visual-only changes, define acceptance criteria and observe the existing failing UI before editing, then verify the real result in the target UI. Avoid tests that merely repeat CSS or implementation details. Reports distinguish tests written first from tests added after implementation; earlier work is not retroactively described as TDD.
