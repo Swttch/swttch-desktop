@@ -10,3 +10,6 @@ CLAUDE.local.md
 # Keep Claude Code files local by default. Add explicit exceptions when
 # shared contributor skills or configuration are ready for publication.
 .claude/*
+
+# Private local analysis and working notes.
+/ignore/

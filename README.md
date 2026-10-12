@@ -5,7 +5,6 @@ Swttch Desktop is licensed under the [GNU Affero General Public License v3.0](LI
 스위치의 독립 데스크탑 개발환경 프로젝트.
 설치되는 앱 이름은 **Swttch**, 저장소와 내부 문서에서는 **Swttch Desktop**으로 구분한다.
 
-- [할 일 목록](docs/todo.md)
 - [MVP 기획과 다음 세션 인계](docs/mvp-planning.md)
 - [MVP PRD와 수용 기준](docs/mvp-prd.md)
 - [MVP 기술스펙 초안](docs/mvp-technical-spec.md)
