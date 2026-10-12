@@ -14,4 +14,12 @@ Settings opens the existing settings application in a host dialog, through a fix
 
 All chat view addresses receive `top_bar_display=F` from both the Desktop URL factory and final iframe adapter. Hiding the visual webview header retains its chat-page activity and host-action listeners.
 
-Browser verification covered shortcuts originating inside the composer: rename, favorite/sidebar synchronization, both split directions, all four panel directions, previous/next tab navigation, exactly one tab closing with the browser still open, Desktop-only help with real chat entries, settings with and without a chat tab, settings-dialog closure, and hidden-header parameters on every open view. Native Electron was not launched. Complete layout restoration remains TODO 25.
+Page-dispatched automation covered shortcuts originating inside the composer: rename, favorite/sidebar synchronization, both split directions, all four panel directions, previous/next tab navigation, exactly one tab closing under page-dispatched input, Desktop-only help with real chat entries, settings with and without a chat tab, settings-dialog closure, and hidden-header parameters on every open view. Native Electron was not launched. Complete layout restoration remains TODO 25.
+
+## Browser-reserved close shortcut
+
+The page-dispatched Mod+W check did not test the physical browser accelerator. On 2026-10-12, the user reported that physical Command+W closed the development browser tab. DOM event cancellation only applies to events delivered to the page; it cannot override an accelerator intercepted by the browser host. Do not claim this path fixed or browser-safe based on locator key presses.
+
+Chromium documents close-tab as a browser-reserved shortcut. Keyboard Lock requires JavaScript-initiated fullscreen and permission, so it is not an equivalent fix for the normal embedded browser. Fixing the exact combination there requires control of the browser host; a page-only solution needs a different shortcut. Native Electron behavior remains separately unverified.
+
+References: [Chromium shortcuts](https://github.com/chromium/chromium/blob/main/docs/ui/learn/keyboard_shortcuts.md), [Keyboard Lock](https://developer.chrome.com/docs/capabilities/web-apis/keyboard-lock).
