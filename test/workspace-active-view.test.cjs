@@ -1,0 +1,33 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { createServer } = require('node:http');
+const { mkdtempSync, mkdirSync, rmSync } = require('node:fs');
+const { tmpdir } = require('node:os');
+const { join } = require('node:path');
+const { openStore } = require('../src/store.cjs');
+const { createLocalService } = require('../src/local-service.cjs');
+
+test('active views can switch project context without accepting a session from a different project', async t => {
+  const home = mkdtempSync(join(tmpdir(), 'swttch-active-view-'));
+  const store = openStore(home);
+  const p1 = join(home, 'one'), p2 = join(home, 'two'); mkdirSync(p1); mkdirSync(p2);
+  const one = store.createProject(p1, {}), two = store.createProject(p2, {});
+  const uid1 = '11111111-1111-4111-8111-111111111111', uid2 = '22222222-2222-4222-8222-222222222222';
+  store.sessionRepository.upsert(uid1, { projectId: one.id }); store.sessionRepository.upsert(uid2, { projectId: two.id });
+  store.close();
+  const service = createLocalService({ home, backend: { port: 19836, token: 'fixture', async start() {}, async stop() {} }, subscribe: () => () => {}, folderDialog: { stop() {} } });
+  const server = createServer((req, res) => service.middleware(req, res, () => res.end()));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); service.bind(server);
+  t.after(async () => { await service.stop(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); rmSync(home, { recursive: true, force: true }); });
+  await service.start();
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const bootstrap = await fetch(base + '/desktop-api/sessions', { method: 'POST', headers: { 'x-swttch-client': 'web' } });
+  const body = await bootstrap.json();
+  const headers = { cookie: bootstrap.headers.get('set-cookie').split(';')[0], 'x-swttch-csrf': body.csrf, 'Content-Type': 'application/json' };
+  const save = (projectId, sessionId) => fetch(base + '/desktop-api/workspace', { method: 'PATCH', headers, body: JSON.stringify({ projectId, sessionId }) });
+  assert.equal((await save(two.id, uid2)).status, 200);
+  const switched = await save(one.id, uid1); assert.equal(switched.status, 200);
+  const selected = await switched.json(); assert.equal(selected.project, p1); assert.equal(new URL(selected.chatUrl).searchParams.get('workingDir'), p1);
+  assert.equal((await save(two.id, uid1)).status, 400);
+  const retained = await (await fetch(base + '/desktop-api/workspace', { headers })).json(); assert.equal(retained.project, p1);
+});

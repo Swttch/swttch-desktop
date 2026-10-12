@@ -72,7 +72,7 @@ export const desktopApi = {
   deleteSession: (projectId: string, sessionId: string) => request<void>(replacePathParams(API_PATH.PROJECT_SESSION, { projectId, sessionId }), 'DELETE'),
   markSessionRead: (projectId: string, sessionId: string) => request<void>(replacePathParams(API_PATH.SESSION_READS, { projectId, sessionId }), 'POST', {}),
   migrateProjects: () => request<{ imported: number; enriched: number; unchanged: number; total: number; state: DesktopState }>(API_PATH.PROJECT_IMPORTS, 'POST', {}),
-  saveViewSession: (sessionId: string) => request<DesktopState>(API_PATH.WORKSPACE, 'PATCH', { sessionId }),
+  saveViewSession: (body: { sessionId: string; projectId: number }) => request<DesktopState>(API_PATH.WORKSPACE, 'PATCH', body),
   closeView: () => request<DesktopState>(API_PATH.WORKSPACE, 'DELETE'),
   retry: () => request<DesktopState>(API_PATH.BACKEND_RESTARTS, 'POST', {}),
   subscribe(callback: (state: DesktopState) => void, onError: () => void) {

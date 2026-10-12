@@ -1,5 +1,7 @@
 # First workspace tab
 
+The subsequent multi-tab and split-panel implementation supersedes the single-panel limitation below. See [Workspace panels and tabs](workspace-panels.md) for current behavior and verification.
+
 The existing single workspace panel now exposes its embedded chat application as one visible tab. This follows the planning relationship: panel area → panel → tab → independent application. The tab hosts the chat web app; it is not a chat session entity. Switching sessions updates the same tab's label and view URL.
 
 The tab strip starts at the sidebar boundary. The tab shows the Claude provider icon, the embedded document's session title, a selected state, a title tooltip, and a close control. Selecting it returns from project navigation to the existing mounted chat view. Multiple tabs and split panels remain future work; each future panel must own its tab list and selected tab.

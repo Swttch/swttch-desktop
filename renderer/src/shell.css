@@ -28,6 +28,9 @@
   .titlebar { -webkit-app-region: drag; }
   .titlebar button { -webkit-app-region: no-drag; }
   .workspace-tab > .tooltip-anchor { height: 100%; align-items: center; }
+  .workspace-surface [role='tablist'] { -webkit-app-region: drag; }
+  .workspace-surface [role='tablist'] > .tooltip-anchor { flex-shrink: 0; height: 100%; }
+  .workspace-surface button, .workspace-surface [role='separator'] { -webkit-app-region: no-drag; }
   .header-context { @apply ml-2 border-l border-divider pl-2; overflow: hidden; }
   .header-context > .tooltip-anchor, .header-context > .tooltip-anchor > .tooltip-anchor { display: flex; flex: 1; min-width: 0; }
   .icon-button { @apply relative flex size-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-hover hover:text-foreground; }

@@ -2,8 +2,8 @@ import { SidebarSessions } from './SidebarSessions';
 import { SidebarSection } from './SidebarSection';
 import { SidebarSectionName } from './SidebarState';
 import { SidebarResize, useSidebarWidth } from './SidebarResize';
-import { useCallback, useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react';
-import { DesktopPhase, SessionActivity, type DesktopState, type Project } from './desktop';
+import { useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react';
+import { DesktopPhase, type DesktopState, type Project } from './desktop';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { queryClient, QUERY_KEY } from './query-client';
 import { desktopApi } from './api';
@@ -17,13 +17,12 @@ import { ProjectDetailPage } from './ProjectDetailPage';
 import { PATH, replacePathParams } from './routes';
 import { ProjectsPage } from './ProjectsPage';
 import { useRouter } from './router';
-import { sessionFrameUrl } from './session-view';
 import { SidebarProject } from './SidebarProject';
 import { readProjectSort, saveProjectSort, sortProjects, SortOrder } from './projects/projectSort';
 import { StatusBar } from './StatusBar';
 import { ProjectSwitcher } from './ProjectSwitcher';
-import { WorkspaceTab } from './WorkspaceTab';
-import { activateTabAction, type DesktopTabAction } from './tab-action';
+import { WorkspaceSurface, type WorkspaceSurfaceHandle } from './WorkspaceSurface';
+import type { WorkspaceView } from '../../src/workspace-layout.mjs';
 
 enum IconName { Folder, Chat, Sidebar, SidebarCollapsed, Plus, Home, History, Search, Refresh, Compose }
 function Icon({ name, solid = false, className = '' }: { name: IconName; solid?: boolean; className?: string }) {
@@ -73,41 +72,23 @@ export function App() {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState(readProjectSort);
-  const [sessionId, setSessionId] = useState('');
-  const [sessionTitle, setSessionTitle] = useState('새 채팅');
-  const [frameReadyUrl, setFrameReadyUrl] = useState('');
-  const [frameFailure, setFrameFailure] = useState<{ url: string; message: string } | null>(null);
+  const [activeView, setActiveView] = useState<WorkspaceView | null>(null);
+  const sessionId = activeView?.sessionId || '';
   const [accountInfo, setAccountInfo] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
-  const frame = useRef<HTMLIFrameElement>(null);
-  const frameCleanup = useRef<() => void>(() => {});
-  const setFrame = useCallback((node: HTMLIFrameElement | null) => {
-    if (frame.current !== node) frameCleanup.current();
-    frame.current = node;
-    if (node) node.dataset.requestedAt = String(Date.now());
-  }, []);
+  const surface = useRef<WorkspaceSurfaceHandle>(null);
   const inFlight = useRef(false);
   const ready = state.phase === DesktopPhase.Ready || state.phase === DesktopPhase.Chat;
   // CCG serves SAMEORIGIN framing headers. Preserve its route and every parameter
   // through the shell's existing proxy while the shared backend stays on 19836.
   // Each view owns its URL; workspace SSE must not switch embedded sessions.
-  const [viewSessionUrl, setViewSessionUrl] = useState<string | null>(null);
   const restoredView = useRef(false);
   const savedViewSession = useRef('');
   const saveViewMutation = useMutation({ mutationFn: desktopApi.saveViewSession, scope: { id: 'workspace-view' }, retry: 3, retryDelay: 500 });
   const closeViewMutation = useMutation({ mutationFn: desktopApi.closeView, scope: { id: 'workspace-view' }, onSuccess: next => {
-    queryClient.setQueryData(QUERY_KEY.workspace, next);
-    frameCleanup.current();
-    setViewSessionUrl(null); setSessionId(''); setSessionTitle('새 채팅'); setFrameReadyUrl(''); setFrameFailure(null);
-    savedViewSession.current = ''; restoredView.current = true;
-    router.push(PATH.HOME);
+    queryClient.setQueryData(QUERY_KEY.workspace, next); savedViewSession.current = ''; restoredView.current = true;
   }, onError: error => toast.error(error.message) });
-  const chat = Boolean(viewSessionUrl);
-  const chatUrl = viewSessionUrl ? new URL(viewSessionUrl) : null;
-  const activeProjectPath = chatUrl?.searchParams.get('workingDir') || state.project;
-  const frameUrl = viewSessionUrl ? sessionFrameUrl(viewSessionUrl, window.location.origin) : undefined;
-  const frameError = frameFailure && frameFailure.url === frameUrl ? frameFailure.message : '';
-  const frameLoading = chat && (busy || frameReadyUrl !== frameUrl);
+  const activeProjectPath = activeView?.projectPath || state.project;
   const disabled = !ready || busy || closeViewMutation.isPending;
 
   const reorderMutation = useMutation({
@@ -161,13 +142,7 @@ export function App() {
     window.addEventListener('keydown', keydown, true);
     return () => { window.removeEventListener('keydown', keydown, true); };
   }, [projectsPage, router]);
-  useEffect(() => () => frameCleanup.current(), []);
-  useEffect(() => {
-    if (!chat || !frameUrl || frameReadyUrl === frameUrl || frameError) return;
-    const timer = setTimeout(() => setFrameFailure({ url: frameUrl, message: '대화를 불러오지 못했습니다. 다시 시도해 주세요.' }), 30_000);
-    return () => clearTimeout(timer);
-  }, [chat, frameUrl, frameReadyUrl, frameError]);
-  useEffect(() => { if (searching) searchInput.current?.focus(); }, [searching]);
+    useEffect(() => { if (searching) searchInput.current?.focus(); }, [searching]);
   useEffect(() => {
     if (!ready || restoredView.current || inFlight.current) return;
     restoredView.current = true;
@@ -177,70 +152,26 @@ export function App() {
     void perform(() => id && id !== 'new' ? desktopApi.openSession(id, project.id) : desktopApi.openNewSession(project.id));
   }, [ready, state.backendId]);
   useEffect(() => {
-    if (!ready || !sessionId || savedViewSession.current === sessionId) return;
-    savedViewSession.current = sessionId;
-    saveViewMutation.mutate(sessionId, { onError: () => {
-      if (savedViewSession.current === sessionId) savedViewSession.current = '';
+    if (!ready || !sessionId || savedViewSession.current === `${activeView?.id}:${sessionId}`) return;
+    savedViewSession.current = `${activeView?.id}:${sessionId}`;
+    saveViewMutation.mutate({ sessionId, projectId: activeView!.projectId }, { onError: () => {
+      if (savedViewSession.current === `${activeView?.id}:${sessionId}`) savedViewSession.current = '';
       toast.error('마지막 대화를 저장하지 못했습니다.');
     } });
-  }, [sessionId, state.sessionsRevision, ready]);
-  function openView(path: string, id?: string) {
+  }, [sessionId, activeView?.id, state.sessionsRevision, ready]);
+  function openView(path: string, id?: string, panelId?: string) {
     const project = (projectsQuery.data?.projects || state.projects).find(row => row.path === path);
     if (!project) { toast.error('등록된 프로젝트를 찾을 수 없습니다.'); return; }
-    void perform(() => id ? desktopApi.openSession(id, project.id) : desktopApi.openNewSession(project.id));
+    void perform(() => id ? desktopApi.openSession(id, project.id) : desktopApi.openNewSession(project.id), panelId);
   }
-  function bindFrame(loadedFrame: HTMLIFrameElement, requestedUrl: string) {
-    if (loadedFrame !== frame.current) return;
-    frameCleanup.current();
-    const content = loadedFrame.contentWindow;
-    if (!content) return;
-    const requested = new URL(requestedUrl, window.location.origin);
-    let initialized = false;
-    let readinessTimer: ReturnType<typeof setInterval> | undefined;
-    const sync = () => {
-      if (loadedFrame !== frame.current) return;
-      const title = content.document.title;
-      const directory = new URLSearchParams(content.location.search).get('workingDir');
-      if (!directory || (!initialized && directory !== requested.searchParams.get('workingDir'))) return;
-      if (content.location.pathname !== requested.pathname && !initialized) {
-        if (requested.pathname !== PATH.NEW_SESSION && content.location.pathname === PATH.NEW_SESSION) {
-          setFrameFailure({ url: requestedUrl, message: '선택한 세션을 불러오지 못했습니다. 프로젝트와 세션을 다시 확인해 주세요.' });
-        }
-        return;
-      }
-      // Existing-session bootstrap can show the empty new-chat screen until
-      // SESSION_LOADED resolves. Keep the shell loading state until its title arrives.
-      if (requested.pathname !== PATH.NEW_SESSION && (!title || title === 'Claude Code')) return;
-      setSessionTitle(title && title !== 'Claude Code' ? title : '새 채팅');
-      const match = /^\/sessions\/([^/]+)/.exec(content.location.pathname);
-      setSessionId(match && match[1] !== 'new' ? match[1] : '');
-      if (!initialized) loadedFrame.dataset.readyAt = String(Date.now());
-      setFrameReadyUrl(requestedUrl);
-      setFrameFailure(null);
-      initialized = true;
-      clearInterval(readinessTimer);
-    };
-    const keydown = (event: KeyboardEvent) => {
-      if (!sidebarShortcut(event)) return;
-      event.preventDefault(); event.stopPropagation(); setCollapsed(value => !value);
-    };
-    sync();
-    const observer = new MutationObserver(sync);
-    observer.observe(content.document.head, { childList: true, characterData: true, subtree: true });
-    // The webview may update its route after load without changing its title.
-    if (!initialized) readinessTimer = setInterval(sync, 250);
-    content.addEventListener('keydown', keydown, true);
-    content.addEventListener('popstate', sync);
-    frameCleanup.current = () => { clearInterval(readinessTimer); observer.disconnect(); content.removeEventListener('keydown', keydown, true); content.removeEventListener('popstate', sync); };
-  }
-  async function perform(action: () => Promise<DesktopState>) {
+  async function perform(action: () => Promise<DesktopState>, panelId = surface.current?.getActivePanel()) {
     if (inFlight.current) return;
     restoredView.current = true;
     inFlight.current = true; setError('');
     try {
       const next = await actionMutation.mutateAsync(action);
-      setSessionTitle('새 채팅'); setSessionId('');
-      setViewSessionUrl(next.chatUrl);
+      const project = next.projects.find(project => project.path === next.project);
+      if (next.chatUrl && project) surface.current?.open(next.chatUrl, project.id, project.path, panelId);
       router.push(PATH.HOME);
       setSelecting(false); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessions(state.project) });
     }
@@ -253,11 +184,6 @@ export function App() {
     router.push(replacePathParams(PATH.PROJECT, { projectId }));
   }
   function openProject() { setError(''); setSelectingForChat(false); setSelecting(true); }
-  function openTabAction(action: DesktopTabAction) {
-    router.push(PATH.HOME);
-    if (!frame.current || frameLoading) { toast.error('채팅 화면을 불러온 뒤 다시 시도해 주세요.'); return; }
-    void activateTabAction(frame.current, action).catch(error => toast.error(error.message));
-  }
   function newChat() {
     const path = detailProject?.path || activeProjectPath;
     if (path) openView(path);
@@ -288,7 +214,7 @@ export function App() {
           <IconButton label="새 채팅" icon={IconName.Plus} onClick={newChat} disabled={disabled} />
         </div>
       </header>
-      <div role="tablist" aria-label="탭 영역" className="flex min-w-0 items-stretch overflow-x-auto">{chat && <WorkspaceTab running={state.sessionActivity?.activity[sessionId] === SessionActivity.Running} onAction={openTabAction} title={sessionTitle} selected={!projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onClose={() => closeViewMutation.mutate()} />}</div>
+      <div className="min-w-0" />
     </div>
     <div className={`shell-body grid h-[calc(100dvh-var(--header-height)-2rem)] min-h-0 ${sidebarHidden ? 'sidebar-collapsed' : ''}`}>
       <nav className="activity-rail flex flex-col items-center gap-3 py-3" aria-label="앱 메뉴">
@@ -319,15 +245,9 @@ export function App() {
         </div>
         <SidebarResize width={sidebarWidth.width} onResize={sidebarWidth.save} />
       </aside>
-      <section className="workspace relative min-h-0 min-w-0 overflow-hidden bg-canvas" aria-label="작업 영역">
-        <div id="viewport" role={chat ? 'tabpanel' : undefined} aria-labelledby={chat ? 'current-chat-tab' : undefined} className={`relative h-full w-full ${projectsPage || detailId ? 'hidden' : ''}`}>
-          {chat && frameUrl && <iframe key={frameUrl} ref={setFrame} className="block size-full border-0" title="Swttch 채팅" src={frameUrl} onLoad={event => bindFrame(event.currentTarget, frameUrl)} />}
-          {chat && (frameLoading || frameError) && <div className="absolute inset-0 grid place-items-center bg-canvas p-6">
-            {frameError ? <div role="alert" className="text-center"><p className="text-sm text-muted">{frameError}</p><button className="secondary-button mt-4" disabled={disabled} onClick={() => { if (!chatUrl || !state.project) return; const id = /^\/sessions\/([^/]+)/.exec(chatUrl.pathname)?.[1]; openView(chatUrl.searchParams.get('workingDir') || '', id && id !== 'new' ? id : undefined); }}>다시 시도</button></div> : <div role="status" className="flex items-center gap-3 text-sm text-muted"><span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-divider border-t-foreground motion-reduce:animate-none" />대화를 불러오는 중…</div>}
-          </div>}
-          {!chat && <main className="welcome grid h-full place-items-center p-8"><div className="w-full max-w-sm text-center"><Icon name={IconName.Folder} className="mx-auto mb-5 size-8 text-muted" /><h2 className="mb-3 text-lg font-medium">프로젝트에서 시작하세요.</h2><p className="mb-6 text-sm leading-6 text-muted">프로젝트를 추가하고 에이전트와 작업을 시작하세요.</p><button className="primary-button" onClick={openProject} disabled={disabled}>프로젝트 추가</button><p className="mt-4 text-xs text-muted" role="status">{feedback}</p></div></main>}
-          {chat && !selecting && error && <div className="connection-error" role="alert">{error}</div>}
-        </div>
+      <section className="workspace relative min-h-0 min-w-0 bg-canvas" aria-label="작업 영역">
+        <WorkspaceSurface ref={surface} state={state} browsing={projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onActive={tab => setActiveView(tab)} onNew={(pane, path) => { const target = path || detailProject?.path || activeProjectPath; if (target) openView(target, undefined, pane); else { setSelectingForChat(true); setSelecting(true); } }} onEmpty={() => closeViewMutation.mutate()} onSidebar={() => setCollapsed(value => !value)} />
+        {!activeView && !projectNavigation && <main className="welcome grid h-full place-items-center p-8"><div className="w-full max-w-sm text-center"><h2 className="mb-3 text-lg font-medium">프로젝트에서 시작하세요.</h2><p className="mb-6 text-sm leading-6 text-muted">프로젝트를 추가하고 에이전트와 작업을 시작하세요.</p><button className="primary-button" onClick={openProject} disabled={disabled}>프로젝트 추가</button><p className="mt-4 text-xs text-muted" role="status">{feedback}</p></div></main>}
         {detailId && <ProjectDetailPage projectId={detailId} disabled={disabled} onChat={path => openView(path)} onSession={(sessionId, path) => openView(path, sessionId)} />}
         {projectsPage && <ProjectsPage onMove={reorderProjects} disabled={disabled || reorderMutation.isPending} onOpen={chooseProject} onAdd={() => void openProject()} sort={sort} onSort={order => { setSort(order); saveProjectSort(order); }} />}
 

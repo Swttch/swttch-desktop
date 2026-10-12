@@ -476,10 +476,11 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
       if (req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
       const body = await readBody(req);
       if (typeof body.sessionId !== 'string' || !/^[a-f0-9-]{36}$/i.test(body.sessionId)) return json(res, 400, { error: '올바른 세션을 선택해 주세요.' });
-      const project = store.projects().find(row => row.path === session.project && !row.hiddenAt);
+      const project = store.projects().find(row => (body.projectId === undefined ? row.path === session.project : row.id === body.projectId) && !row.hiddenAt);
       const row = store.sessionRepository.find(body.sessionId);
       if (!project || !row || row.projectId !== project.id) return json(res, 400, { error: '현재 프로젝트의 세션을 선택해 주세요.' });
-      const url = new URL(session.chatUrl); url.pathname = PATH.SESSION.replace(':sessionId', body.sessionId); session.chatUrl = url.href;
+      const url = new URL(session.chatUrl || sessionUrl(project.path, body.sessionId, 'restore', backend.targetPort || backend.port));
+      url.pathname = PATH.SESSION.replace(':sessionId', body.sessionId); url.searchParams.set('workingDir', project.path); session.project = project.path; session.chatUrl = url.href;
       if (session.persist) store.saveWorkspace(project.id, body.sessionId);
       return json(res, 200, state(session));
     }
