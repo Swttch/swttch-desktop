@@ -12,3 +12,7 @@ export function splitPanel(node: WorkspaceNode, panelId: string, tab: WorkspaceV
 export function resizeSplit(node: WorkspaceNode, id: string, ratio: number): WorkspaceNode;
 
 export function moveTab(node: WorkspaceNode, tabId: string, targetPanelId: string, insertionIndex: number): WorkspaceNode;
+
+export type PanelDropEdge = 'left' | 'right' | 'top' | 'bottom' | 'center';
+export function panelDropEdge(x: number, y: number, width: number, height: number): PanelDropEdge;
+export function moveTabToSplit(node: WorkspaceNode, tabId: string, targetPanelId: string, edge: PanelDropEdge, newPanelId: string, splitId: string): WorkspaceNode;

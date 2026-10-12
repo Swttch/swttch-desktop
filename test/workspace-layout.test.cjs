@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { panels, moveTab, openTab, selectTab, closeTabs, splitPanel, resizeSplit, updateTab } = require('../src/workspace-layout.mjs');
+const { panels, moveTab, moveTabToSplit, panelDropEdge, openTab, selectTab, closeTabs, splitPanel, resizeSplit, updateTab } = require('../src/workspace-layout.mjs');
 const tab = id => ({ id, title: id, sessionId: '', url: 'http://localhost:3031/sessions/new?workingDir=/tmp', projectPath: '/tmp', projectId: 1 });
 const initial = () => ({ kind: 'panel', id: 'p1', tabs: [], activeTabId: null });
 
@@ -67,4 +67,31 @@ test('tab moves reorder within a panel and transfer existing views across nested
   assert.deepEqual(panels(tree)[0].tabs.map(view => view.id), ['b', 'd', 'c']);
   assert.equal(moveTab(tree, 'missing', 'p1', 0), tree);
   assert.equal(moveTab(tree, 'a', 'missing', 0), tree);
+});
+
+test('edge drops move the same view into a new panel on all four sides', () => {
+  for (const edge of ['left', 'right', 'top', 'bottom']) {
+    let tree = openTab(openTab(initial(), 'p1', tab('a')), 'p1', tab('b'));
+    const original = tree.tabs[0];
+    tree = moveTabToSplit(tree, 'a', 'p1', edge, 'p2', 's1');
+    assert.equal(tree.direction, ['left', 'right'].includes(edge) ? 'columns' : 'rows');
+    assert.deepEqual(panels(tree).map(panel => panel.id), ['left', 'top'].includes(edge) ? ['p2', 'p1'] : ['p1', 'p2']);
+    assert.equal(panels(tree).find(panel => panel.id === 'p2').tabs[0], original);
+    assert.deepEqual(panels(tree).flatMap(panel => panel.tabs.map(view => view.id)).sort(), ['a', 'b']);
+  }
+});
+test('edge transfers collapse an emptied source and ignore self-splits of single tabs', () => {
+  let tree = openTab(initial(), 'p1', tab('a'));
+  assert.equal(moveTabToSplit(tree, 'a', 'p1', 'right', 'p2', 's1'), tree);
+  tree = splitPanel(tree, 'p1', tab('b'), 'columns', 'p2', 's1');
+  tree = moveTabToSplit(tree, 'a', 'p2', 'bottom', 'p3', 's2');
+  assert.equal(tree.id, 's2');
+  assert.equal(tree.direction, 'rows');
+  assert.deepEqual(panels(tree).map(panel => panel.tabs.map(view => view.id)), [['b'], ['a']]);
+  assert.equal(moveTabToSplit(tree, 'a', 'p2', 'center', 'p4', 's3'), tree);
+  assert.equal(panelDropEdge(5, 100, 400, 200), 'left');
+  assert.equal(panelDropEdge(395, 100, 400, 200), 'right');
+  assert.equal(panelDropEdge(200, 5, 400, 200), 'top');
+  assert.equal(panelDropEdge(200, 195, 400, 200), 'bottom');
+  assert.equal(panelDropEdge(200, 100, 400, 200), 'center');
 });

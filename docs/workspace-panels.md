@@ -39,3 +39,11 @@ React DnD's HTML5 backend owns tab-strip drags. Each tab can be dropped before o
 Tab transfers move the existing view rather than creating a session or iframe. The flat keyed iframe layer stays mounted; iframe pointer targeting is temporarily disabled during a drag so embedded pages cannot swallow its events. Close controls, context menus, tooltips, and keyboard shortcuts retain their behavior.
 
 Native Codex browser dragging verified both order directions within one panel, transfers between nested row/column panels, last-tab panel collapse, unchanged iframe instance IDs, and preservation of a natively typed unsent draft. The verification draft was removed without sending it. Native Electron was not launched. Complete layout persistence remains deferred.
+
+## Drag to create a panel
+
+During tab dragging, each panel body becomes a React DnD drop target. Its outer quarter regions choose the nearest normalized edge, and a half-panel preview shows the proposed left/right/top/bottom split. The center transfers the tab into the existing panel. Tab-strip insertion targets retain their existing ordering behavior.
+
+Dropping on an edge creates a sibling panel containing the same view ID and places it before the target for left/top or after it for right/bottom. The original tab is removed from its source; an emptied source collapses. Dropping a panel's only tab on its own edge is ignored, avoiding an empty self-split. Layout mutation happens only on drop, not while hovering.
+
+Native browser verification covered all four edges, new column/row splits, source-panel collapse, rejection of single-tab self-splits, and preservation of the iframe instance ID and a natively typed unsent draft across successive transfers. The test draft was removed without sending it. Strict build and all 72 tests passed. Native Electron was not launched.

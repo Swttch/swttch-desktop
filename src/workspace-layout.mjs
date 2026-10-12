@@ -57,3 +57,23 @@ export function moveTab(node, tabId, targetPanelId, insertionIndex) {
   });
   return closeTabs(inserted, source.id, [tabId]);
 }
+
+export function panelDropEdge(x, y, width, height) {
+  if (width <= 0 || height <= 0) return 'center';
+  const edges = [['left', x / width], ['right', 1 - x / width], ['top', y / height], ['bottom', 1 - y / height]];
+  const nearest = edges.sort((a, b) => a[1] - b[1])[0];
+  return nearest[1] < .25 ? nearest[0] : 'center';
+}
+export function moveTabToSplit(node, tabId, targetPanelId, edge, newPanelId, splitId) {
+  const source = panels(node).find(panel => panel.tabs.some(tab => tab.id === tabId));
+  const target = panels(node).find(panel => panel.id === targetPanelId);
+  if (!source || !target || !['left', 'right', 'top', 'bottom'].includes(edge)) return node;
+  if (source.id === target.id && source.tabs.length === 1) return node;
+  const tab = source.tabs.find(item => item.id === tabId);
+  const created = updatePanel(node, target.id, panel => {
+    const sibling = { kind: 'panel', id: newPanelId, tabs: [tab], activeTabId: tabId, focusHistory: [tabId] };
+    return { kind: 'split', id: splitId, direction: ['left', 'right'].includes(edge) ? 'columns' : 'rows', ratio: .5,
+      children: ['left', 'top'].includes(edge) ? [sibling, panel] : [panel, sibling] };
+  });
+  return closeTabs(created, source.id, [tabId]);
+}

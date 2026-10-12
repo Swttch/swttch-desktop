@@ -1,8 +1,8 @@
 import { DndProvider, useDragLayer } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { DraggableTab, TabDropStrip } from './TabDrag';
+import { DraggableTab, PanelDropZone, TabDropStrip } from './TabDrag';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
-import { closeTabs, moveTab, openTab, panels, resizeSplit, selectTab, splitPanel, updateTab, type WorkspaceNode, type WorkspacePanel, type WorkspaceView } from '../../src/workspace-layout.mjs';
+import { closeTabs, moveTab, moveTabToSplit, openTab, panels, resizeSplit, selectTab, splitPanel, updateTab, type PanelDropEdge, type WorkspaceNode, type WorkspacePanel, type WorkspaceView } from '../../src/workspace-layout.mjs';
 import { SessionActivity, type DesktopState } from './desktop';
 import { WorkspaceTab } from './WorkspaceTab';
 import { WorkspaceFrame } from './WorkspaceFrame';
@@ -110,6 +110,16 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     setLayout(selectTab(next, targetPanel, id)); setActivePanel(targetPanel); callbacks.current.onSelect();
     focusView(id);
   }, []);
+  const moveToEdge = useCallback((id: string, targetPanel: string, edge: PanelDropEdge) => {
+    const snapshot = current.current;
+    const target = panels(snapshot.layout).find(panel => panel.id === targetPanel);
+    if (!target) return;
+    if (edge === 'center') { move(id, targetPanel, target.tabs.length); return; }
+    const createdPanel = crypto.randomUUID();
+    const next = moveTabToSplit(snapshot.layout, id, targetPanel, edge, createdPanel, crypto.randomUUID());
+    if (next === snapshot.layout) return;
+    setLayout(next); setActivePanel(createdPanel); callbacks.current.onSelect(); focusView(id);
+  }, [move]);
   function split(panelId: string, tabId: string, direction: 'columns' | 'rows') {
     const original = allPanels.find(panel => panel.id === panelId)?.tabs.find(tab => tab.id === tabId);
     if (!original) return;
@@ -176,6 +186,7 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
   }
   return <div ref={root} data-tab-dragging={dragging || undefined} className="workspace-surface pointer-events-none absolute inset-x-0 z-10 flex" style={{ top: 'calc(-1 * var(--header-height))', height: 'calc(100% + var(--header-height))' }}>
     {render(layout)}
+    {dragging && allPanels.map(panel => <div key={`drop-${panel.id}`} className="absolute z-30" style={rects[panel.id] || { width: 0, height: 0 }}><PanelDropZone panelId={panel.id} tabIds={panel.tabs.map(tab => tab.id)} disabled={props.pending} onMove={moveToEdge} /></div>)}
     {allPanels.flatMap(panel => panel.tabs.map(tab => {
       const box = rects[panel.id];
       const hidden = props.browsing || panel.activeTabId !== tab.id;

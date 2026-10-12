@@ -1,3 +1,4 @@
+import { panelDropEdge, type PanelDropEdge } from '../../src/workspace-layout.mjs';
 import { useRef, useState, type ReactNode } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
 
@@ -37,5 +38,26 @@ export function TabDropStrip({ panelId, disabled, children, onMove, active }: { 
   return <div ref={element => { strip.current = element; drop(element); }} role="tablist" aria-label="패널 탭" className={`relative pointer-events-auto flex h-(--header-height) shrink-0 items-stretch overflow-x-auto border-b border-divider bg-chrome ${active ? '' : 'opacity-85'}`}>
     {children}
     {over && <span aria-hidden="true" data-tab-drop-marker className="pointer-events-none absolute inset-y-1 w-px bg-foreground" style={{ left: marker }} />}
+  </div>;
+}
+
+export function PanelDropZone({ panelId, tabIds, disabled, onMove }: { panelId: string; tabIds: string[]; disabled: boolean; onMove: (id: string, panel: string, edge: PanelDropEdge) => void }) {
+  const area = useRef<HTMLDivElement>(null);
+  const [edge, setEdge] = useState<PanelDropEdge>('center');
+  const edgeAt = (point: { x: number; y: number } | null) => {
+    const box = area.current?.getBoundingClientRect();
+    return box && point ? panelDropEdge(point.x - box.left, point.y - box.top, box.width, box.height) : 'center';
+  };
+  const [{ over }, drop] = useDrop<DraggedTab, void, { over: boolean }>(() => ({
+    accept: TAB_DRAG,
+    canDrop: (item, monitor) => !disabled && (!tabIds.includes(item.id) || (tabIds.length > 1 && edgeAt(monitor.getClientOffset()) !== 'center')),
+    hover: (_item, monitor) => setEdge(edgeAt(monitor.getClientOffset())),
+    drop: (item, monitor) => { if (!monitor.didDrop()) onMove(item.id, panelId, edgeAt(monitor.getClientOffset())); },
+    collect: monitor => ({ over: monitor.isOver({ shallow: true }) && monitor.canDrop() }),
+  }), [panelId, tabIds, disabled, onMove]);
+  const preview = { left: edge === 'right' ? '50%' : 0, top: edge === 'bottom' ? '50%' : 0,
+    width: edge === 'left' || edge === 'right' ? '50%' : '100%', height: edge === 'top' || edge === 'bottom' ? '50%' : '100%' };
+  return <div ref={element => { area.current = element; drop(element); }} data-panel-drop-zone={panelId} className="pointer-events-auto absolute inset-0 z-30">
+    {over && <div aria-hidden="true" data-panel-drop-preview={edge} className="pointer-events-none absolute border border-muted bg-selected/65" style={preview} />}
   </div>;
 }
