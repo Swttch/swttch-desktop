@@ -24,7 +24,9 @@ test('embedded sessions use the shell proxy origin and preserve all session para
     const frame = new URL(sessionFrameUrl(source.href, 'http://localhost:3000'));
     assert.equal(frame.origin, 'http://localhost:3000');
     assert.equal(frame.pathname, source.pathname);
-    assert.equal(frame.search, source.search);
+    const expected = new URL(source);
+    expected.searchParams.set('top_bar_display', 'F');
+    assert.equal(frame.search, expected.search);
     assert.equal(new URL(sessionFrameUrl(source.href, 'http://localhost:3030')).origin, 'http://localhost:3030');
   }
   assert.throws(() => sessionFrameUrl('http://localhost:19836/sessions/new', 'http://localhost:3000'), /workingDir/);
