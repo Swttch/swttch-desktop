@@ -1,3 +1,4 @@
+import { projectDragActivationConstraints } from '../../../src/project-drag-activation.mjs';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { DragDropProvider, DragOverlay, PointerSensor, KeyboardSensor, useDroppable } from '@dnd-kit/react';
 import { useSortable } from '@dnd-kit/react/sortable';
@@ -6,6 +7,7 @@ import type { Project } from '../desktop';
 import { DropSide, type ProjectMove } from './projectOrder';
 
 const sensors = [PointerSensor.configure({
+  activationConstraints: projectDragActivationConstraints,
   preventActivation: event => !(event.target instanceof Element) || !event.target.closest('[data-project-drag-handle]') || Boolean(event.target.closest('[role="button"]')),
 }), KeyboardSensor];
 
