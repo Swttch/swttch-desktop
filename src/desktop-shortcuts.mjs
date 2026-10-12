@@ -1,25 +1,31 @@
 export function matchShortcut(event, mac, browser = false) {
-  const closeKey = event.code === 'KeyW' || (!event.code && event.key?.toLowerCase() === 'w');
-  if (browser && closeKey) return !event.isComposing && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey ? 'close' : null;
-  if (event.isComposing || !(mac ? event.metaKey : event.ctrlKey) || (!mac && event.metaKey)) return null;
+  if (event.isComposing) return null;
+  const special = event.code || (event.key?.toLowerCase() === 'w' ? 'KeyW' : event.key?.toLowerCase() === 'r' ? 'KeyR' : '');
+  if (browser && ['KeyW', 'KeyR'].includes(special)) return event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey ? (special === 'KeyW' ? 'close' : 'refresh') : null;
   const arrow = /^Arrow(Left|Right|Up|Down)$/.exec(event.key);
+  if (arrow && !event.altKey && (mac ? event.ctrlKey && event.metaKey && !event.shiftKey : event.ctrlKey && event.shiftKey && !event.metaKey)) return 'move-' + arrow[1].toLowerCase();
+  if (browser && mac && arrow && event.ctrlKey && event.altKey && !event.metaKey && !event.shiftKey && ['Left', 'Right'].includes(arrow[1])) return 'tab-' + arrow[1].toLowerCase();
+  if (!(mac ? event.metaKey : event.ctrlKey) || (!mac && event.metaKey)) return null;
   if (arrow && event.altKey) {
     if (mac ? event.ctrlKey && !event.shiftKey : event.shiftKey) return 'panel-' + arrow[1].toLowerCase();
-    if (!event.shiftKey && (!mac || !event.ctrlKey) && ['Left', 'Right'].includes(arrow[1])) return 'tab-' + arrow[1].toLowerCase();
+    if (!(browser && mac) && !event.shiftKey && (!mac || !event.ctrlKey) && ['Left', 'Right'].includes(arrow[1])) return 'tab-' + arrow[1].toLowerCase();
     return null;
   }
   if (event.altKey || (mac && event.ctrlKey)) return null;
   const key = event.code || ({ '/': 'Slash', ',': 'Comma' }[event.key] || 'Key' + event.key.toUpperCase());
   if (key === 'KeyD') return event.shiftKey ? 'split-rows' : 'split-columns';
   if (event.shiftKey) return key === 'KeyS' ? 'sidebar' : null;
-  return { KeyE: 'rename', KeyW: 'close', KeyB: 'favorite', Slash: 'help', Comma: 'settings', KeyN: 'new-tab' }[key] || null;
+  return { KeyR: 'refresh', KeyE: 'rename', KeyW: 'close', KeyB: 'favorite', Slash: 'help', Comma: 'settings', KeyN: 'new-tab' }[key] || null;
 }
 export function shortcutLabel(command, mac, browser = false) {
-  if (browser && command === 'close') return mac ? '⌥W' : 'Alt+W';
+  if (browser && ['close', 'refresh'].includes(command)) return (mac ? '⌥' : 'Alt+') + (command === 'close' ? 'W' : 'R');
+  const arrowKey = { left: '←', right: '→', up: '↑', down: '↓' };
+  if (command.startsWith('move-')) return (mac ? '⌃⌘' : 'Ctrl+⇧+') + arrowKey[command.slice(5)];
+  if (browser && mac && command.startsWith('tab-')) return '⌃⌥' + arrowKey[command.slice(4)];
   const primary = mac ? '⌘' : 'Ctrl+';
   const alt = mac ? '⌥' : 'Alt+';
   const extra = mac ? '⌃' : '⇧+';
-  const key = { rename: 'E', close: 'W', favorite: 'B', help: '/', settings: ',', 'new-tab': 'N', 'split-columns': 'D' }[command];
+  const key = { refresh: 'R', rename: 'E', close: 'W', favorite: 'B', help: '/', settings: ',', 'new-tab': 'N', 'split-columns': 'D' }[command];
   if (key) return primary + key;
   if (command === 'split-rows') return (mac ? '⇧⌘' : 'Ctrl+⇧+') + 'D';
   if (command === 'sidebar') return (mac ? '⇧⌘' : 'Ctrl+⇧+') + 'S';

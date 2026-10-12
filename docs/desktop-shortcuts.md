@@ -2,7 +2,7 @@
 
 Desktop owns keyboard shortcuts in its shell and embedded application windows. The capture-phase listener consumes matched events with `preventDefault`, `stopPropagation`, and `stopImmediatePropagation` before executing actions. Each embedded listener is disposed with its tab; the owning view ID is validated against the live layout. Holding close/split/favorite keys does not repeatedly operate on additional tabs. The close-event test removes the listener inside the callback and verifies that the original event still never reaches another handler.
 
-macOS uses Command. Windows/Linux use Control. Tab navigation is Command+Option+Left/Right on macOS and Control+Alt+Left/Right elsewhere. Panel navigation is Control+Option+Command+arrows on macOS; Control+Alt+Shift+arrows elsewhere, avoiding the duplicate-Control ambiguity. Panel navigation uses spatially overlapping neighbors rather than jumping diagonally.
+macOS uses Command. Windows/Linux use Control. Tab navigation is Command+Option+Left/Right in macOS Electron; browser hosts use Control+Option+Left/Right on macOS. Windows/Linux use Control+Alt+Left/Right. Panel navigation is Control+Option+Command+arrows on macOS; Control+Alt+Shift+arrows elsewhere, avoiding the duplicate-Control ambiguity. Panel navigation uses spatially overlapping neighbors rather than jumping diagonally.
 
 Implemented commands: split columns (Mod+D), split rows (Mod+Shift+D), rename tab (Mod+E), close tab (Mod+W in Electron, Option/Alt+W in browsers), session favorite (Mod+B), Desktop help (Mod+/), settings (Mod+,), new chat (Mod+N), and sidebar visibility (Mod+Shift+S). Matching uses physical key codes for letter shortcuts, with composition protection. Menu hints use platform-appropriate symbols.
 
@@ -27,3 +27,11 @@ References: [Chromium shortcuts](https://github.com/chromium/chromium/blob/main/
 Browser hosts are identified by the absence of the Electron preload host. The shell, chat frames, settings frame, menu hints, and help use this same host decision. Browser close uses Option+W on macOS and Alt+W on Windows/Linux; the primary-modifier W combination is not intercepted. Electron retains Command/Control+W. Other shortcuts retain their existing modifiers.
 
 Option+W was verified using the Codex browser native key input with the new-chat composer focused: two tabs became one, the original session remained, and localhost:3031 stayed open. The context menu displayed ⌥W. Build and all 68 tests passed, including browser/Electron modifier separation and consumed close events.
+
+## Refresh and move-to-split shortcuts
+
+Refresh uses Command+R in macOS Electron or Control+R on Windows/Linux Electron. Browser hosts use Option/Alt+R, avoiding the outer browser reload accelerator. Both the shortcut and context menu reload only the selected view using its current iframe location, leaving sibling frames and the shell mounted.
+
+Move the selected tab to a new panel on the left/right/top/bottom with Control+Command+arrows on macOS; Windows/Linux use Control+Shift+arrows. These commands reuse the drag-to-edge operation and preserve the existing view. Self-splitting a single-tab panel remains disabled, with an explanatory shortcut toast. Move/refresh key repeats are consumed without repeating structural actions. Context menus and Desktop help display all new host-aware hints.
+
+TDD: new shortcut tests failed before implementation (refresh and move commands were absent), then passed with platform/modifier and repeat-suppression coverage. Native browser input verified Control+Option tab navigation in both directions, Option+R refreshing only one view while another view retained its draft, and Control+Command+Right moving the selected tab into a new panel. The test drafts were cleared without sending messages. Strict build and all 76 tests passed; native Electron was not launched.

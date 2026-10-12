@@ -57,3 +57,31 @@ test('browser close uses only Option/Alt+W while Electron retains its primary mo
   assert.equal(closes, 1); assert.equal(outer, 0); assert.equal(event.defaultPrevented, true);
   dispose();
 });
+
+test('tab refresh and browser navigation use host-specific modifiers without collisions', () => {
+  assert.equal(matchShortcut(key('KeyR', { metaKey: true }), true, false), 'refresh');
+  assert.equal(matchShortcut(key('KeyR', { altKey: true }), true, true), 'refresh');
+  assert.equal(matchShortcut(key('KeyR', { metaKey: true }), true, true), null);
+  assert.equal(matchShortcut(key('KeyR', { ctrlKey: true }), false, false), 'refresh');
+  assert.equal(matchShortcut(key('KeyR', { altKey: true }), false, true), 'refresh');
+  assert.equal(shortcutLabel('refresh', true, true), '⌥R');
+  assert.equal(shortcutLabel('refresh', true, false), '⌘R');
+  for (const [arrow, command] of [['Left', 'tab-left'], ['Right', 'tab-right']]) {
+    assert.equal(matchShortcut(key('Arrow' + arrow, { ctrlKey: true, altKey: true }), true, true), command);
+    assert.equal(matchShortcut(key('Arrow' + arrow, { metaKey: true, altKey: true }), true, true), null);
+    assert.equal(shortcutLabel(command, true, true), '⌃⌥' + (arrow === 'Left' ? '←' : '→'));
+  }
+  assert.equal(matchShortcut(key('ArrowUp', { ctrlKey: true, altKey: true, metaKey: true }), true, true), 'panel-up');
+});
+test('moving a tab into an edge split has four distinct commands and does not repeat while held', () => {
+  for (const direction of ['Left', 'Right', 'Up', 'Down']) {
+    assert.equal(matchShortcut(key('Arrow' + direction, { ctrlKey: true, metaKey: true }), true), 'move-' + direction.toLowerCase());
+    assert.equal(matchShortcut(key('Arrow' + direction, { ctrlKey: true, shiftKey: true }), false), 'move-' + direction.toLowerCase());
+  }
+  assert.equal(shortcutLabel('move-left', true), '⌃⌘←');
+  assert.equal(shortcutLabel('move-up', false), 'Ctrl+⇧+↑');
+  const target = new EventTarget(); let actions = 0;
+  const dispose = bindScopedShortcuts(target, true, () => actions++);
+  const repeated = new Event('keydown', { cancelable: true }); Object.assign(repeated, key('ArrowRight', { ctrlKey: true, metaKey: true }), { repeat: true });
+  target.dispatchEvent(repeated); assert.equal(actions, 0); assert.equal(repeated.defaultPrevented, true); dispose();
+});

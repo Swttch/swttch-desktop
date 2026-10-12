@@ -4,6 +4,8 @@ import { macShortcuts, browserShortcuts } from './shortcut-platform';
 import type { ShortcutRow } from './tab-action';
 
 const entries: { command: DesktopCommand; label: string }[] = [
+  { command: 'refresh', label: '현재 탭 새로고침' },
+  { command: 'move-left', label: '왼쪽 새 패널로 탭 이동' }, { command: 'move-right', label: '오른쪽 새 패널로 탭 이동' }, { command: 'move-up', label: '위쪽 새 패널로 탭 이동' }, { command: 'move-down', label: '아래쪽 새 패널로 탭 이동' },
   { command: 'new-tab', label: '새 채팅 탭' }, { command: 'split-columns', label: '좌우 분할로 열기' }, { command: 'split-rows', label: '상하 분할로 열기' }, { command: 'rename', label: '대화 이름 변경' }, { command: 'favorite', label: '대화 즐겨찾기 설정/해제' }, { command: 'close', label: '현재 탭 닫기' }, { command: 'tab-left', label: '이전 탭으로 이동' }, { command: 'tab-right', label: '다음 탭으로 이동' }, { command: 'panel-left', label: '왼쪽 패널로 이동' }, { command: 'panel-right', label: '오른쪽 패널로 이동' }, { command: 'panel-up', label: '위 패널로 이동' }, { command: 'panel-down', label: '아래 패널로 이동' }, { command: 'sidebar', label: '사이드메뉴 표시/숨기기' }, { command: 'help', label: '데스크탑 도움말 열기/닫기' }, { command: 'settings', label: '설정 열기' },
 ];
 const applicable = new Set(['openModelMenu', 'rotateModel', 'clearConversation', 'sendMessage', 'insertNewline', 'cyclePermissionMode', 'recallPrompt', 'toggleDictation', 'lineEdges', 'textStart', 'textEnd', 'wordMove', 'emacsParagraphEdges', 'emacsCharacterMove', 'emacsLineMove', 'emacsDelete', 'emacsKill', 'emacsYank', 'emacsTranspose', 'emacsOpenLine', 'emacsPageDown', 'emacsCenter']);
