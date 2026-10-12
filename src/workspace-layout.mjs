@@ -4,10 +4,10 @@ export function updatePanel(node, id, update) {
   return { ...node, children: node.children.map(child => updatePanel(child, id, update)) };
 }
 export function openTab(node, panelId, tab) {
-  return updatePanel(node, panelId, panel => ({ ...panel, tabs: [...panel.tabs, tab], activeTabId: tab.id }));
+  return updatePanel(node, panelId, panel => ({ ...panel, tabs: [...panel.tabs, tab], activeTabId: tab.id, focusHistory: [tab.id, ...(panel.focusHistory || []).filter(id => id !== tab.id)] }));
 }
 export function selectTab(node, panelId, tabId) {
-  return updatePanel(node, panelId, panel => panel.tabs.some(tab => tab.id === tabId) ? { ...panel, activeTabId: tabId } : panel);
+  return updatePanel(node, panelId, panel => panel.tabs.some(tab => tab.id === tabId) ? { ...panel, activeTabId: tabId, focusHistory: [tabId, ...(panel.focusHistory || []).filter(id => id !== tabId)] } : panel);
 }
 export function updateTab(node, tabId, fields) {
   if (node.kind === 'panel') return { ...node, tabs: node.tabs.map(tab => tab.id === tabId ? { ...tab, ...fields } : tab) };
@@ -18,15 +18,16 @@ export function closeTabs(node, panelId, ids, root = true) {
     if (node.id !== panelId) return node;
     const tabs = node.tabs.filter(tab => !ids.includes(tab.id));
     if (!tabs.length && !root) return null;
+    const focusHistory = (node.focusHistory || []).filter(id => tabs.some(tab => tab.id === id));
     const index = node.tabs.findIndex(tab => tab.id === node.activeTabId);
-    return { ...node, tabs, activeTabId: tabs.some(tab => tab.id === node.activeTabId) ? node.activeTabId : tabs[Math.min(Math.max(index - 1, 0), tabs.length - 1)]?.id || null };
+    return { ...node, tabs, focusHistory, activeTabId: tabs.some(tab => tab.id === node.activeTabId) ? node.activeTabId : focusHistory[0] || tabs[Math.min(Math.max(index - 1, 0), tabs.length - 1)]?.id || null };
   }
   const children = node.children.map(child => closeTabs(child, panelId, ids, false)).filter(Boolean);
   if (children.length === 1) return children[0];
   return { ...node, children };
 }
 export function splitPanel(node, panelId, tab, direction, panelIdNew, splitId) {
-  return updatePanel(node, panelId, panel => ({ kind: 'split', id: splitId, direction, ratio: .5, children: [panel, { kind: 'panel', id: panelIdNew, tabs: [tab], activeTabId: tab.id }] }));
+  return updatePanel(node, panelId, panel => ({ kind: 'split', id: splitId, direction, ratio: .5, children: [panel, { kind: 'panel', id: panelIdNew, tabs: [tab], activeTabId: tab.id, focusHistory: [tab.id] }] }));
 }
 export function resizeSplit(node, id, ratio) {
   if (node.kind === 'panel') return node;

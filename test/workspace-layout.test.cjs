@@ -33,3 +33,16 @@ test('nested row and column splits collapse empty panels while retaining sibling
   assert.equal(tree.kind, 'panel');
   assert.equal(tree.activeTabId, null);
 });
+
+test('closing selected tabs restores the most recently focused survivor, not tab order', () => {
+  let tree = ['a', 'b', 'c', 'd'].reduce((node, id) => openTab(node, 'p1', tab(id)), initial());
+  tree = selectTab(tree, 'p1', 'c');
+  tree = selectTab(tree, 'p1', 'a');
+  tree = closeTabs(tree, 'p1', ['a']);
+  assert.equal(tree.activeTabId, 'c');
+  tree = closeTabs(tree, 'p1', ['b']);
+  assert.equal(tree.activeTabId, 'c');
+  tree = closeTabs(tree, 'p1', ['c']);
+  assert.equal(tree.activeTabId, 'd');
+  assert.deepEqual(tree.focusHistory, ['d']);
+});

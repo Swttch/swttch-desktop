@@ -34,6 +34,7 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
   current.current = { layout, activePanel };
   const root = useRef<HTMLDivElement>(null);
   const viewports = useRef(new Map<string, HTMLDivElement>());
+  const focusHistory = useRef<string[]>([]);
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const [renameTarget, setRenameTarget] = useState('');
   const [favoriteTarget, setFavoriteTarget] = useState('');
@@ -42,7 +43,10 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
   const activeLeaf = allPanels.find(panel => panel.id === activePanel) || allPanels[0];
   const activeTab = activeLeaf.tabs.find(tab => tab.id === activeLeaf.activeTabId) || null;
   const callbacks = useRef(props); callbacks.current = props;
-  useEffect(() => { callbacks.current.onActive(activeTab); }, [activeTab]);
+  useEffect(() => {
+    if (activeTab) focusHistory.current = [activeTab.id, ...focusHistory.current.filter(id => id !== activeTab.id)];
+    callbacks.current.onActive(activeTab);
+  }, [activeTab]);
   const registerViewport = useCallback((id: string, element: HTMLDivElement | null) => { if (element) viewports.current.set(id, element); else viewports.current.delete(id); }, []);
   const registerFrame = useCallback((id: string, frame: HTMLIFrameElement | null) => { if (frame) frames.current.set(id, frame); else frames.current.delete(id); }, []);
   useLayoutEffect(() => {
@@ -80,14 +84,19 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     },
   }));
   function close(panelId: string, ids: string[]) {
-    const next = closeTabs(layout, panelId, ids);
+    let next = closeTabs(layout, panelId, ids);
     const remaining = panels(next);
-    setLayout(next);
-    if (!remaining.some(panel => panel.id === activePanel)) setActivePanel(remaining[0].id);
-    const focused = remaining.find(panel => panel.id === activePanel) || remaining[0];
-    if (focused.activeTabId) focusView(focused.activeTabId);
+    const activeClosed = !!activeTab && ids.includes(activeTab.id);
+    focusHistory.current = focusHistory.current.filter(id => remaining.some(panel => panel.tabs.some(tab => tab.id === id)));
+    const previousId = activeClosed ? focusHistory.current[0] : activeTab?.id;
+    const focused = remaining.find(panel => panel.tabs.some(tab => tab.id === previousId)) || remaining.find(panel => panel.id === activePanel) || remaining[0];
+    if (previousId && focused.tabs.some(tab => tab.id === previousId)) next = selectTab(next, focused.id, previousId);
+    setLayout(next); setActivePanel(focused.id);
+    const selected = panels(next).find(panel => panel.id === focused.id)?.activeTabId;
+    if (activeClosed && selected) focusView(selected);
     if (!remaining.some(panel => panel.tabs.length)) props.onEmpty();
   }
+
   function split(panelId: string, tabId: string, direction: 'columns' | 'rows') {
     const original = allPanels.find(panel => panel.id === panelId)?.tabs.find(tab => tab.id === tabId);
     if (!original) return;

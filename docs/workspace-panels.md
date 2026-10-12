@@ -27,3 +27,7 @@ The active-session save endpoint accepts the registered project ID alongside the
 Renderer build and 63 backend/layout tests passed, including panel-scoped selection/closure, nested split collapse, ratio bounds, and cross-project active-view validation. Browser checks covered real CLI replies in two separate sessions (`MULTITAB_A_OK`, `MULTITAB_B_OK`), tab-switch draft preservation, unchanged iframe instance IDs after splits and sibling closure, nested column/row splits, real separator dragging, scoped close-right/close-other actions, and the empty-workspace add-project entry point.
 
 The complete split tree and all open tabs are currently in-memory. Reload/startup retains the existing last-view restore behavior rather than restoring the entire layout. Tab/panel drag movement and full layout persistence remain TODO 25. Terminal and other application types remain TODO 26. Electron was not launched for this browser-equivalent UI work.
+
+Closing the focused tab selects the most recently focused surviving view across panels. Each panel also retains its own most-recently-used selection history. Closing background tabs preserves the current selection and keyboard focus; removed IDs are pruned from history.
+
+Verification: with three tabs open, the second tab was focused, then the third; native Option+W closed the third and selected the second while the first remained unselected. Layout tests cover repeated MRU closure and background-tab closure.

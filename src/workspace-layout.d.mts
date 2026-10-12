@@ -1,5 +1,5 @@
 export interface WorkspaceView { id: string; url: string; projectId: number; projectPath: string; title: string; sessionId: string; customTitle?: string }
-export interface WorkspacePanel { kind: 'panel'; id: string; tabs: WorkspaceView[]; activeTabId: string | null }
+export interface WorkspacePanel { kind: 'panel'; id: string; tabs: WorkspaceView[]; activeTabId: string | null; focusHistory?: string[] }
 export interface WorkspaceSplit { kind: 'split'; id: string; direction: 'columns' | 'rows'; ratio: number; children: [WorkspaceNode, WorkspaceNode] }
 export type WorkspaceNode = WorkspacePanel | WorkspaceSplit;
 export function panels(node: WorkspaceNode): WorkspacePanel[];
