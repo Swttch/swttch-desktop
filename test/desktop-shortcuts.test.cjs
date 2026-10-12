@@ -85,3 +85,25 @@ test('moving a tab into an edge split has four distinct commands and does not re
   const repeated = new Event('keydown', { cancelable: true }); Object.assign(repeated, key('ArrowRight', { ctrlKey: true, metaKey: true }), { repeat: true });
   target.dispatchEvent(repeated); assert.equal(actions, 0); assert.equal(repeated.defaultPrevented, true); dispose();
 });
+
+test('browser substitutes conflicting Chrome commands without intercepting the originals', () => {
+  for (const mac of [true, false]) {
+    const primary = mac ? { metaKey: true } : { ctrlKey: true };
+    for (const [code, command, label] of [['KeyN', 'new-tab', 'N'], ['KeyD', 'split-columns', 'D'], ['KeyE', 'rename', 'E'], ['Comma', 'settings', ',']]) {
+      const extraControl = !mac && ['KeyD', 'KeyE'].includes(code);
+      assert.equal(matchShortcut(key(code, { altKey: true, ctrlKey: extraControl }), mac, true), command);
+      assert.equal(matchShortcut(key(code, primary), mac, true), null);
+      assert.equal(matchShortcut(key(code, primary), mac, false), command);
+      assert.equal(shortcutLabel(command, mac, true), (mac ? '⌥' : extraControl ? 'Ctrl+Alt+' : 'Alt+') + label);
+    }
+    const split = { altKey: true, shiftKey: true, ctrlKey: !mac };
+    assert.equal(matchShortcut(key('KeyD', split), mac, true), 'split-rows');
+    assert.equal(matchShortcut(key('KeyD', { ...primary, shiftKey: true }), mac, true), null);
+    assert.equal(shortcutLabel('split-rows', mac, true), mac ? '⇧⌥D' : 'Ctrl+Alt+⇧+D');
+    assert.equal(matchShortcut(key('KeyB', primary), mac, true), 'favorite');
+    assert.equal(matchShortcut(key('Slash', primary), mac, true), 'help');
+    assert.equal(matchShortcut(key('KeyN', { altKey: true, shiftKey: true }), mac, true), null);
+  }
+  assert.equal(matchShortcut(key('KeyD', { altKey: true }), false, true), null);
+  assert.equal(matchShortcut(key('KeyE', { altKey: true }), false, true), null);
+});

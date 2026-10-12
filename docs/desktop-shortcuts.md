@@ -24,7 +24,7 @@ Chromium documents close-tab as a browser-reserved shortcut. Keyboard Lock requi
 
 References: [Chromium shortcuts](https://github.com/chromium/chromium/blob/main/docs/ui/learn/keyboard_shortcuts.md), [Keyboard Lock](https://developer.chrome.com/docs/capabilities/web-apis/keyboard-lock).
 
-Browser hosts are identified by the absence of the Electron preload host. The shell, chat frames, settings frame, menu hints, and help use this same host decision. Browser close uses Option+W on macOS and Alt+W on Windows/Linux; the primary-modifier W combination is not intercepted. Electron retains Command/Control+W. Other shortcuts retain their existing modifiers.
+Browser hosts are identified by the absence of the Electron preload host. The shell, chat frames, settings frame, menu hints, and help use this same host decision. Browser close uses Option+W on macOS and Alt+W on Windows/Linux; the primary-modifier W combination is not intercepted. Electron retains Command/Control+W. Additional Chrome conflicts are remapped as documented below.
 
 Option+W was verified using the Codex browser native key input with the new-chat composer focused: two tabs became one, the original session remained, and localhost:3031 stayed open. The context menu displayed ⌥W. Build and all 68 tests passed, including browser/Electron modifier separation and consumed close events.
 
@@ -35,3 +35,11 @@ Refresh uses Command+R in macOS Electron or Control+R on Windows/Linux Electron.
 Move the selected tab to a new panel on the left/right/top/bottom with Control+Command+arrows on macOS; Windows/Linux use Control+Shift+arrows. These commands reuse the drag-to-edge operation and preserve the existing view. Self-splitting a single-tab panel remains disabled, with an explanatory shortcut toast. Move/refresh key repeats are consumed without repeating structural actions. Context menus and Desktop help display all new host-aware hints.
 
 TDD: new shortcut tests failed before implementation (refresh and move commands were absent), then passed with platform/modifier and repeat-suppression coverage. Native browser input verified Control+Option tab navigation in both directions, Option+R refreshing only one view while another view retained its draft, and Control+Command+Right moving the selected tab into a new panel. The test drafts were cleared without sending messages. Strict build and all 76 tests passed; native Electron was not launched.
+
+## Chrome-conflict substitutions
+
+Browser-only remapping now covers new chat (Option/Alt+N), split columns (Option+D on macOS, Control+Alt+D elsewhere), split rows (Shift+Option+D on macOS, Control+Alt+Shift+D elsewhere), rename (Option+E on macOS, Control+Alt+E elsewhere), and settings (Option/Alt+Comma), alongside close and refresh. Their original Command/Control combinations are no longer intercepted by Desktop in browser mode. Favorite, help, sidebar, tab navigation, panel navigation, and move-to-split retain their existing bindings.
+
+The non-macOS Control+Alt exceptions avoid Chrome's own Alt+D address-bar focus and Alt+E menu. The collisions were checked against [Chrome's official shortcut reference](https://support.google.com/chrome/answer/157179?hl=en). Electron keeps its original primary-modifier shortcuts. Menu/help hints use the same host-specific matching rules.
+
+TDD: the added browser-substitution test failed on the missing Alt+N action before implementation, then passed for both OS families, original-combination exclusion, non-conflicting shortcuts, and the Alt+D/E exceptions. Build and all 77 tests passed. Native macOS browser input verified Option+N, Option+D, Shift+Option+D, Option+E, and Option+Comma. Native Electron and Windows/Linux were not launched.

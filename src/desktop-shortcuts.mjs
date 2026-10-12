@@ -1,7 +1,12 @@
 export function matchShortcut(event, mac, browser = false) {
   if (event.isComposing) return null;
-  const special = event.code || (event.key?.toLowerCase() === 'w' ? 'KeyW' : event.key?.toLowerCase() === 'r' ? 'KeyR' : '');
-  if (browser && ['KeyW', 'KeyR'].includes(special)) return event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey ? (special === 'KeyW' ? 'close' : 'refresh') : null;
+  const special = event.code || ({ ',': 'Comma' }[event.key] || (event.key ? 'Key' + event.key.toUpperCase() : ''));
+  const remapped = { KeyW: 'close', KeyR: 'refresh', KeyN: 'new-tab', KeyD: 'split-columns', KeyE: 'rename', Comma: 'settings' };
+  if (browser && remapped[special]) {
+    const extraControl = !mac && ['KeyD', 'KeyE'].includes(special);
+    if (!event.altKey || event.metaKey || event.ctrlKey !== extraControl || (event.shiftKey && special !== 'KeyD')) return null;
+    return special === 'KeyD' && event.shiftKey ? 'split-rows' : remapped[special];
+  }
   const arrow = /^Arrow(Left|Right|Up|Down)$/.exec(event.key);
   if (arrow && !event.altKey && (mac ? event.ctrlKey && event.metaKey && !event.shiftKey : event.ctrlKey && event.shiftKey && !event.metaKey)) return 'move-' + arrow[1].toLowerCase();
   if (browser && mac && arrow && event.ctrlKey && event.altKey && !event.metaKey && !event.shiftKey && ['Left', 'Right'].includes(arrow[1])) return 'tab-' + arrow[1].toLowerCase();
@@ -18,7 +23,12 @@ export function matchShortcut(event, mac, browser = false) {
   return { KeyR: 'refresh', KeyE: 'rename', KeyW: 'close', KeyB: 'favorite', Slash: 'help', Comma: 'settings', KeyN: 'new-tab' }[key] || null;
 }
 export function shortcutLabel(command, mac, browser = false) {
-  if (browser && ['close', 'refresh'].includes(command)) return (mac ? '⌥' : 'Alt+') + (command === 'close' ? 'W' : 'R');
+  const remapped = { close: 'W', refresh: 'R', 'new-tab': 'N', 'split-columns': 'D', 'split-rows': 'D', rename: 'E', settings: ',' };
+  if (browser && remapped[command]) {
+    const extraControl = !mac && ['split-columns', 'split-rows', 'rename'].includes(command);
+    const shift = command === 'split-rows';
+    return (mac ? (shift ? '⇧⌥' : '⌥') : (extraControl ? 'Ctrl+Alt+' : 'Alt+') + (shift ? '⇧+' : '')) + remapped[command];
+  }
   const arrowKey = { left: '←', right: '→', up: '↑', down: '↓' };
   if (command.startsWith('move-')) return (mac ? '⌃⌘' : 'Ctrl+⇧+') + arrowKey[command.slice(5)];
   if (browser && mac && command.startsWith('tab-')) return '⌃⌥' + arrowKey[command.slice(4)];
