@@ -3,6 +3,7 @@ import { API_PATH } from '../../src/api-paths.mjs';
 import { replacePathParams } from './routes';
 import { queryClient, QUERY_KEY } from './query-client';
 import type { ProviderUsage } from './provider-usage';
+import type { WorkspaceRecord, WorkspaceRestoration, WorkspaceSnapshot } from '../../src/workspace-layout.mjs';
 import type { AccountsResult, AccountListItem } from '../../../../webview/src/shared/account';
 
 function connect() {
@@ -22,7 +23,7 @@ function connect() {
 }
 async function request<T>(path: string, method: string, body?: object, signal?: AbortSignal, reconnect = true): Promise<T> {
   const { csrf } = await connect();
-  const response = await fetch(path, { method, signal,
+  const response = await fetch(path, { method, signal, keepalive: path === API_PATH.WORKSPACE_LAYOUT && method === 'PUT',
     headers: { 'Content-Type': 'application/json', 'x-swttch-csrf': csrf },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -37,6 +38,8 @@ async function request<T>(path: string, method: string, body?: object, signal?: 
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }
 export const desktopApi = {
+  restoreWorkspace: () => request<WorkspaceRestoration | null>(API_PATH.WORKSPACE_RESTORATIONS, 'POST', {}),
+  saveWorkspace: (snapshot: WorkspaceSnapshot, expectedRevision: number, terminalBindings: { tabId: string; terminalId: string }[]) => request<WorkspaceRecord>(API_PATH.WORKSPACE_LAYOUT, 'PUT', { snapshot, expectedRevision, terminalBindings }),
   createTerminal: (projectId: number) => request<{ id: string; projectId: number; projectPath: string; title: string }>(API_PATH.TERMINALS, 'POST', { projectId }),
   terminalInput: (terminalId: string, data: string) => request<void>(replacePathParams(API_PATH.TERMINAL_INPUT, { terminalId }), 'POST', { data }),
   resizeTerminal: (terminalId: string, cols: number, rows: number) => request<void>(replacePathParams(API_PATH.TERMINAL, { terminalId }), 'PATCH', { cols, rows }),

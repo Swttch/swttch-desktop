@@ -597,3 +597,53 @@ test('terminal resources use registered project cwd and require owner session pl
   assert.equal((await fetch(resource + '/terminal-test', { method: 'DELETE', headers })).status, 204);
   assert.equal(calls[1].input, 'pwd\r'); assert.deepEqual(calls[2], { cols: 100, rows: 30 });
 });
+
+test("workspace file API requires CSRF, rejects stale writes, and reconstructs chat URLs without stored credentials", async t => {
+  const { base, project, client } = await setup(t), headers = await client();
+  const url = base + "/desktop-api/workspace-layout";
+  const snapshot = { version: 1, layout: { kind: "panel", id: "p1", tabs: [{ id: "a", kind: "chat", title: "Mine", customTitle: "My tab", projectId: 1, sessionId: "" }], activeTabId: "a", focusHistory: ["a"] }, activePanel: "p1", focusHistory: ["a"] };
+  const forged = { ...headers }; delete forged['x-swttch-csrf'];
+  assert.equal((await fetch(url, { method: "PUT", headers: forged, body: JSON.stringify({ snapshot, expectedRevision: 0 }) })).status, 403);
+  assert.equal((await fetch(url, { method: "PUT", headers, body: JSON.stringify({ snapshot, expectedRevision: 0 }) })).status, 200);
+  assert.equal((await fetch(url, { method: "PUT", headers, body: JSON.stringify({ snapshot, expectedRevision: 0 }) })).status, 409);
+  const record = await (await fetch(url, { headers })).json();
+  assert.equal(record.revision, 1);
+  assert.equal(record.layout.tabs[0].url, undefined);
+  const restored = await (await fetch(base + "/desktop-api/workspace-restorations", { method: "POST", headers, body: "{}" })).json();
+  assert.equal(restored.layout.tabs[0].id, "a");
+  assert.equal(restored.layout.tabs[0].customTitle, "My tab");
+  assert.equal(new URL(restored.layout.tabs[0].url).searchParams.get("workingDir"), project);
+  assert.ok(new URL(restored.layout.tabs[0].url).searchParams.get("pair"));
+  assert.equal(new URL(restored.layout.tabs[0].url).searchParams.get("top_bar_display"), "F");
+});
+
+test("terminal restoration reuses a live owned shell on reload and retains missing-project placeholders", async t => {
+  const { base, client } = await setup(t), headers = await client();
+  const terminal = { id: "terminal-tab", kind: "terminal", title: "Terminal", projectId: 1, sessionId: "", customTitle: "Shell" };
+  const missing = { id: "missing-tab", kind: "chat", title: "Missing", projectId: 99999, sessionId: "" };
+  const snapshot = { version: 1, layout: { kind: "panel", id: "p", tabs: [terminal, missing], activeTabId: terminal.id, focusHistory: [terminal.id] }, activePanel: "p", focusHistory: [terminal.id] };
+  assert.equal((await fetch(base + "/desktop-api/workspace-layout", { method: "PUT", headers, body: JSON.stringify({ snapshot, expectedRevision: 0 }) })).status, 200);
+  async function restore() { return (await fetch(base + "/desktop-api/workspace-restorations", { method: "POST", headers })).json(); }
+  const first = await restore(), second = await restore();
+  assert.ok(first.layout.tabs[0].terminalId);
+  assert.equal(first.layout.tabs[0].terminalId, second.layout.tabs[0].terminalId);
+  assert.equal(first.layout.tabs[0].customTitle, "Shell");
+  assert.ok(first.layout.tabs[1].restoreError);
+  const saved = await (await fetch(base + "/desktop-api/workspace-layout", { headers })).json();
+  assert.equal(saved.layout.tabs[0].terminalId, undefined);
+});
+
+test('malformed live terminal bindings cannot commit a workspace record before validation', async t => {
+  const { base, client } = await setup(t), headers = await client();
+  const snapshot = { version: 1, layout: { kind: 'panel', id: 'p', tabs: [], activeTabId: null, focusHistory: [] }, activePanel: 'p', focusHistory: [] };
+  const url = base + '/desktop-api/workspace-layout';
+  const response = await fetch(url, { method: 'PUT', headers, body: JSON.stringify({ snapshot, expectedRevision: 0, terminalBindings: null }) });
+  assert.equal(response.status, 400);
+  assert.equal(await (await fetch(url, { headers })).json(), null);
+});
+
+test('the host advertises workspace recording so a new renderer can coexist with an older running host', async t => {
+  const { base, client } = await setup(t), headers = await client();
+  const state = await (await fetch(base + '/desktop-api/workspace', { headers })).json();
+  assert.equal(state.workspaceLayoutVersion, 1);
+});

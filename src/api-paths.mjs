@@ -12,6 +12,8 @@ export const API_PATH = Object.freeze({ TERMINALS: '/desktop-api/terminals', TER
   FAVORITE_SESSIONS: '/desktop-api/favorite-sessions',
   ACTIVE_SESSIONS: '/desktop-api/active-sessions',
   WORKSPACE: '/desktop-api/workspace',
+  WORKSPACE_LAYOUT: '/desktop-api/workspace-layout',
+  WORKSPACE_RESTORATIONS: '/desktop-api/workspace-restorations',
   FOLDER_SELECTIONS: '/desktop-api/folder-selections',
   PROJECT_ORDER: '/desktop-api/project-order',
   PROJECTS: '/desktop-api/projects',

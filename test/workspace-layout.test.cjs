@@ -95,3 +95,21 @@ test('edge transfers collapse an emptied source and ignore self-splits of single
   assert.equal(panelDropEdge(200, 195, 400, 200), 'bottom');
   assert.equal(panelDropEdge(200, 100, 400, 200), 'center');
 });
+
+test('restored active panel is not stolen by view mount autofocus, while user interaction can select it', () => {
+  const { canActivateWorkspaceView } = require('../src/workspace-layout.mjs');
+  assert.equal(canActivateWorkspaceView(true, false), false);
+  assert.equal(canActivateWorkspaceView(true, true), true);
+  assert.equal(canActivateWorkspaceView(false, false), true);
+});
+
+test('view mount order stays stable across tab movement so iframe DOM is never reinserted', () => {
+  const { stableViewOrder, moveTabToSplit } = require('../src/workspace-layout.mjs');
+  let tree = splitPanel(openTab(initial(), 'p1', tab('a')), 'p1', tab('b'), 'columns', 'p2', 's');
+  tree = openTab(tree, 'p1', tab('c'));
+  const order = stableViewOrder([], tree);
+  tree = moveTabToSplit(tree, 'a', 'p1', 'right', 'p3', 's2');
+  assert.deepEqual(stableViewOrder(order, tree), order);
+  tree = closeTabs(tree, 'p3', ['a']); tree = openTab(tree, 'p2', tab('d'));
+  assert.deepEqual(stableViewOrder(order, tree), ['c', 'b', 'd']);
+});

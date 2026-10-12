@@ -8,8 +8,8 @@ import { DndProvider, useDragLayer } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { DraggableTab, PanelDropZone, TabDropStrip } from './TabDrag';
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
-import { closeTabs, moveTab, moveTabToSplit, openTab, panels, resizeSplit, selectTab, splitPanel, updateTab, type PanelDropEdge, type WorkspaceNode, type WorkspacePanel, type WorkspaceView } from '../../src/workspace-layout.mjs';
-import { SessionActivity, type DesktopState } from './desktop';
+import { canActivateWorkspaceView, closeTabs, moveTab, moveTabToSplit, openTab, panels, resizeSplit, selectTab, splitPanel, stableViewOrder, updateTab, workspaceSnapshot, type WorkspaceRestoration, type WorkspaceSnapshot, type PanelDropEdge, type WorkspaceNode, type WorkspacePanel, type WorkspaceView } from '../../src/workspace-layout.mjs';
+import { DesktopPhase, SessionActivity, type DesktopState } from './desktop';
 import { WorkspaceTab } from './WorkspaceTab';
 import { WorkspaceFrame } from './WorkspaceFrame';
 import { activateTabAction, type DesktopTabAction } from './tab-action';
@@ -22,7 +22,7 @@ const TerminalView = lazy(() => import('./TerminalView').then(module => ({ defau
 
 export interface WorkspaceSurfaceHandle { open: (url: string, projectId: number, projectPath: string, panelId?: string) => void; getActivePanel: () => string; getShortcuts: () => Promise<import('./tab-action').ShortcutRow[]> }
 type Rect = { left: number; top: number; width: number; height: number };
-type SurfaceProps = { state: DesktopState; browsing: boolean; pending: boolean; onSelect: () => void; onActive: (tab: WorkspaceView | null) => void; onNew: (panelId: string, projectPath?: string) => void; onEmpty: () => void; onSidebar: () => void; onHelp: () => void; onSettings: () => void };
+type SurfaceProps = { state: DesktopState; browsing: boolean; pending: boolean; onRestored: (found: boolean) => void; onSelect: () => void; onActive: (tab: WorkspaceView | null) => void; onNew: (panelId: string, projectPath?: string) => void; onEmpty: () => void; onSidebar: () => void; onHelp: () => void; onSettings: () => void };
 
 function PanelLeaf({ panel, active, browsing, pending, state, registerViewport, onActivate, onClose, onCloseOthers, onCloseRight, onSplit, onAction, onRename, onMove, onMoveEdge, onRefresh, onNewTerminal, onNew, renameTarget, favoriteTarget, onHandled }: { panel: WorkspacePanel; active: boolean; browsing: boolean; pending: boolean; state: DesktopState; registerViewport: (id: string, element: HTMLDivElement | null) => void; onActivate: (panel: string, tab: string) => void; onClose: (panel: string, ids: string[]) => void; onCloseOthers: (panel: string, tab: string) => void; onCloseRight: (panel: string, tab: string) => void; onSplit: (panel: string, tab: string, direction: 'columns' | 'rows') => void; onAction: (panel: string, tab: string, action: DesktopTabAction) => void; onRename: (tab: string, value: string) => void; onMove: (id: string, panel: string, index: number) => void; onMoveEdge: (id: string, panel: string, edge: PanelDropEdge) => void; onRefresh: (id: string) => void; onNewTerminal: (panel: string, path?: string) => void; onNew: (panel: string, path?: string) => void; renameTarget: string; favoriteTarget: string; onHandled: (kind: 'rename' | 'favorite') => void }) {
   const closeTabMenu = useRef<(() => void) | null>(null);
@@ -39,17 +39,39 @@ function PanelLeaf({ panel, active, browsing, pending, state, registerViewport, 
 }
 
 export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>(function WorkspaceSurface(props, ref) {
-  return <DndProvider backend={HTML5Backend}><WorkspaceSurfaceContent {...props} ref={ref} /></DndProvider>;
+  const restore = useMutation({ mutationFn: desktopApi.restoreWorkspace });
+  const started = useRef(false);
+  const mutations = useRef(restore); mutations.current = restore;
+  const ready = props.state.phase === DesktopPhase.Ready || props.state.phase === DesktopPhase.Chat;
+  const supported = props.state.workspaceLayoutVersion === 1;
+  useEffect(() => { if (ready && supported && !started.current) { started.current = true; mutations.current.mutate(); } }, [ready, supported]);
+  const callback = useRef(props.onRestored); callback.current = props.onRestored;
+  useEffect(() => { if (ready && !supported) callback.current(false); }, [ready, supported]);
+  useEffect(() => { if (restore.isSuccess) callback.current(Boolean(restore.data)); }, [restore.isSuccess, restore.data]);
+  if (ready && !supported) return <DndProvider backend={HTML5Backend}><WorkspaceSurfaceContent {...props} restored={null} ref={ref} /><p role="status" className="pointer-events-none absolute bottom-2 right-2 z-30 rounded bg-navigation px-3 py-2 text-xs text-muted">작업 영역 저장·복원을 적용하려면 로컬 호스트를 재시작해 주세요.</p></DndProvider>;
+  if (restore.isError) return <div role="alert" className="p-6 text-sm text-muted">작업 영역을 복원하지 못했습니다: {restore.error.message}<button className="ml-3 underline" onClick={() => restore.mutate()}>다시 시도</button></div>;
+  if (!restore.isSuccess) return <p role="status" className="p-6 text-sm text-muted">작업 영역을 복원하고 있습니다…</p>;
+  return <DndProvider backend={HTML5Backend}><WorkspaceSurfaceContent {...props} restored={restore.data} ref={ref} /></DndProvider>;
 });
-const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>(function WorkspaceSurfaceContent(props, ref) {
+const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps & { restored: WorkspaceRestoration | null }>(function WorkspaceSurfaceContent(props, ref) {
   const dragging = useDragLayer(monitor => monitor.isDragging());
-  const [layout, setLayout] = useState<WorkspaceNode>(() => ({ kind: 'panel', id: crypto.randomUUID(), tabs: [], activeTabId: null }));
-  const [activePanel, setActivePanel] = useState(() => panels(layout)[0].id);
+  const [layout, setLayout] = useState<WorkspaceNode>(() => props.restored?.layout || ({ kind: 'panel', id: crypto.randomUUID(), tabs: [], activeTabId: null }));
+  const [activePanel, setActivePanel] = useState(() => props.restored?.activePanel || panels(layout)[0].id);
   const current = useRef({ layout, activePanel });
   current.current = { layout, activePanel };
   const root = useRef<HTMLDivElement>(null);
   const viewports = useRef(new Map<string, HTMLDivElement>());
-  const focusHistory = useRef<string[]>([]);
+  const focusHistory = useRef<string[]>(props.restored?.focusHistory || []);
+  const revision = useRef(props.restored?.revision || 0);
+  const restoringFocus = useRef(Boolean(props.restored));
+  const blocked = useRef(false);
+  const lastSaved = useRef(props.restored ? JSON.stringify(workspaceSnapshot(layout, activePanel, focusHistory.current)) : '');
+  const save = useMutation({ scope: { id: 'workspace-layout' }, mutationFn: async ({ snapshot, terminalBindings }: { snapshot: WorkspaceSnapshot; terminalBindings: { tabId: string; terminalId: string }[] }) => {
+    if (blocked.current) throw new Error('저장 오류를 해결한 뒤 작업 영역을 다시 불러와 주세요.');
+    try { const result = await desktopApi.saveWorkspace(snapshot, revision.current, terminalBindings); revision.current = result.revision; return result; }
+    catch (error) { blocked.current = true; throw error; }
+  }, onError: error => toast.error(`작업 영역을 저장하지 못했습니다: ${error.message}`, { id: 'workspace-save-error', duration: 10000 }) });
+  const persistence = useRef(save); persistence.current = save;
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const [renameTarget, setRenameTarget] = useState('');
   const [favoriteTarget, setFavoriteTarget] = useState('');
@@ -64,6 +86,9 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     callbacks.current.onSelect();
   }, onError: error => toast.error(error.message) });
   const allPanels = panels(layout);
+  const mountOrder = useRef<string[]>([]);
+  mountOrder.current = stableViewOrder(mountOrder.current, layout);
+  const mountedViews = new Map(allPanels.flatMap(panel => panel.tabs.map(tab => [tab.id, { panel, tab }] as const)));
   const activeLeaf = allPanels.find(panel => panel.id === activePanel) || allPanels[0];
   const activeTab = activeLeaf.tabs.find(tab => tab.id === activeLeaf.activeTabId) || null;
   const callbacks = useRef(props); callbacks.current = props;
@@ -71,6 +96,14 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     if (activeTab) focusHistory.current = [activeTab.id, ...focusHistory.current.filter(id => id !== activeTab.id)];
     callbacks.current.onActive(activeTab);
   }, [activeTab]);
+  useEffect(() => {
+    if (props.state.workspaceLayoutVersion !== 1) return;
+    const snapshot = workspaceSnapshot(layout, activePanel, focusHistory.current), serialized = JSON.stringify(snapshot);
+    if (serialized === lastSaved.current || blocked.current) return;
+    lastSaved.current = serialized;
+    const terminalBindings = allPanels.flatMap(panel => panel.tabs.filter(tab => tab.terminalId).map(tab => ({ tabId: tab.id, terminalId: tab.terminalId! })));
+    persistence.current.mutate({ snapshot, terminalBindings });
+  }, [layout, activePanel]);
   const registerViewport = useCallback((id: string, element: HTMLDivElement | null) => { if (element) viewports.current.set(id, element); else viewports.current.delete(id); }, []);
   const registerFrame = useCallback((id: string, frame: HTMLIFrameElement | null) => { if (frame) frames.current.set(id, frame); else frames.current.delete(id); }, []);
   useLayoutEffect(() => {
@@ -89,7 +122,7 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     for (const element of viewports.current.values()) observer.observe(element);
     measure(); return () => observer.disconnect();
   }, [layout]);
-  function activate(panelId: string, tabId: string) { setActivePanel(panelId); setLayout(value => selectTab(value, panelId, tabId)); props.onSelect(); }
+  function activate(panelId: string, tabId: string) { restoringFocus.current = false; setActivePanel(panelId); setLayout(value => selectTab(value, panelId, tabId)); props.onSelect(); }
   useImperativeHandle(ref, () => ({
     getActivePanel: () => current.current.activePanel,
     getShortcuts: async () => {
@@ -200,6 +233,16 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     if (command === 'favorite') setFavoriteTarget(tab.id);
     if (command === 'split-columns' || command === 'split-rows') split(pane.id, tab.id, command === 'split-columns' ? 'columns' : 'rows');
   };
+  function handleViewFocus(panelId: string, interaction: boolean) {
+    const snapshot = current.current;
+    if ((!interaction && snapshot.activePanel !== panelId) || !canActivateWorkspaceView(restoringFocus.current, interaction)) {
+      const selected = panels(snapshot.layout).find(panel => panel.id === snapshot.activePanel)?.activeTabId;
+      requestAnimationFrame(() => { if (selected && current.current.activePanel === snapshot.activePanel) document.getElementById(`workspace-tab-${selected}`)?.focus(); });
+      return;
+    }
+    restoringFocus.current = false;
+    if (snapshot.activePanel !== panelId) setActivePanel(panelId);
+  }
   function focusView(id: string) {
     requestAnimationFrame(() => {
       if (!panels(current.current.layout).some(pane => pane.activeTabId === id)) return;
@@ -228,13 +271,14 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
   return <div ref={root} data-tab-dragging={dragging || undefined} className="workspace-surface pointer-events-none absolute inset-x-0 z-10 flex" style={{ top: 'calc(-1 * var(--header-height))', height: 'calc(100% + var(--header-height))' }}>
     {render(layout)}
     {dragging && allPanels.map(panel => <div key={`drop-${panel.id}`} className="absolute z-30" style={rects[panel.id] || { width: 0, height: 0 }}><PanelDropZone panelId={panel.id} tabIds={panel.tabs.map(tab => tab.id)} disabled={props.pending} onMove={moveToEdge} /></div>)}
-    {allPanels.flatMap(panel => panel.tabs.map(tab => {
+    {mountOrder.current.map(id => {
+      const { panel, tab } = mountedViews.get(id)!;
       const box = rects[panel.id];
       const hidden = props.browsing || panel.activeTabId !== tab.id;
-      return <div key={tab.id} data-tab-view={tab.id} data-workspace-corner={panel.id === allPanels[0].id || undefined} id={`viewport-${tab.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${tab.id}`} className={`absolute overflow-hidden bg-canvas ${hidden ? 'hidden' : 'pointer-events-auto'}`} style={box || { width: 0, height: 0 }}>{tab.kind === 'terminal' ? <Suspense fallback={<p role="status" className="p-3 text-xs text-muted">터미널을 불러오는 중…</p>}><TerminalView tab={tab} onFocus={() => { if (current.current.activePanel !== panel.id) setActivePanel(panel.id); }} onTitle={title => setLayout(value => {
+      return <div key={tab.id} data-tab-view={tab.id} data-workspace-corner={panel.id === allPanels[0].id || undefined} id={`viewport-${tab.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${tab.id}`} className={`absolute overflow-hidden bg-canvas ${hidden ? 'hidden' : 'pointer-events-auto'}`} style={box || { width: 0, height: 0 }}>{tab.restoreError ? <div role="alert" className="p-6 text-sm text-muted">이 탭을 복원하지 못했습니다: {tab.restoreError}<p className="mt-2">프로젝트와 연결 상태를 확인한 뒤 탭을 다시 열어 주세요.</p></div> : tab.kind === 'terminal' ? <Suspense fallback={<p role="status" className="p-3 text-xs text-muted">터미널을 불러오는 중…</p>}><TerminalView tab={tab} onFocus={interaction => handleViewFocus(panel.id, interaction)} onTitle={title => setLayout(value => {
         const original = panels(value).flatMap(panel => panel.tabs).find(view => view.id === tab.id);
         return original?.title === title ? value : updateTab(value, tab.id, { title });
-      })} /></Suspense> : <WorkspaceFrame tab={tab} hidden={hidden} register={registerFrame} onMetadata={metadata} onFocus={() => { if (current.current.activePanel !== panel.id) setActivePanel(panel.id); }} onShortcut={(id, command) => commands.current(command, id)} />}</div>;
-    }))}
+      })} /></Suspense> : <WorkspaceFrame tab={tab} hidden={hidden} register={registerFrame} onMetadata={metadata} onFocus={interaction => handleViewFocus(panel.id, interaction)} onShortcut={(id, command) => commands.current(command, id)} />}</div>;
+    })}
   </div>;
 });

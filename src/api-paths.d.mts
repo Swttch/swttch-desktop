@@ -17,6 +17,8 @@ export const API_PATH: {
   readonly FAVORITE_SESSIONS: '/desktop-api/favorite-sessions';
   readonly ACTIVE_SESSIONS: '/desktop-api/active-sessions';
   readonly WORKSPACE: '/desktop-api/workspace';
+  readonly WORKSPACE_LAYOUT: '/desktop-api/workspace-layout';
+  readonly WORKSPACE_RESTORATIONS: '/desktop-api/workspace-restorations';
   readonly PROJECT: '/desktop-api/projects/:projectId';
   readonly FOLDER_SELECTIONS: '/desktop-api/folder-selections';
   readonly PROJECTS: '/desktop-api/projects';

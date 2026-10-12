@@ -1,4 +1,5 @@
 const { createTerminalManager } = require('./terminal-manager.cjs');
+const { createWorkspaceRecord } = require('./workspace-record.cjs');
 const { randomBytes, createHash } = require('node:crypto');
 const { request } = require('node:http');
 const { mkdirSync, appendFileSync, statSync } = require('node:fs');
@@ -24,6 +25,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
   const providerUsage = suppliedProviderUsage || createProviderUsage({ resolveUsage: (client, profile) => accountUsage.fetchLiveUsage(client, profile) });
   mkdirSync(home, { recursive: true, mode: 0o700 });
   const store = openStore(home);
+  const workspaceRecord = createWorkspaceRecord(home);
   const sourceSync = createSessionSourceSync({ repository: store.sessionRepository, projects: store.projects, reader: sourceReader });
   store.sessionRepository.syncActivity({ open: [], activity: {} });
   const folderDialog = suppliedFolderDialog || createFolderDialog();
@@ -132,6 +134,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
   if (!suppliedBackend && !process.env.SWTTCH_RUNTIME_DIR) backend.webview = join(pluginRoot, 'webview/dist');
 
   const state = session => ({
+    workspaceLayoutVersion: 1,
     phase: phase === 'ready' && session.project ? 'chat' : phase,
     message, project: session.project, chatUrl: phase === 'ready' ? session.chatUrl : null,
     recent: store.recent(), projects: store.projects(),
@@ -182,11 +185,11 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
     const cookie = (req.headers.cookie || '').split(';').map(value => value.trim()).find(value => value.startsWith(`${cookieName()}=`));
     return cookie ? sessions.get(cookie.slice(cookieName().length + 1)) : null;
   }
-  async function readBody(req) {
+  async function readBody(req, limit = 8192) {
     let body = '';
     for await (const chunk of req) {
       body += chunk;
-      if (body.length > 8192) throw new Error('요청이 너무 큽니다.');
+      if (body.length > limit) throw new Error('요청이 너무 큽니다.');
     }
     return JSON.parse(body || '{}');
   }
@@ -210,6 +213,50 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
       return json(res, 201, { csrf: session.csrf, state: state(session) });
     }
     if (!session) return json(res, 401, { error: '앱 연결이 만료됐습니다. 새로고침해 주세요.' });
+    if (path === API_PATH.WORKSPACE_LAYOUT || path === API_PATH.WORKSPACE_RESTORATIONS) {
+      const method = path === API_PATH.WORKSPACE_LAYOUT ? ['GET', 'PUT'] : ['POST'];
+      if (!method.includes(req.method)) return json(res, 405, { error: 'Method not allowed' });
+      if (req.method !== 'GET' && req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      try {
+        if (req.method === 'PUT') {
+          const { snapshot, expectedRevision, terminalBindings = [] } = await readBody(req, 60000);
+          if (!Array.isArray(terminalBindings) || terminalBindings.length > 64 || terminalBindings.some(binding => !binding || typeof binding.tabId !== 'string' || typeof binding.terminalId !== 'string')) throw new Error('터미널 연결 정보를 확인해 주세요.');
+          const saved = workspaceRecord.write(snapshot, expectedRevision);
+          session.restoredTerminals ||= new Map();
+          for (const binding of terminalBindings) {
+            if (terminals.get(binding.terminalId, session.csrf)) session.restoredTerminals.set(binding.tabId, binding.terminalId);
+          }
+          return json(res, 200, saved);
+        }
+        const record = workspaceRecord.read();
+        if (req.method === 'GET' || !record) return json(res, 200, record);
+        if (phase !== 'ready') return json(res, 503, { error: '채팅 환경을 준비한 뒤 복원을 다시 시도해 주세요.' });
+        session.restoredTerminals ||= new Map();
+        async function restore(node) {
+          if (node.kind === 'split') return { ...node, children: await Promise.all(node.children.map(restore)) };
+          const tabs = await Promise.all(node.tabs.map(async tab => {
+            const project = store.projects().find(row => row.id === tab.projectId && !row.hiddenAt);
+            const view = { ...tab, projectPath: project?.path || '', url: '' };
+            try {
+              if (!project || !statSync(project.path).isDirectory()) throw new Error('프로젝트 폴더를 찾을 수 없습니다.');
+              if (tab.kind === 'terminal') {
+                let terminal;
+                try { terminal = terminals.get(session.restoredTerminals.get(tab.id), session.csrf); } catch { /* Recreate a shell after host or process expiry. */ }
+                if (!terminal) terminal = terminals.create(session.csrf, project);
+                session.restoredTerminals.set(tab.id, terminal.id);
+                return { ...view, terminalId: terminal.id };
+              }
+              const response = await fetch(`http://127.0.0.1:${backend.port}/internal/local-pair`, { headers: { 'x-ccg-token': backend.token } });
+              if (!response.ok) throw new Error('채팅 연결을 준비하지 못했습니다.');
+              const { code } = await response.json();
+              return { ...view, url: sessionUrl(project.path, tab.sessionId || undefined, code, backend.port) };
+            } catch (error) { return { ...view, restoreError: error.message }; }
+          }));
+          return { ...node, tabs };
+        }
+        return json(res, 200, { ...record, layout: await restore(record.layout) });
+      } catch (error) { return json(res, error.status || 400, { error: error.message }); }
+    }
     const terminalResource = /^\/desktop-api\/terminals\/([a-zA-Z0-9-]+)(\/(input|events))?$/.exec(path);
     if (path === API_PATH.TERMINALS || terminalResource) {
       if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(req.method)) return json(res, 405, { error: 'Method not allowed' });

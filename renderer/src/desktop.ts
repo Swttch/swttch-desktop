@@ -33,6 +33,7 @@ export interface DesktopState {
   projects: Project[];
   chatUrl: string | null;
   backendId: string;
+  workspaceLayoutVersion?: number;
   sessionActivity?: { activity: Record<string, SessionActivity>; open: string[] };
   sessionsRevision?: number;
   activityRevision?: number;

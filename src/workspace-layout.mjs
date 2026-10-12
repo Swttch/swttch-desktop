@@ -77,3 +77,25 @@ export function moveTabToSplit(node, tabId, targetPanelId, edge, newPanelId, spl
   });
   return closeTabs(created, source.id, [tabId]);
 }
+
+// Only durable references belong on disk. URLs contain short-lived pairing codes.
+export function workspaceSnapshot(layout, activePanel, focusHistory) {
+  function durable(node) {
+    if (node.kind === "split") return { kind: node.kind, id: node.id, direction: node.direction, ratio: node.ratio, children: node.children.map(durable) };
+    return { kind: node.kind, id: node.id, activeTabId: node.activeTabId, focusHistory: node.focusHistory || [], tabs: node.tabs.map(tab => ({
+      id: tab.id, kind: tab.kind || "chat", projectId: tab.projectId, sessionId: tab.sessionId, title: tab.title,
+      ...(tab.customTitle === undefined ? {} : { customTitle: tab.customTitle }),
+    })) };
+  }
+  const leaves = panels(layout), ids = new Set(leaves.flatMap(panel => panel.tabs.map(tab => tab.id)));
+  return { version: 1, layout: durable(layout), activePanel: leaves.some(panel => panel.id === activePanel) ? activePanel : leaves[0].id,
+    focusHistory: focusHistory.filter(id => ids.has(id)) };
+}
+
+export function canActivateWorkspaceView(restoring, interaction) { return !restoring || interaction; }
+
+export function stableViewOrder(previous, layout) {
+  const ids = panels(layout).flatMap(panel => panel.tabs.map(tab => tab.id));
+  const live = new Set(ids), retained = new Set(previous);
+  return [...previous.filter(id => live.has(id)), ...ids.filter(id => !retained.has(id))];
+}

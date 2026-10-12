@@ -88,13 +88,14 @@ export function App() {
   // through the shell's existing proxy while the shared backend stays on 19836.
   // Each view owns its URL; workspace SSE must not switch embedded sessions.
   const restoredView = useRef(false);
+  const [workspaceRestored, setWorkspaceRestored] = useState(false);
   const savedViewSession = useRef('');
   const saveViewMutation = useMutation({ mutationFn: desktopApi.saveViewSession, scope: { id: 'workspace-view' }, retry: 3, retryDelay: 500 });
   const closeViewMutation = useMutation({ mutationFn: desktopApi.closeView, scope: { id: 'workspace-view' }, onSuccess: next => {
     queryClient.setQueryData(QUERY_KEY.workspace, next); savedViewSession.current = ''; restoredView.current = true;
   }, onError: error => toast.error(error.message) });
   const activeProjectPath = activeView?.projectPath || state.project;
-  const disabled = !ready || busy || closeViewMutation.isPending;
+  const disabled = !ready || !workspaceRestored || busy || closeViewMutation.isPending;
 
   const reorderMutation = useMutation({
     mutationFn: ({ rows, move }: { rows: Project[]; move: ProjectMove }) => desktopApi.reorderProjects(rows.map(project => project.id), move.projectId, move.favorite),
@@ -149,13 +150,13 @@ export function App() {
   }, [projectsPage, router]);
     useEffect(() => { if (searching) searchInput.current?.focus(); }, [searching]);
   useEffect(() => {
-    if (!ready || restoredView.current || inFlight.current) return;
+    if (!ready || !workspaceRestored || restoredView.current || inFlight.current) return;
     restoredView.current = true;
     const project = state.projects.find(row => row.path === state.project);
     if (!project || !state.chatUrl) return;
     const id = new URL(state.chatUrl).pathname.split('/').pop();
     void perform(() => id && id !== 'new' ? desktopApi.openSession(id, project.id) : desktopApi.openNewSession(project.id));
-  }, [ready, state.backendId]);
+  }, [ready, state.backendId, workspaceRestored]);
   useEffect(() => {
     if (!ready || !sessionId || savedViewSession.current === `${activeView?.id}:${sessionId}`) return;
     savedViewSession.current = `${activeView?.id}:${sessionId}`;
@@ -251,7 +252,7 @@ export function App() {
         <SidebarResize width={sidebarWidth.width} onResize={sidebarWidth.save} />
       </aside>
       <section className="workspace relative min-h-0 min-w-0 bg-canvas" aria-label={projectNavigation ? '페이지 영역' : '작업 영역'}>
-        <WorkPage active={!projectNavigation}><WorkspaceSurface ref={surface} state={state} browsing={projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onActive={tab => setActiveView(tab)} onNew={(pane, path) => { const target = path || detailProject?.path || activeProjectPath; if (target) openView(target, undefined, pane); else { setSelectingForChat(true); setSelecting(true); } }} onEmpty={() => closeViewMutation.mutate()} onHelp={() => setHelpOpen(value => !value)} onSettings={() => setSettingsOpen(true)} onSidebar={() => setCollapsed(value => !value)} /></WorkPage>
+        <WorkPage active={!projectNavigation}><WorkspaceSurface ref={surface} onRestored={found => { if (found) restoredView.current = true; setWorkspaceRestored(true); }} state={state} browsing={projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onActive={tab => setActiveView(tab)} onNew={(pane, path) => { const target = path || detailProject?.path || activeProjectPath; if (target) openView(target, undefined, pane); else { setSelectingForChat(true); setSelecting(true); } }} onEmpty={() => closeViewMutation.mutate()} onHelp={() => setHelpOpen(value => !value)} onSettings={() => setSettingsOpen(true)} onSidebar={() => setCollapsed(value => !value)} /></WorkPage>
         {!activeView && !projectNavigation && <main className="welcome grid h-full place-items-center p-8"><div className="w-full max-w-sm text-center"><h2 className="mb-3 text-lg font-medium">프로젝트에서 시작하세요.</h2><p className="mb-6 text-sm leading-6 text-muted">프로젝트를 추가하고 에이전트와 작업을 시작하세요.</p><button className="primary-button" onClick={openProject} disabled={disabled}>프로젝트 추가</button><p className="mt-4 text-xs text-muted" role="status">{feedback}</p></div></main>}
         {projectNavigation && <div data-route-page className="absolute inset-x-0 bottom-0 z-20 bg-canvas" style={{ top: 'calc(-1 * var(--header-height))' }}>
         {detailId && <ProjectDetailPage projectId={detailId} disabled={disabled} onChat={path => openView(path)} onSession={(sessionId, path) => openView(path, sessionId)} />}

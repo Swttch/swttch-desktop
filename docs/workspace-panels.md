@@ -26,7 +26,7 @@ The active-session save endpoint accepts the registered project ID alongside the
 
 Renderer build and 63 backend/layout tests passed, including panel-scoped selection/closure, nested split collapse, ratio bounds, and cross-project active-view validation. Browser checks covered real CLI replies in two separate sessions (`MULTITAB_A_OK`, `MULTITAB_B_OK`), tab-switch draft preservation, unchanged iframe instance IDs after splits and sibling closure, nested column/row splits, real separator dragging, scoped close-right/close-other actions, and the empty-workspace add-project entry point.
 
-The complete split tree and all open tabs are currently in-memory. Reload/startup retains the existing last-view restore behavior rather than restoring the entire layout. Tab/panel drag movement and full layout persistence remain TODO 25. Terminal and other application types remain TODO 26. Electron was not launched for this browser-equivalent UI work.
+The original verification above predates complete layout persistence. The current behavior is described under “Workspace recording and restoration” below. Terminal implementation is awaiting review; browser/web-app tabs are tracked separately. Electron was not launched for this browser-equivalent UI work.
 
 Closing the focused tab selects the most recently focused surviving view across panels. Each panel also retains its own most-recently-used selection history. Closing background tabs preserves the current selection and keyboard focus; removed IDs are pruned from history.
 
@@ -38,7 +38,7 @@ React DnD's HTML5 backend owns tab-strip drags. Each tab can be dropped before o
 
 Tab transfers move the existing view rather than creating a session or iframe. The flat keyed iframe layer stays mounted; iframe pointer targeting is temporarily disabled during a drag so embedded pages cannot swallow its events. Close controls, context menus, tooltips, and keyboard shortcuts retain their behavior.
 
-Native Codex browser dragging verified both order directions within one panel, transfers between nested row/column panels, last-tab panel collapse, unchanged iframe instance IDs, and preservation of a natively typed unsent draft. The verification draft was removed without sending it. Native Electron was not launched. Complete layout persistence remains deferred.
+Native Codex browser dragging verified both order directions within one panel, transfers between nested row/column panels, last-tab panel collapse, unchanged iframe instance IDs, and preservation of a natively typed unsent draft. The verification draft was removed without sending it. Native Electron was not launched for that verification. Complete layout persistence is described below.
 
 ## Drag to create a panel
 
@@ -67,3 +67,21 @@ The workspace is the Work page and appears only at the exact root pathname (`/`)
 Hidden work views do not execute close, refresh, rename, favorite, movement, or split shortcuts. Shared help/settings/sidebar shortcuts and explicitly opening a new chat remain available. Workspace Tippy menus close when leaving the Work page.
 
 TDD regression tests first failed for non-root visibility and hidden-work command execution, then passed. Browser verification covered Projects and project detail pages, zero visible work tab strips, page content starting at the top of the right-hand viewport, retained view IDs, and a terminal command finishing across navigation. Full browser reload restoration is a separate feature.
+
+Surviving view DOM nodes keep their original mount order even when the tab order or split tree changes. Reinserting an iframe can reload its embedded document despite retaining the same element ID. Tab movement therefore preserves the actual embedded document and unsent composer contents.
+
+## Workspace recording and restoration
+
+The shared Node host records the full workspace to `~/.swttch/workspace.json` (or the configured `SWTTCH_DESKTOP_HOME`). `workspace.json.bak` retains the previous complete record. Each committed layout/selection/name change is sent immediately through a scoped, serialized TanStack mutation; recording does not wait for app exit. Resize changes follow the same path.
+
+Records contain a version and revision, the binary tree and split ratios, stable panel/tab IDs, tab type/order/project/session references, titles and custom names, each panel’s selected tab and MRU history, and the active panel/global MRU history. URLs, pairing codes, authentication tokens, project paths, and live terminal IDs are excluded. The backend resolves registered projects and obtains fresh chat pairing URLs during restoration. Live terminal bindings remain session-local only.
+
+Writes validate tree depth, identifiers, selection/history, and payload size. The host writes a private temporary file, fsyncs it, atomically renames it, and fsyncs the containing directory where supported. Revision comparison rejects stale writes and concurrent-window conflicts instead of overwriting a newer workspace. A damaged current record can recover its previous complete backup. If neither record is valid, restoration reports an error and does not initialize/save an empty replacement.
+
+Restoration precedes any legacy last-chat fallback and the first autosave. A saved empty workspace remains empty. Missing project folders retain their tab references with an explicit restore error while other views restore normally. View mount autofocus cannot replace the saved active panel. Browser reload reconnects a live terminal owned by the same authenticated client within its grace period. Host restart recreates terminal tabs with fresh login shells; durable terminal process/output recovery is separate work.
+
+TDD added failing tests for credential-free durable recording/reopening, stale-write rejection, corrupted-file recovery, API access/validation, chat URL reconstruction, terminal reconnect, restore focus, and stable DOM mount order before implementing them. Strict build and all 95 tests passed. Browser verification on an isolated host/database covered real-time file revisions; reload with identical panel/tab IDs, order, custom names and selection; a 60% split ratio; and complete layout restoration after restarting that host. Existing live-terminal IDs survived reload; new terminal IDs were created after host restart. Native Electron relaunch and Windows/Linux filesystem behavior were not exercised.
+
+The workspace record restores layout and session references. It does not checkpoint JavaScript heaps or arbitrary embedded-app state, unsent composer drafts across a full reload, or terminated shell processes. Shared live-view preservation across tab/panel movement and internal route navigation remains unchanged.
+
+A host capability flag keeps a newly built renderer usable against an older running host. That compatibility mode retains the older in-memory behavior and displays the required host-restart notice; it does not claim recording is active. The existing 3031 host was preserved, while the current implementation was verified in an isolated host on 3032.
