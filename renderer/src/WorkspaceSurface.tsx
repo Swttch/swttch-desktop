@@ -7,7 +7,7 @@ import { activateTabAction, type DesktopTabAction } from './tab-action';
 import { Tooltip } from './Tooltip';
 import toast from 'react-hot-toast';
 import { bindScopedShortcuts, neighboringPanel, type DesktopCommand } from '../../src/desktop-shortcuts.mjs';
-import { macShortcuts } from './shortcut-platform';
+import { macShortcuts, browserShortcuts } from './shortcut-platform';
 
 export interface WorkspaceSurfaceHandle { open: (url: string, projectId: number, projectPath: string, panelId?: string) => void; getActivePanel: () => string; getShortcuts: () => Promise<import('./tab-action').ShortcutRow[]> }
 type Rect = { left: number; top: number; width: number; height: number };
@@ -136,7 +136,7 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
   function focusView(id: string) {
     requestAnimationFrame(() => { if (panels(current.current.layout).some(pane => pane.activeTabId === id)) frames.current.get(id)?.contentWindow?.focus(); });
   }
-  useEffect(() => bindScopedShortcuts(window, macShortcuts, command => commands.current(command)), []);
+  useEffect(() => bindScopedShortcuts(window, macShortcuts, command => commands.current(command), browserShortcuts), []);
   function metadata(id: string, title: string, sessionId: string, url: string) {
     setLayout(value => {
       const tab = panels(value).flatMap(panel => panel.tabs).find(tab => tab.id === id);

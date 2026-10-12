@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { WorkspaceView } from '../../src/workspace-layout.mjs';
 import { sessionFrameUrl } from './session-view';
 import { bindScopedShortcuts, type DesktopCommand } from '../../src/desktop-shortcuts.mjs';
-import { macShortcuts } from './shortcut-platform';
+import { macShortcuts, browserShortcuts } from './shortcut-platform';
 
 export function WorkspaceFrame({ tab, hidden, register, onMetadata, onFocus, onShortcut }: { tab: WorkspaceView; hidden: boolean; register: (id: string, frame: HTMLIFrameElement | null) => void; onMetadata: (id: string, title: string, sessionId: string, url: string) => void; onFocus: () => void; onShortcut: (id: string, command: DesktopCommand) => void }) {
   const [ready, setReady] = useState(false);
@@ -41,7 +41,7 @@ export function WorkspaceFrame({ tab, hidden, register, onMetadata, onFocus, onS
         initialized = true; setReady(true); setError('');
       } catch { setError('채팅 화면에 연결하지 못했습니다.'); }
     };
-    const removeKeys = bindScopedShortcuts(content, macShortcuts, command => callbacks.current.onShortcut(tab.id, command));
+    const removeKeys = bindScopedShortcuts(content, macShortcuts, command => callbacks.current.onShortcut(tab.id, command), browserShortcuts);
     const focus = () => callbacks.current.onFocus();
     sync();
     const observer = new MutationObserver(sync);

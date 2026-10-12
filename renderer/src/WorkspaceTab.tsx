@@ -3,7 +3,7 @@ import { desktopApi } from './api';
 import { QUERY_KEY, queryClient } from './query-client';
 import toast from 'react-hot-toast';
 import { shortcutLabel, type DesktopCommand } from '../../src/desktop-shortcuts.mjs';
-import { macShortcuts } from './shortcut-platform';
+import { macShortcuts, browserShortcuts } from './shortcut-platform';
 import { useEffect, useRef, useState } from 'react';
 import claudeLogo from './assets/claude-logo.svg';
 import { Tooltip } from './Tooltip';
@@ -51,7 +51,7 @@ export function WorkspaceTab({ tabId = 'current-chat', projectId, sessionId, ren
   }, onSuccess: data => { queryClient.setQueryData(sessionKey, data); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessionLists }); }, onError: error => toast.error(error.message) });
   useEffect(() => { if (renameRequested) { closeMenu.current?.(); setRenaming(true); onRequestHandled('rename'); } }, [renameRequested]);
   useEffect(() => { if (favoriteRequested) { closeMenu.current?.(); favorite.mutate(); onRequestHandled('favorite'); } }, [favoriteRequested]);
-  const keyHint = (command: DesktopCommand) => <kbd aria-hidden="true" className="ml-auto shrink-0 text-[11px] text-muted">{shortcutLabel(command, macShortcuts)}</kbd>;
+  const keyHint = (command: DesktopCommand) => <kbd aria-hidden="true" className="ml-auto shrink-0 text-[11px] text-muted">{shortcutLabel(command, macShortcuts, browserShortcuts)}</kbd>;
 
   const activate = (action: () => void) => { closeMenu.current?.(); action(); };
   const menu = <section role="menu" aria-label="탭 메뉴" className="w-64 rounded-lg border border-divider bg-navigation p-1 text-sm text-foreground" onKeyDown={event => {

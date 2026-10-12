@@ -1,4 +1,6 @@
-export function matchShortcut(event, mac) {
+export function matchShortcut(event, mac, browser = false) {
+  const closeKey = event.code === 'KeyW' || (!event.code && event.key?.toLowerCase() === 'w');
+  if (browser && closeKey) return !event.isComposing && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey ? 'close' : null;
   if (event.isComposing || !(mac ? event.metaKey : event.ctrlKey) || (!mac && event.metaKey)) return null;
   const arrow = /^Arrow(Left|Right|Up|Down)$/.exec(event.key);
   if (arrow && event.altKey) {
@@ -12,7 +14,8 @@ export function matchShortcut(event, mac) {
   if (event.shiftKey) return key === 'KeyS' ? 'sidebar' : null;
   return { KeyE: 'rename', KeyW: 'close', KeyB: 'favorite', Slash: 'help', Comma: 'settings', KeyN: 'new-tab' }[key] || null;
 }
-export function shortcutLabel(command, mac) {
+export function shortcutLabel(command, mac, browser = false) {
+  if (browser && command === 'close') return mac ? '⌥W' : 'Alt+W';
   const primary = mac ? '⌘' : 'Ctrl+';
   const alt = mac ? '⌥' : 'Alt+';
   const extra = mac ? '⌃' : '⇧+';
@@ -23,9 +26,9 @@ export function shortcutLabel(command, mac) {
   const match = /^(tab|panel)-(left|right|up|down)$/.exec(command);
   return match ? (mac ? (match[1] === 'panel' ? extra : '') + alt + primary : primary + alt + (match[1] === 'panel' ? extra : '')) + ({ left: '←', right: '→', up: '↑', down: '↓' }[match[2]]) : '';
 }
-export function bindScopedShortcuts(target, mac, execute) {
+export function bindScopedShortcuts(target, mac, execute, browser = false) {
   const receive = event => {
-    const command = matchShortcut(event, mac);
+    const command = matchShortcut(event, mac, browser);
     if (!command) return;
     event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation();
     if (!event.repeat || /^(tab|panel)-/.test(command)) execute(command, event);

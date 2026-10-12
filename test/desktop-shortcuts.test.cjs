@@ -37,3 +37,23 @@ test('spatial navigation finds neighbors without jumping diagonally into another
   assert.equal(neighboringPanel(rects, 'left', 'up'), null);
   assert.equal(neighboringPanel(rects, 'left', 'right') !== null, true);
 });
+
+test('browser close uses only Option/Alt+W while Electron retains its primary modifier', () => {
+  for (const mac of [true, false]) {
+    const primary = mac ? { metaKey: true } : { ctrlKey: true };
+    assert.equal(matchShortcut(key('KeyW', { altKey: true }), mac, true), 'close');
+    assert.equal(matchShortcut(key('KeyW', primary), mac, true), null);
+    assert.equal(matchShortcut(key('KeyW', primary), mac, false), 'close');
+    assert.equal(matchShortcut(key('KeyW', { altKey: true }), mac, false), null);
+    for (const extra of [{ shiftKey: true }, { metaKey: true }, { ctrlKey: true }, { isComposing: true }]) assert.equal(matchShortcut(key('KeyW', { altKey: true, ...extra }), mac, true), null);
+    assert.equal(shortcutLabel('close', mac, true), mac ? '⌥W' : 'Alt+W');
+    assert.equal(shortcutLabel('close', mac, false), mac ? '⌘W' : 'Ctrl+W');
+  }
+  const target = new EventTarget(); let closes = 0, outer = 0;
+  const dispose = bindScopedShortcuts(target, true, () => closes++, true);
+  target.addEventListener('keydown', () => outer++);
+  const event = new Event('keydown', { cancelable: true }); Object.assign(event, key('KeyW', { altKey: true }));
+  target.dispatchEvent(event);
+  assert.equal(closes, 1); assert.equal(outer, 0); assert.equal(event.defaultPrevented, true);
+  dispose();
+});
