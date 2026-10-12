@@ -37,6 +37,10 @@ async function request<T>(path: string, method: string, body?: object, signal?: 
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }
 export const desktopApi = {
+  createTerminal: (projectId: number) => request<{ id: string; projectId: number; projectPath: string; title: string }>(API_PATH.TERMINALS, 'POST', { projectId }),
+  terminalInput: (terminalId: string, data: string) => request<void>(replacePathParams(API_PATH.TERMINAL_INPUT, { terminalId }), 'POST', { data }),
+  resizeTerminal: (terminalId: string, cols: number, rows: number) => request<void>(replacePathParams(API_PATH.TERMINAL, { terminalId }), 'PATCH', { cols, rows }),
+  closeTerminal: (terminalId: string) => request<void>(replacePathParams(API_PATH.TERMINAL, { terminalId }), 'DELETE'),
   accountUsage: (signal?: AbortSignal) => request<{ accounts: (AccountListItem & ProviderUsage)[] }>(API_PATH.ACCOUNT_USAGE, 'GET', undefined, signal),
   refreshAccountUsage: (accountId?: string) => request<{ accounts: (AccountListItem & ProviderUsage)[] }>(API_PATH.ACCOUNT_USAGE_REFRESHES, 'POST', accountId ? { accountId } : {}),
   usageReport: (signal?: AbortSignal) => request<{ status: string; report: string | null; error?: string }>(API_PATH.USAGE_REPORT, 'GET', undefined, signal),

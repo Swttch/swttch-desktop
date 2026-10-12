@@ -1,11 +1,13 @@
 import { canExecuteWorkCommand } from './WorkPage';
 import { hideAll } from 'tippy.js';
+import { useMutation } from '@tanstack/react-query';
+import { desktopApi } from './api';
 import { Dropdown } from './Dropdown';
 import { NewTabMenuContent } from './NewTabMenuContent';
 import { DndProvider, useDragLayer } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { DraggableTab, PanelDropZone, TabDropStrip } from './TabDrag';
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import { closeTabs, moveTab, moveTabToSplit, openTab, panels, resizeSplit, selectTab, splitPanel, updateTab, type PanelDropEdge, type WorkspaceNode, type WorkspacePanel, type WorkspaceView } from '../../src/workspace-layout.mjs';
 import { SessionActivity, type DesktopState } from './desktop';
 import { WorkspaceTab } from './WorkspaceTab';
@@ -16,19 +18,21 @@ import toast from 'react-hot-toast';
 import { bindScopedShortcuts, neighboringPanel, type DesktopCommand } from '../../src/desktop-shortcuts.mjs';
 import { macShortcuts, browserShortcuts } from './shortcut-platform';
 
+const TerminalView = lazy(() => import('./TerminalView').then(module => ({ default: module.TerminalView })));
+
 export interface WorkspaceSurfaceHandle { open: (url: string, projectId: number, projectPath: string, panelId?: string) => void; getActivePanel: () => string; getShortcuts: () => Promise<import('./tab-action').ShortcutRow[]> }
 type Rect = { left: number; top: number; width: number; height: number };
 type SurfaceProps = { state: DesktopState; browsing: boolean; pending: boolean; onSelect: () => void; onActive: (tab: WorkspaceView | null) => void; onNew: (panelId: string, projectPath?: string) => void; onEmpty: () => void; onSidebar: () => void; onHelp: () => void; onSettings: () => void };
 
-function PanelLeaf({ panel, active, browsing, pending, state, registerViewport, onActivate, onClose, onCloseOthers, onCloseRight, onSplit, onAction, onRename, onMove, onMoveEdge, onRefresh, onNew, renameTarget, favoriteTarget, onHandled }: { panel: WorkspacePanel; active: boolean; browsing: boolean; pending: boolean; state: DesktopState; registerViewport: (id: string, element: HTMLDivElement | null) => void; onActivate: (panel: string, tab: string) => void; onClose: (panel: string, ids: string[]) => void; onCloseOthers: (panel: string, tab: string) => void; onCloseRight: (panel: string, tab: string) => void; onSplit: (panel: string, tab: string, direction: 'columns' | 'rows') => void; onAction: (panel: string, tab: string, action: DesktopTabAction) => void; onRename: (tab: string, value: string) => void; onMove: (id: string, panel: string, index: number) => void; onMoveEdge: (id: string, panel: string, edge: PanelDropEdge) => void; onRefresh: (id: string) => void; onNew: (panel: string, path?: string) => void; renameTarget: string; favoriteTarget: string; onHandled: (kind: 'rename' | 'favorite') => void }) {
+function PanelLeaf({ panel, active, browsing, pending, state, registerViewport, onActivate, onClose, onCloseOthers, onCloseRight, onSplit, onAction, onRename, onMove, onMoveEdge, onRefresh, onNewTerminal, onNew, renameTarget, favoriteTarget, onHandled }: { panel: WorkspacePanel; active: boolean; browsing: boolean; pending: boolean; state: DesktopState; registerViewport: (id: string, element: HTMLDivElement | null) => void; onActivate: (panel: string, tab: string) => void; onClose: (panel: string, ids: string[]) => void; onCloseOthers: (panel: string, tab: string) => void; onCloseRight: (panel: string, tab: string) => void; onSplit: (panel: string, tab: string, direction: 'columns' | 'rows') => void; onAction: (panel: string, tab: string, action: DesktopTabAction) => void; onRename: (tab: string, value: string) => void; onMove: (id: string, panel: string, index: number) => void; onMoveEdge: (id: string, panel: string, edge: PanelDropEdge) => void; onRefresh: (id: string) => void; onNewTerminal: (panel: string, path?: string) => void; onNew: (panel: string, path?: string) => void; renameTarget: string; favoriteTarget: string; onHandled: (kind: 'rename' | 'favorite') => void }) {
   const closeTabMenu = useRef<(() => void) | null>(null);
   const register = useCallback((element: HTMLDivElement | null) => registerViewport(panel.id, element), [panel.id, registerViewport]);
   useEffect(() => { document.querySelector<HTMLElement>(`[data-panel-id="${panel.id}"]`)?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [panel.activeTabId, browsing]);
   const current = panel.tabs.find(tab => tab.id === panel.activeTabId);
   return <section aria-label="작업 패널" data-panel-id={panel.id} data-active-panel={active || undefined} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
     <TabDropStrip panelId={panel.id} disabled={pending} onMove={onMove} active={active}>
-      {panel.tabs.map((tab, index) => <DraggableTab key={tab.id} id={tab.id} disabled={pending}><WorkspaceTab tabId={tab.id} projectId={tab.projectId} sessionId={tab.sessionId} renameRequested={renameTarget === tab.id} favoriteRequested={favoriteTarget === tab.id} onRequestHandled={onHandled} title={tab.title} customName={tab.customTitle} onRename={value => onRename(tab.id, value)} selected={!browsing && panel.activeTabId === tab.id} onRefresh={() => onRefresh(tab.id)} onMoveEdge={edge => onMoveEdge(tab.id, panel.id, edge)} canMoveEdge={panel.tabs.length > 1} running={state.sessionActivity?.activity[tab.sessionId] === SessionActivity.Running} pending={pending} onSelect={() => onActivate(panel.id, tab.id)} onClose={() => onClose(panel.id, [tab.id])} onAction={action => onAction(panel.id, tab.id, action)} onCloseOthers={() => onCloseOthers(panel.id, tab.id)} canCloseOthers={panel.tabs.length > 1} onCloseRight={() => onCloseRight(panel.id, tab.id)} canCloseRight={index < panel.tabs.length - 1} onSplit={direction => onSplit(panel.id, tab.id, direction)} /></DraggableTab>)}
-      <Dropdown closeRef={closeTabMenu} content={<NewTabMenuContent pending={pending} onCreate={() => { closeTabMenu.current?.(); onNew(panel.id, current?.projectPath); }} />}><Tooltip content="새 탭 열기" placement="bottom-start"><button type="button" aria-label="새 탭 열기" disabled={pending} className="flex h-full w-8 shrink-0 items-center justify-center text-muted hover:bg-selected"><svg aria-hidden="true" className="size-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="1.5"><path d="M12 5v14M5 12h14" /></svg></button></Tooltip></Dropdown>
+      {panel.tabs.map((tab, index) => <DraggableTab key={tab.id} id={tab.id} disabled={pending}><WorkspaceTab tabId={tab.id} terminal={tab.kind === 'terminal'} projectId={tab.projectId} sessionId={tab.sessionId} renameRequested={renameTarget === tab.id} favoriteRequested={favoriteTarget === tab.id} onRequestHandled={onHandled} title={tab.title} customName={tab.customTitle} onRename={value => onRename(tab.id, value)} selected={!browsing && panel.activeTabId === tab.id} onRefresh={() => onRefresh(tab.id)} onMoveEdge={edge => onMoveEdge(tab.id, panel.id, edge)} canMoveEdge={panel.tabs.length > 1} running={state.sessionActivity?.activity[tab.sessionId] === SessionActivity.Running} pending={pending} onSelect={() => onActivate(panel.id, tab.id)} onClose={() => onClose(panel.id, [tab.id])} onAction={action => onAction(panel.id, tab.id, action)} onCloseOthers={() => onCloseOthers(panel.id, tab.id)} canCloseOthers={panel.tabs.length > 1} onCloseRight={() => onCloseRight(panel.id, tab.id)} canCloseRight={index < panel.tabs.length - 1} onSplit={direction => onSplit(panel.id, tab.id, direction)} /></DraggableTab>)}
+      <Dropdown closeRef={closeTabMenu} content={<NewTabMenuContent pending={pending} onCreateTerminal={() => { closeTabMenu.current?.(); onNewTerminal(panel.id, current?.projectPath); }} onCreate={() => { closeTabMenu.current?.(); onNew(panel.id, current?.projectPath); }} />}><Tooltip content="새 탭 열기" placement="bottom-start"><button type="button" aria-label="새 탭 열기" disabled={pending} className="flex h-full w-8 shrink-0 items-center justify-center text-muted hover:bg-selected"><svg aria-hidden="true" className="size-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="1.5"><path d="M12 5v14M5 12h14" /></svg></button></Tooltip></Dropdown>
     </TabDropStrip>
     <div ref={register} className="relative min-h-0 min-w-0 flex-1" />
   </section>;
@@ -50,6 +54,15 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
   const [renameTarget, setRenameTarget] = useState('');
   const [favoriteTarget, setFavoriteTarget] = useState('');
   const [rects, setRects] = useState<Record<string, Rect>>({});
+  const createTerminal = useMutation({ mutationFn: ({ projectId }: { projectId: number; panelId: string; splitDirection?: 'columns' | 'rows' }) => desktopApi.createTerminal(projectId), onSuccess: (data, variables) => {
+    const tab: WorkspaceView = { id: crypto.randomUUID(), kind: 'terminal', terminalId: data.id, url: '', projectId: data.projectId, projectPath: data.projectPath, title: data.title, sessionId: '' };
+    const snapshot = current.current;
+    const target = panels(snapshot.layout).find(panel => panel.id === variables.panelId) || panels(snapshot.layout)[0];
+    if (variables.splitDirection) {
+      const pane = crypto.randomUUID(); setLayout(value => splitPanel(value, target.id, tab, variables.splitDirection!, pane, crypto.randomUUID())); setActivePanel(pane);
+    } else { setLayout(value => openTab(value, target.id, tab)); setActivePanel(target.id); }
+    callbacks.current.onSelect();
+  }, onError: error => toast.error(error.message) });
   const allPanels = panels(layout);
   const activeLeaf = allPanels.find(panel => panel.id === activePanel) || allPanels[0];
   const activeTab = activeLeaf.tabs.find(tab => tab.id === activeLeaf.activeTabId) || null;
@@ -125,9 +138,15 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     if (next === snapshot.layout) return;
     setLayout(next); setActivePanel(createdPanel); callbacks.current.onSelect(); focusView(id);
   }, [move]);
+  function openTerminal(panelId: string, path?: string) {
+    const project = props.state.projects.find(project => project.path === (path || props.state.project));
+    if (!project) { toast('프로젝트를 먼저 선택해 주세요.'); return; }
+    createTerminal.mutate({ projectId: project.id, panelId });
+  }
   function split(panelId: string, tabId: string, direction: 'columns' | 'rows') {
     const original = allPanels.find(panel => panel.id === panelId)?.tabs.find(tab => tab.id === tabId);
     if (!original) return;
+    if (original.kind === 'terminal') { createTerminal.mutate({ projectId: original.projectId, panelId, splitDirection: direction }); return; }
     const url = new URL(original.url); url.searchParams.delete('pair');
     const tab = { ...original, id: crypto.randomUUID(), url: url.href };
     const pane = crypto.randomUUID();
@@ -154,7 +173,11 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     if (command === 'sidebar') { props.onSidebar(); return; }
     if (command === 'new-tab') { if (pane) props.onNew(pane.id, tab?.projectPath); return; }
     if (!pane || !tab || props.pending) return;
-    if (command === 'refresh') { frames.current.get(tab.id)?.contentWindow?.location.reload(); return; }
+    if (command === 'refresh') {
+      if (tab.kind === 'terminal') document.querySelector(`[data-terminal-id="${tab.terminalId}"]`)?.dispatchEvent(new Event('terminal-refresh'));
+      else frames.current.get(tab.id)?.contentWindow?.location.reload();
+      return;
+    }
     if (command.startsWith('move-')) {
       if (pane.tabs.length < 2) { toast('같은 패널에 탭이 두 개 이상 있을 때 분리해서 이동할 수 있습니다.'); return; }
       const edge: PanelDropEdge = command === 'move-left' ? 'left' : command === 'move-right' ? 'right' : command === 'move-up' ? 'top' : 'bottom';
@@ -178,7 +201,12 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     if (command === 'split-columns' || command === 'split-rows') split(pane.id, tab.id, command === 'split-columns' ? 'columns' : 'rows');
   };
   function focusView(id: string) {
-    requestAnimationFrame(() => { if (panels(current.current.layout).some(pane => pane.activeTabId === id)) frames.current.get(id)?.contentWindow?.focus(); });
+    requestAnimationFrame(() => {
+      if (!panels(current.current.layout).some(pane => pane.activeTabId === id)) return;
+      const frame = frames.current.get(id);
+      if (frame?.contentWindow) frame.contentWindow.focus();
+      else document.querySelector<HTMLTextAreaElement>(`[data-tab-view="${id}"] textarea`)?.focus();
+    });
   }
   useEffect(() => bindScopedShortcuts(window, macShortcuts, command => commands.current(command), browserShortcuts), []);
   useEffect(() => { if (props.browsing) hideAll(); }, [props.browsing]);
@@ -189,7 +217,7 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     });
   }
   function render(node: WorkspaceNode): React.ReactNode {
-    if (node.kind === 'panel') return <PanelLeaf key={node.id} panel={node} active={node.id === activeLeaf.id} browsing={props.browsing} pending={props.pending} state={props.state} registerViewport={registerViewport} onActivate={activate} onClose={close} onCloseOthers={(pane, tab) => close(pane, node.tabs.filter(item => item.id !== tab).map(item => item.id))} onCloseRight={(pane, tab) => close(pane, node.tabs.slice(node.tabs.findIndex(item => item.id === tab) + 1).map(item => item.id))} onSplit={split} onAction={action} onMove={move} onMoveEdge={moveToEdge} onRefresh={id => commands.current('refresh', id)} onRename={(id, value) => setLayout(tree => updateTab(tree, id, { customTitle: value }))} renameTarget={renameTarget} favoriteTarget={favoriteTarget} onHandled={kind => kind === 'rename' ? setRenameTarget('') : setFavoriteTarget('')} onNew={(pane, path) => { setActivePanel(pane); props.onNew(pane, path); }} />;
+    if (node.kind === 'panel') return <PanelLeaf key={node.id} panel={node} active={node.id === activeLeaf.id} browsing={props.browsing} pending={props.pending || createTerminal.isPending} state={props.state} registerViewport={registerViewport} onActivate={activate} onClose={close} onCloseOthers={(pane, tab) => close(pane, node.tabs.filter(item => item.id !== tab).map(item => item.id))} onCloseRight={(pane, tab) => close(pane, node.tabs.slice(node.tabs.findIndex(item => item.id === tab) + 1).map(item => item.id))} onSplit={split} onAction={action} onMove={move} onMoveEdge={moveToEdge} onRefresh={id => commands.current('refresh', id)} onNewTerminal={openTerminal} onRename={(id, value) => setLayout(tree => updateTab(tree, id, { customTitle: value }))} renameTarget={renameTarget} favoriteTarget={favoriteTarget} onHandled={kind => kind === 'rename' ? setRenameTarget('') : setFavoriteTarget('')} onNew={(pane, path) => { setActivePanel(pane); props.onNew(pane, path); }} />;
     const columns = node.direction === 'columns';
     return <div key={node.id} data-split-direction={node.direction} className={`flex min-h-0 min-w-0 flex-1 ${columns ? 'flex-row' : 'flex-col'}`}>
       <div className="flex min-h-0 min-w-0" style={{ flex: `0 0 calc(${node.ratio * 100}% - 0.5px)` }}>{render(node.children[0])}</div>
@@ -203,7 +231,10 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     {allPanels.flatMap(panel => panel.tabs.map(tab => {
       const box = rects[panel.id];
       const hidden = props.browsing || panel.activeTabId !== tab.id;
-      return <div key={tab.id} data-tab-view={tab.id} data-workspace-corner={panel.id === allPanels[0].id || undefined} id={`viewport-${tab.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${tab.id}`} className={`absolute overflow-hidden bg-canvas ${hidden ? 'hidden' : 'pointer-events-auto'}`} style={box || { width: 0, height: 0 }}><WorkspaceFrame tab={tab} hidden={hidden} register={registerFrame} onMetadata={metadata} onFocus={() => { if (current.current.activePanel !== panel.id) setActivePanel(panel.id); }} onShortcut={(id, command) => commands.current(command, id)} /></div>;
+      return <div key={tab.id} data-tab-view={tab.id} data-workspace-corner={panel.id === allPanels[0].id || undefined} id={`viewport-${tab.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${tab.id}`} className={`absolute overflow-hidden bg-canvas ${hidden ? 'hidden' : 'pointer-events-auto'}`} style={box || { width: 0, height: 0 }}>{tab.kind === 'terminal' ? <Suspense fallback={<p role="status" className="p-3 text-xs text-muted">터미널을 불러오는 중…</p>}><TerminalView tab={tab} onFocus={() => { if (current.current.activePanel !== panel.id) setActivePanel(panel.id); }} onTitle={title => setLayout(value => {
+        const original = panels(value).flatMap(panel => panel.tabs).find(view => view.id === tab.id);
+        return original?.title === title ? value : updateTab(value, tab.id, { title });
+      })} /></Suspense> : <WorkspaceFrame tab={tab} hidden={hidden} register={registerFrame} onMetadata={metadata} onFocus={() => { if (current.current.activePanel !== panel.id) setActivePanel(panel.id); }} onShortcut={(id, command) => commands.current(command, id)} />}</div>;
     }))}
   </div>;
 });

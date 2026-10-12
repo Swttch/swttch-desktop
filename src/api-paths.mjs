@@ -1,4 +1,4 @@
-export const API_PATH = Object.freeze({ SETTINGS_VIEWS: '/desktop-api/settings-views',
+export const API_PATH = Object.freeze({ TERMINALS: '/desktop-api/terminals', TERMINAL: '/desktop-api/terminals/:terminalId', TERMINAL_INPUT: '/desktop-api/terminals/:terminalId/input', TERMINAL_EVENTS: '/desktop-api/terminals/:terminalId/events', SETTINGS_VIEWS: '/desktop-api/settings-views',
   ACCOUNT_USAGE: '/desktop-api/account-usage',
   ACCOUNT_USAGE_REFRESHES: '/desktop-api/account-usage-refreshes',
   USAGE_REPORT: '/desktop-api/usage-report',

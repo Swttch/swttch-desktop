@@ -1,3 +1,4 @@
+const { createTerminalManager } = require('./terminal-manager.cjs');
 const { randomBytes, createHash } = require('node:crypto');
 const { request } = require('node:http');
 const { mkdirSync, appendFileSync, statSync } = require('node:fs');
@@ -18,7 +19,7 @@ const { renameSessionWithCli } = require('./session-rename.cjs');
 const { createProviderUsage } = require('./provider-usage.cjs');
 const { createAccountUsage } = require('./account-usage.cjs');
 
-function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(homedir(), '.swttch'), backend: suppliedBackend, allowedOrigins = [], folderDialog: suppliedFolderDialog, sourceReader, renameSession = renameSessionWithCli, subscribe = subscribeBackend, providerUsage: suppliedProviderUsage, accountUsage: suppliedAccountUsage } = {}) {
+function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(homedir(), '.swttch'), backend: suppliedBackend, allowedOrigins = [], folderDialog: suppliedFolderDialog, sourceReader, renameSession = renameSessionWithCli, subscribe = subscribeBackend, providerUsage: suppliedProviderUsage, accountUsage: suppliedAccountUsage, terminalManager: suppliedTerminals } = {}) {
   const accountUsage = suppliedAccountUsage || createAccountUsage({ activeUsage: { read: options => providerUsage.read(options), invalidate: () => providerUsage.invalidate() } });
   const providerUsage = suppliedProviderUsage || createProviderUsage({ resolveUsage: (client, profile) => accountUsage.fetchLiveUsage(client, profile) });
   mkdirSync(home, { recursive: true, mode: 0o700 });
@@ -26,6 +27,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
   const sourceSync = createSessionSourceSync({ repository: store.sessionRepository, projects: store.projects, reader: sourceReader });
   store.sessionRepository.syncActivity({ open: [], activity: {} });
   const folderDialog = suppliedFolderDialog || createFolderDialog();
+  const terminals = suppliedTerminals || createTerminalManager();
   const sessions = new Map();
   const streams = new Map();
   const boundServers = new WeakSet();
@@ -208,6 +210,37 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
       return json(res, 201, { csrf: session.csrf, state: state(session) });
     }
     if (!session) return json(res, 401, { error: '앱 연결이 만료됐습니다. 새로고침해 주세요.' });
+    const terminalResource = /^\/desktop-api\/terminals\/([a-zA-Z0-9-]+)(\/(input|events))?$/.exec(path);
+    if (path === API_PATH.TERMINALS || terminalResource) {
+      if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(req.method)) return json(res, 405, { error: 'Method not allowed' });
+      if (req.method !== 'GET' && req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      try {
+        if (path === API_PATH.TERMINALS) {
+          if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+          const body = await readBody(req);
+          const project = store.projects().find(row => row.id === body.projectId && !row.hiddenAt);
+          if (!project) return json(res, 404, { error: '등록된 프로젝트를 선택해 주세요.' });
+          return json(res, 201, terminals.create(session.csrf, project));
+        }
+        const id = terminalResource[1], suffix = terminalResource[3];
+        const terminal = terminals.get(id, session.csrf);
+        if (!terminal) return json(res, 404, { error: '터미널을 찾을 수 없습니다.' });
+        if (suffix === 'events' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+          res.write(': connected\n\n');
+          const unsubscribe = terminals.subscribe(id, session.csrf, Number(req.headers['last-event-id'] || 0), packet => { if (!res.writableEnded) res.write(`id: ${packet.sequence}\ndata: ${JSON.stringify(packet)}\n\n`); });
+          const heartbeat = setInterval(() => { if (!res.writableEnded) res.write(': heartbeat\n\n'); }, 15000);
+          req.on('close', () => { unsubscribe(); clearInterval(heartbeat); }); return;
+        }
+        if (suffix === 'input' && req.method === 'POST') { const body = await readBody(req); terminals.input(id, session.csrf, body.data); res.writeHead(204); res.end(); return; }
+        if (suffix) return json(res, 405, { error: 'Method not allowed' });
+        if (req.method === 'GET') return json(res, 200, terminal);
+        if (req.method === 'PATCH') { const body = await readBody(req); terminals.resize(id, session.csrf, body.cols, body.rows); }
+        else if (req.method === 'DELETE') terminals.remove(id, session.csrf);
+        else return json(res, 405, { error: 'Method not allowed' });
+        res.writeHead(204); res.end(); return;
+      } catch (error) { return json(res, 400, { error: error.message }); }
+    }
     if ([API_PATH.ACCOUNT_USAGE, API_PATH.ACCOUNT_USAGE_REFRESHES].includes(path)) {
       const refresh = path === API_PATH.ACCOUNT_USAGE_REFRESHES;
       const method = refresh ? 'POST' : 'GET';
@@ -569,7 +602,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
     home, start, middleware,
     bind(server) { port = server.address().port; if (!boundServers.has(server)) { boundServers.add(server); server.on('upgrade', upgrade); } },
     async stop() {
-      stopping = true; unsubscribeBackend(); folderDialog.stop();
+      stopping = true; terminals.stop(); unsubscribeBackend(); folderDialog.stop();
       for (const res of streams.keys()) res.end();
       streams.clear();
       if (starting) await starting;

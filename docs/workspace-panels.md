@@ -4,7 +4,7 @@ Approved and implemented on 2026-10-12, extending the original single-panel MVP.
 
 ## Ownership
 
-The workspace is a binary split tree. A leaf panel owns its ordered chat tabs and selected tab; a split owns its direction, ratio, and two children. Each tab has a stable view ID, its own application URL, session metadata, and optional display-name override. Session metadata is not the tab's identity.
+The workspace is a binary split tree. A leaf panel owns its ordered application tabs and selected tab; a split owns its direction, ratio, and two children. Each tab has a stable view ID, its own application URL, session metadata, and optional display-name override. Session metadata is not the tab's identity.
 
 Iframe instances are rendered in a stable flat layer keyed by view ID. Panel viewport rectangles position them without moving their DOM ownership. Inactive tabs remain mounted and hidden. Selecting tabs, splitting panels, and resizing therefore preserve drafts and application state.
 
@@ -54,7 +54,7 @@ Panel separators render a 1 px divider at the same color/opacity as the workspac
 
 ## New tab chooser and collapsed sidebar
 
-The panel plus button opens a shared Tippy dropdown, with a separate hover tooltip labeled “새 탭 열기”. Chat is enabled; terminal and browser choices retain their icons but are disabled and marked as upcoming. Opening the chooser does not create a tab. Choosing chat closes the menu and creates one chat in that panel. The redundant new-chat button in the project title bar is removed.
+The panel plus button opens a shared Tippy dropdown, with a separate hover tooltip labeled “새 탭 열기”. Chat and terminal choices are enabled; the browser choice retains its icon but is disabled and marked as upcoming. Opening the chooser does not create a tab. Choosing chat closes the menu and creates one chat in that panel. The redundant new-chat button in the project title bar is removed.
 
 When the sidebar is collapsed, the top-left panel view clips its iframe at the same radius as the workspace corner, connecting the icon rail and tab bar smoothly. Other split-panel corners remain unchanged. The status-bar usage refresh icon uses the existing small size, preserving its pointer target.
 

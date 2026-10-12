@@ -574,3 +574,26 @@ test('desktop clients restore their view while browser clients remain isolated',
   assert.equal((await desktop()).state.chatUrl, null);
   assert.equal((await (await fetch(base + '/desktop-api/workspace', { headers: restored.headers })).json()).chatUrl !== null, true);
 });
+
+test('terminal resources use registered project cwd and require owner session plus CSRF', async t => {
+  const calls = [];
+  const terminalManager = {
+    create(owner, project) { calls.push({ owner, project }); return { id: 'terminal-test', projectId: project.id, projectPath: project.path, title: '터미널' }; },
+    get(id, owner) { return id === 'terminal-test' && calls[0]?.owner === owner ? { id } : null; },
+    input(id, owner, data) { calls.push({ input: data }); },
+    resize(id, owner, cols, rows) { calls.push({ cols, rows }); },
+    remove(id, owner) { calls.push({ removed: id }); }, stop() {},
+  };
+  const { base, client } = await setup(t, [], true, () => ({ terminalManager }));
+  const headers = await client(), resource = base + '/desktop-api/terminals';
+  assert.equal((await fetch(resource, { method: 'POST', headers: { cookie: headers.cookie }, body: '{"projectId":1}' })).status, 403);
+  const response = await fetch(resource, { method: 'POST', headers, body: '{"projectId":1,"cwd":"/wrong"}' });
+  assert.equal(response.status, 201);
+  const result = await response.json(); assert.equal(result.projectId, 1); assert.notEqual(result.projectPath, '/wrong');
+  assert.equal((await fetch(resource + '/terminal-test', { headers: await client() })).status, 404);
+  assert.equal((await fetch(resource + '/terminal-test', { headers })).status, 200);
+  assert.equal((await fetch(resource + '/terminal-test/input', { method: 'POST', headers, body: '{"data":"pwd\\r"}' })).status, 204);
+  assert.equal((await fetch(resource + '/terminal-test', { method: 'PATCH', headers, body: '{"cols":100,"rows":30}' })).status, 204);
+  assert.equal((await fetch(resource + '/terminal-test', { method: 'DELETE', headers })).status, 204);
+  assert.equal(calls[1].input, 'pwd\r'); assert.deepEqual(calls[2], { cols: 100, rows: 30 });
+});

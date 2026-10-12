@@ -1,4 +1,8 @@
 export const API_PATH: {
+  readonly TERMINALS: '/desktop-api/terminals';
+  readonly TERMINAL: '/desktop-api/terminals/:terminalId';
+  readonly TERMINAL_INPUT: '/desktop-api/terminals/:terminalId/input';
+  readonly TERMINAL_EVENTS: '/desktop-api/terminals/:terminalId/events';
   readonly SETTINGS_VIEWS: '/desktop-api/settings-views';
   readonly ACCOUNT_USAGE: '/desktop-api/account-usage';
   readonly ACCOUNT_USAGE_REFRESHES: '/desktop-api/account-usage-refreshes';
