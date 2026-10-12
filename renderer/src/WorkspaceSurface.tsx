@@ -6,19 +6,21 @@ import { WorkspaceFrame } from './WorkspaceFrame';
 import { activateTabAction, type DesktopTabAction } from './tab-action';
 import { Tooltip } from './Tooltip';
 import toast from 'react-hot-toast';
+import { bindScopedShortcuts, neighboringPanel, type DesktopCommand } from '../../src/desktop-shortcuts.mjs';
+import { macShortcuts } from './shortcut-platform';
 
-export interface WorkspaceSurfaceHandle { open: (url: string, projectId: number, projectPath: string, panelId?: string) => void; getActivePanel: () => string }
+export interface WorkspaceSurfaceHandle { open: (url: string, projectId: number, projectPath: string, panelId?: string) => void; getActivePanel: () => string; getShortcuts: () => Promise<import('./tab-action').ShortcutRow[]> }
 type Rect = { left: number; top: number; width: number; height: number };
-type SurfaceProps = { state: DesktopState; browsing: boolean; pending: boolean; onSelect: () => void; onActive: (tab: WorkspaceView | null) => void; onNew: (panelId: string, projectPath?: string) => void; onEmpty: () => void; onSidebar: () => void };
+type SurfaceProps = { state: DesktopState; browsing: boolean; pending: boolean; onSelect: () => void; onActive: (tab: WorkspaceView | null) => void; onNew: (panelId: string, projectPath?: string) => void; onEmpty: () => void; onSidebar: () => void; onHelp: () => void; onSettings: () => void };
 
-function PanelLeaf({ panel, active, browsing, pending, state, registerViewport, onActivate, onClose, onCloseOthers, onCloseRight, onSplit, onAction, onRename, onNew }: { panel: WorkspacePanel; active: boolean; browsing: boolean; pending: boolean; state: DesktopState; registerViewport: (id: string, element: HTMLDivElement | null) => void; onActivate: (panel: string, tab: string) => void; onClose: (panel: string, ids: string[]) => void; onCloseOthers: (panel: string, tab: string) => void; onCloseRight: (panel: string, tab: string) => void; onSplit: (panel: string, tab: string, direction: 'columns' | 'rows') => void; onAction: (panel: string, tab: string, action: DesktopTabAction) => void; onRename: (tab: string, value: string) => void; onNew: (panel: string, path?: string) => void }) {
+function PanelLeaf({ panel, active, browsing, pending, state, registerViewport, onActivate, onClose, onCloseOthers, onCloseRight, onSplit, onAction, onRename, onNew, renameTarget, favoriteTarget, onHandled }: { panel: WorkspacePanel; active: boolean; browsing: boolean; pending: boolean; state: DesktopState; registerViewport: (id: string, element: HTMLDivElement | null) => void; onActivate: (panel: string, tab: string) => void; onClose: (panel: string, ids: string[]) => void; onCloseOthers: (panel: string, tab: string) => void; onCloseRight: (panel: string, tab: string) => void; onSplit: (panel: string, tab: string, direction: 'columns' | 'rows') => void; onAction: (panel: string, tab: string, action: DesktopTabAction) => void; onRename: (tab: string, value: string) => void; onNew: (panel: string, path?: string) => void; renameTarget: string; favoriteTarget: string; onHandled: (kind: 'rename' | 'favorite') => void }) {
   const register = useCallback((element: HTMLDivElement | null) => registerViewport(panel.id, element), [panel.id, registerViewport]);
   const strip = useRef<HTMLDivElement>(null);
   useEffect(() => { strip.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [panel.activeTabId, browsing]);
   const current = panel.tabs.find(tab => tab.id === panel.activeTabId);
   return <section aria-label="작업 패널" data-panel-id={panel.id} data-active-panel={active || undefined} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
     <div ref={strip} role="tablist" aria-label="패널 탭" className={`pointer-events-auto flex h-(--header-height) shrink-0 items-stretch overflow-x-auto border-b border-divider bg-chrome ${active ? '' : 'opacity-85'}`}>
-      {panel.tabs.map((tab, index) => <WorkspaceTab key={tab.id} tabId={tab.id} title={tab.title} customName={tab.customTitle} onRename={value => onRename(tab.id, value)} selected={!browsing && panel.activeTabId === tab.id} running={state.sessionActivity?.activity[tab.sessionId] === SessionActivity.Running} pending={pending} onSelect={() => onActivate(panel.id, tab.id)} onClose={() => onClose(panel.id, [tab.id])} onAction={action => onAction(panel.id, tab.id, action)} onCloseOthers={() => onCloseOthers(panel.id, tab.id)} canCloseOthers={panel.tabs.length > 1} onCloseRight={() => onCloseRight(panel.id, tab.id)} canCloseRight={index < panel.tabs.length - 1} onSplit={direction => onSplit(panel.id, tab.id, direction)} />)}
+      {panel.tabs.map((tab, index) => <WorkspaceTab key={tab.id} tabId={tab.id} projectId={tab.projectId} sessionId={tab.sessionId} renameRequested={renameTarget === tab.id} favoriteRequested={favoriteTarget === tab.id} onRequestHandled={onHandled} title={tab.title} customName={tab.customTitle} onRename={value => onRename(tab.id, value)} selected={!browsing && panel.activeTabId === tab.id} running={state.sessionActivity?.activity[tab.sessionId] === SessionActivity.Running} pending={pending} onSelect={() => onActivate(panel.id, tab.id)} onClose={() => onClose(panel.id, [tab.id])} onAction={action => onAction(panel.id, tab.id, action)} onCloseOthers={() => onCloseOthers(panel.id, tab.id)} canCloseOthers={panel.tabs.length > 1} onCloseRight={() => onCloseRight(panel.id, tab.id)} canCloseRight={index < panel.tabs.length - 1} onSplit={direction => onSplit(panel.id, tab.id, direction)} />)}
       <Tooltip content="새 채팅" placement="bottom-start"><button type="button" aria-label="패널 새 채팅" disabled={pending} className="flex h-full w-8 shrink-0 items-center justify-center text-muted hover:bg-selected" onClick={() => onNew(panel.id, current?.projectPath)}><svg aria-hidden="true" className="size-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="1.5"><path d="M12 5v14M5 12h14" /></svg></button></Tooltip>
     </div>
     <div ref={register} className="relative min-h-0 min-w-0 flex-1" />
@@ -33,6 +35,8 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
   const root = useRef<HTMLDivElement>(null);
   const viewports = useRef(new Map<string, HTMLDivElement>());
   const frames = useRef(new Map<string, HTMLIFrameElement>());
+  const [renameTarget, setRenameTarget] = useState('');
+  const [favoriteTarget, setFavoriteTarget] = useState('');
   const [rects, setRects] = useState<Record<string, Rect>>({});
   const allPanels = panels(layout);
   const activeLeaf = allPanels.find(panel => panel.id === activePanel) || allPanels[0];
@@ -60,6 +64,11 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
   function activate(panelId: string, tabId: string) { setActivePanel(panelId); setLayout(value => selectTab(value, panelId, tabId)); props.onSelect(); }
   useImperativeHandle(ref, () => ({
     getActivePanel: () => current.current.activePanel,
+    getShortcuts: async () => {
+      const pane = panels(current.current.layout).find(item => item.id === current.current.activePanel);
+      const frame = pane?.activeTabId ? frames.current.get(pane.activeTabId) : undefined;
+      return frame ? (await activateTabAction(frame, 'get-shortcuts')).shortcuts || [] : [];
+    },
     open: (url, projectId, projectPath, requestedPanel) => {
       const existingId = /^\/sessions\/([^/]+)/.exec(new URL(url).pathname)?.[1];
       const snapshot = current.current;
@@ -75,6 +84,8 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     const remaining = panels(next);
     setLayout(next);
     if (!remaining.some(panel => panel.id === activePanel)) setActivePanel(remaining[0].id);
+    const focused = remaining.find(panel => panel.id === activePanel) || remaining[0];
+    if (focused.activeTabId) focusView(focused.activeTabId);
     if (!remaining.some(panel => panel.tabs.length)) props.onEmpty();
   }
   function split(panelId: string, tabId: string, direction: 'columns' | 'rows') {
@@ -84,6 +95,7 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     const tab = { ...original, id: crypto.randomUUID(), url: url.href };
     const pane = crypto.randomUUID();
     setLayout(value => splitPanel(value, panelId, tab, direction, pane, crypto.randomUUID())); setActivePanel(pane); props.onSelect();
+    requestAnimationFrame(() => document.getElementById(`workspace-tab-${tab.id}`)?.focus());
   }
   function action(panelId: string, tabId: string, command: DesktopTabAction) {
     activate(panelId, tabId);
@@ -91,6 +103,40 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     if (!frame) { toast.error('채팅 화면을 불러온 뒤 다시 시도해 주세요.'); return; }
     void activateTabAction(frame, command).catch(error => toast.error(error.message));
   }
+  const commands = useRef<(command: DesktopCommand, source?: string) => void>(() => {});
+  commands.current = (command, source) => {
+    if (!source && document.querySelector('dialog[open]') && !['help', 'settings'].includes(command)) return;
+    const snapshot = current.current;
+    const leaves = panels(snapshot.layout);
+    const pane = source ? leaves.find(item => item.tabs.some(tab => tab.id === source)) : leaves.find(item => item.id === snapshot.activePanel) || leaves[0];
+    if (source && !pane) return;
+    const tab = pane?.tabs.find(item => item.id === (source || pane.activeTabId));
+    if (command === 'help') { props.onHelp(); return; }
+    if (command === 'settings') { props.onSettings(); return; }
+    if (command === 'sidebar') { props.onSidebar(); return; }
+    if (command === 'new-tab') { if (pane) props.onNew(pane.id, tab?.projectPath); return; }
+    if (!pane || !tab || props.pending) return;
+    if (command.startsWith('tab-')) {
+      const index = pane.tabs.findIndex(item => item.id === tab.id);
+      const next = pane.tabs[(index + (command === 'tab-left' ? -1 : 1) + pane.tabs.length) % pane.tabs.length];
+      activate(pane.id, next.id); focusView(next.id); return;
+    }
+    if (command.startsWith('panel-')) {
+      const target = neighboringPanel(rects, pane.id, command.slice(6));
+      const next = leaves.find(item => item.id === target);
+      if (next?.activeTabId) { activate(next.id, next.activeTabId); focusView(next.activeTabId); }
+      return;
+    }
+    if (command === 'close') { close(pane.id, [tab.id]); return; }
+    activate(pane.id, tab.id);
+    if (command === 'rename') setRenameTarget(tab.id);
+    if (command === 'favorite') setFavoriteTarget(tab.id);
+    if (command === 'split-columns' || command === 'split-rows') split(pane.id, tab.id, command === 'split-columns' ? 'columns' : 'rows');
+  };
+  function focusView(id: string) {
+    requestAnimationFrame(() => { if (panels(current.current.layout).some(pane => pane.activeTabId === id)) frames.current.get(id)?.contentWindow?.focus(); });
+  }
+  useEffect(() => bindScopedShortcuts(window, macShortcuts, command => commands.current(command)), []);
   function metadata(id: string, title: string, sessionId: string, url: string) {
     setLayout(value => {
       const tab = panels(value).flatMap(panel => panel.tabs).find(tab => tab.id === id);
@@ -98,7 +144,7 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     });
   }
   function render(node: WorkspaceNode): React.ReactNode {
-    if (node.kind === 'panel') return <PanelLeaf key={node.id} panel={node} active={node.id === activeLeaf.id} browsing={props.browsing} pending={props.pending} state={props.state} registerViewport={registerViewport} onActivate={activate} onClose={close} onCloseOthers={(pane, tab) => close(pane, node.tabs.filter(item => item.id !== tab).map(item => item.id))} onCloseRight={(pane, tab) => close(pane, node.tabs.slice(node.tabs.findIndex(item => item.id === tab) + 1).map(item => item.id))} onSplit={split} onAction={action} onRename={(id, value) => setLayout(tree => updateTab(tree, id, { customTitle: value }))} onNew={(pane, path) => { setActivePanel(pane); props.onNew(pane, path); }} />;
+    if (node.kind === 'panel') return <PanelLeaf key={node.id} panel={node} active={node.id === activeLeaf.id} browsing={props.browsing} pending={props.pending} state={props.state} registerViewport={registerViewport} onActivate={activate} onClose={close} onCloseOthers={(pane, tab) => close(pane, node.tabs.filter(item => item.id !== tab).map(item => item.id))} onCloseRight={(pane, tab) => close(pane, node.tabs.slice(node.tabs.findIndex(item => item.id === tab) + 1).map(item => item.id))} onSplit={split} onAction={action} onRename={(id, value) => setLayout(tree => updateTab(tree, id, { customTitle: value }))} renameTarget={renameTarget} favoriteTarget={favoriteTarget} onHandled={kind => kind === 'rename' ? setRenameTarget('') : setFavoriteTarget('')} onNew={(pane, path) => { setActivePanel(pane); props.onNew(pane, path); }} />;
     const columns = node.direction === 'columns';
     return <div key={node.id} data-split-direction={node.direction} className={`flex min-h-0 min-w-0 flex-1 ${columns ? 'flex-row' : 'flex-col'}`}>
       <div className="flex min-h-0 min-w-0" style={{ flex: `0 0 calc(${node.ratio * 100}% - 2px)` }}>{render(node.children[0])}</div>
@@ -111,7 +157,7 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     {allPanels.flatMap(panel => panel.tabs.map(tab => {
       const box = rects[panel.id];
       const hidden = props.browsing || panel.activeTabId !== tab.id;
-      return <div key={tab.id} data-tab-view={tab.id} id={`viewport-${tab.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${tab.id}`} className={`absolute overflow-hidden bg-canvas ${hidden ? 'hidden' : 'pointer-events-auto'}`} style={box || { width: 0, height: 0 }}><WorkspaceFrame tab={tab} hidden={hidden} register={registerFrame} onMetadata={metadata} onFocus={() => { if (current.current.activePanel !== panel.id) setActivePanel(panel.id); }} onSidebar={props.onSidebar} /></div>;
+      return <div key={tab.id} data-tab-view={tab.id} id={`viewport-${tab.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${tab.id}`} className={`absolute overflow-hidden bg-canvas ${hidden ? 'hidden' : 'pointer-events-auto'}`} style={box || { width: 0, height: 0 }}><WorkspaceFrame tab={tab} hidden={hidden} register={registerFrame} onMetadata={metadata} onFocus={() => { if (current.current.activePanel !== panel.id) setActivePanel(panel.id); }} onShortcut={(id, command) => commands.current(command, id)} /></div>;
     }))}
   </div>;
 });

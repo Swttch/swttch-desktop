@@ -67,11 +67,13 @@ export const desktopApi = {
     if (result.serviceError) throw new Error(result.serviceError.reason);
     return result;
   },
-  favoriteSession: (projectId: string, sessionId: string, favorite: boolean) => request(replacePathParams(API_PATH.PROJECT_SESSION, { projectId, sessionId }), 'PATCH', { favorite }),
+  session: (projectId: string, sessionId: string, signal?: AbortSignal) => request<{ session: import('./desktop').SessionListEntry }>(replacePathParams(API_PATH.PROJECT_SESSION, { projectId, sessionId }), 'GET', undefined, signal),
+  favoriteSession: (projectId: string, sessionId: string, favorite: boolean) => request<{ session: import('./desktop').SessionListEntry }>(replacePathParams(API_PATH.PROJECT_SESSION, { projectId, sessionId }), 'PATCH', { favorite }),
   renameSession: (projectId: string, sessionId: string, title: string) => request(replacePathParams(API_PATH.PROJECT_SESSION, { projectId, sessionId }), 'PATCH', { title }),
   deleteSession: (projectId: string, sessionId: string) => request<void>(replacePathParams(API_PATH.PROJECT_SESSION, { projectId, sessionId }), 'DELETE'),
   markSessionRead: (projectId: string, sessionId: string) => request<void>(replacePathParams(API_PATH.SESSION_READS, { projectId, sessionId }), 'POST', {}),
   migrateProjects: () => request<{ imported: number; enriched: number; unchanged: number; total: number; state: DesktopState }>(API_PATH.PROJECT_IMPORTS, 'POST', {}),
+  settingsView: () => request<{ url: string }>(API_PATH.SETTINGS_VIEWS, 'POST', {}),
   saveViewSession: (body: { sessionId: string; projectId: number }) => request<DesktopState>(API_PATH.WORKSPACE, 'PATCH', body),
   closeView: () => request<DesktopState>(API_PATH.WORKSPACE, 'DELETE'),
   retry: () => request<DesktopState>(API_PATH.BACKEND_RESTARTS, 'POST', {}),

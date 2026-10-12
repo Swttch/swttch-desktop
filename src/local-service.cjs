@@ -231,20 +231,22 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         return json(res, 200, await backendRequest(backend, 'GET_USAGE_REPORT', { force, ...(session.project && { workingDir: session.project }) }, 30000));
       } catch (error) { return json(res, 502, { error: error.message }); }
     }
-    if ([API_PATH.ACCOUNTS, API_PATH.ACTIVE_ACCOUNT, API_PATH.ACCOUNT_VIEWS].includes(path)) {
+    if ([API_PATH.ACCOUNTS, API_PATH.ACTIVE_ACCOUNT, API_PATH.ACCOUNT_VIEWS, API_PATH.SETTINGS_VIEWS].includes(path)) {
       const method = path === API_PATH.ACCOUNTS ? 'GET' : path === API_PATH.ACTIVE_ACCOUNT ? 'PUT' : 'POST';
       if (req.method !== method) { res.setHeader('Allow', method); return json(res, 405, { error: 'Method not allowed' }); }
       if (method !== 'GET' && req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
       try {
-        if (path === API_PATH.ACCOUNT_VIEWS) {
+        if (path === API_PATH.ACCOUNT_VIEWS || path === API_PATH.SETTINGS_VIEWS) {
           const body = await readBody(req);
-          if (![PATH.ACCOUNT_LOGIN, PATH.ACCOUNT_SETTINGS].includes(body.path)) return json(res, 400, { error: '계정 화면 경로를 확인해 주세요.' });
+          const targetPath = path === API_PATH.SETTINGS_VIEWS ? PATH.SETTINGS_GENERAL : body.path;
+          if (![PATH.ACCOUNT_LOGIN, PATH.ACCOUNT_SETTINGS, ...(path === API_PATH.SETTINGS_VIEWS ? [PATH.SETTINGS_GENERAL] : [])].includes(targetPath)) return json(res, 400, { error: '계정 화면 경로를 확인해 주세요.' });
           const paired = await fetch(`http://127.0.0.1:${backend.port}/internal/local-pair`, { headers: { 'x-ccg-token': backend.token }, signal: AbortSignal.timeout(5000) });
           if (!paired.ok) throw new Error('계정 화면 인증을 준비하지 못했습니다.');
           const { code } = await paired.json();
           if (typeof code !== 'string' || !code) throw new Error('계정 화면 인증 코드를 받지 못했습니다.');
-          const url = new URL(body.path, 'http://localhost');
+          const url = new URL(targetPath, 'http://localhost');
           url.searchParams.set('workingDir', session.project || homedir()); url.searchParams.set('pair', code);
+          if (path === API_PATH.SETTINGS_VIEWS) url.searchParams.set('top_bar_display', 'F');
           return json(res, 201, { url: url.pathname + url.search });
         }
         if (path === API_PATH.ACTIVE_ACCOUNT) {
@@ -365,9 +367,9 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
     }
     const sessionResource = /^\/desktop-api\/projects\/([^/]+)\/sessions\/([^/]+)(\/read-receipts)?$/.exec(path);
     if (sessionResource) {
-      const method = sessionResource[3] ? 'POST' : 'PATCH, DELETE';
-      if (!(sessionResource[3] ? ['POST'] : ['PATCH', 'DELETE']).includes(req.method)) { res.setHeader('Allow', method); return json(res, 405, { error: 'Method not allowed' }); }
-      if (req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      const method = sessionResource[3] ? 'POST' : 'GET, PATCH, DELETE';
+      if (!(sessionResource[3] ? ['POST'] : ['GET', 'PATCH', 'DELETE']).includes(req.method)) { res.setHeader('Allow', method); return json(res, 405, { error: 'Method not allowed' }); }
+      if (req.method !== 'GET' && req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
       try {
         if (phase !== 'ready') throw new Error('채팅 환경이 아직 준비되지 않았습니다.');
         const project = store.projects().find(project => String(project.id) === decodeURIComponent(sessionResource[1]));
@@ -378,6 +380,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         const owner = store.projects().find(item => item.id === savedSession?.projectId);
         const row = savedSession && owner && projectScope(project, true).some(item => item.id === owner.id) ? sessionEntry({ session: savedSession, project: owner }) : null;
         if (!row) return json(res, 404, { error: '이 프로젝트에 없는 세션입니다.' });
+        if (req.method === 'GET') return json(res, 200, { session: row });
         const body = req.method === 'PATCH' ? await readBody(req) : {};
         if (req.method === 'PATCH' && body.favorite !== undefined) {
           if (typeof body.favorite !== 'boolean' || body.title !== undefined) throw new Error('즐겨찾기 여부를 확인해 주세요.');

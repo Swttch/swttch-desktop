@@ -1,3 +1,9 @@
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { desktopApi } from './api';
+import { QUERY_KEY, queryClient } from './query-client';
+import toast from 'react-hot-toast';
+import { shortcutLabel, type DesktopCommand } from '../../src/desktop-shortcuts.mjs';
+import { macShortcuts } from './shortcut-platform';
 import { useEffect, useRef, useState } from 'react';
 import claudeLogo from './assets/claude-logo.svg';
 import { Tooltip } from './Tooltip';
@@ -10,6 +16,7 @@ function MenuIcon({ name }: { name: string }) {
     {name === 'background-tasks' && <><path d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" /></>}
     {name === 'tunnel' && <><path d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25" /></>}
     {name === 'assets' && <><path d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></>}
+    {name === 'favorite' && <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z" />}
     {name === 'rename' && <><path d="m5 16 1-4L16 2l4 4L10 16l-5 1Z" /><path d="M14 4l4 4M4 21h16" /></>}
     {name === 'restore' && <><path d="M3 10V4m0 6h6" /><path d="M4 8a8 8 0 1 1 0 8" /></>}
     {name === 'close' && <path d="m6 6 12 12M18 6 6 18" />}
@@ -27,15 +34,27 @@ function RenameTab({ title, onSave, onClose }: { title: string; onSave: (value: 
   return <dialog ref={dialog} aria-label="탭 이름 변경" onCancel={onClose} className="fixed inset-0 m-auto! w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-divider bg-navigation p-4 text-foreground backdrop:bg-black/50"><form onSubmit={event => { event.preventDefault(); if (value.trim()) onSave(value.trim()); }}><h2 className="mb-3 text-sm font-medium">탭 이름 변경</h2><input autoFocus aria-label="탭 이름" value={value} maxLength={120} onChange={event => setValue(event.target.value)} className="field w-full" /><div className="mt-4 flex justify-end gap-2"><button type="button" className="secondary-button" onClick={onClose}>취소</button><button type="submit" disabled={!value.trim()} className="primary-button">저장</button></div></form></dialog>;
 }
 
-export function WorkspaceTab({ tabId = 'current-chat', title, customName, onRename, selected, pending, running, onSelect, onClose, onAction, onCloseOthers, canCloseOthers = false, onCloseRight, canCloseRight = false, onSplit }: { tabId?: string; title: string; customName?: string; onRename?: (value: string) => void; selected: boolean; pending: boolean; running: boolean; onSelect: () => void; onClose: () => void; onAction: (action: DesktopTabAction) => void; onCloseOthers?: () => void; canCloseOthers?: boolean; onCloseRight?: () => void; canCloseRight?: boolean; onSplit?: (direction: 'columns' | 'rows') => void }) {
+export function WorkspaceTab({ tabId = 'current-chat', projectId, sessionId, renameRequested, favoriteRequested, onRequestHandled, title, customName, onRename, selected, pending, running, onSelect, onClose, onAction, onCloseOthers, canCloseOthers = false, onCloseRight, canCloseRight = false, onSplit }: { tabId?: string; projectId: number; sessionId: string; renameRequested: boolean; favoriteRequested: boolean; onRequestHandled: (kind: 'rename' | 'favorite') => void; title: string; customName?: string; onRename?: (value: string) => void; selected: boolean; pending: boolean; running: boolean; onSelect: () => void; onClose: () => void; onAction: (action: DesktopTabAction) => void; onCloseOthers?: () => void; canCloseOthers?: boolean; onCloseRight?: () => void; canCloseRight?: boolean; onSplit?: (direction: 'columns' | 'rows') => void }) {
   const [localCustomTitle, setLocalCustomTitle] = useState('');
   const customTitle = customName === undefined ? localCustomTitle : customName;
   const setCustomTitle = (value: string) => { if (onRename) onRename(value); else setLocalCustomTitle(value); };
   const [renaming, setRenaming] = useState(false);
   const closeMenu = useRef<(() => void) | null>(null);
   const label = customTitle || title;
+  const sessionKey = [...QUERY_KEY.session, projectId, sessionId];
+  const session = useQuery({ queryKey: sessionKey, queryFn: ({ signal }) => desktopApi.session(String(projectId), sessionId, signal), enabled: !!sessionId });
+  const favorited = !!session.data?.session.favoritedAt;
+  const favorite = useMutation({ scope: { id: `favorite-${projectId}-${sessionId}` }, mutationFn: async () => {
+    if (!sessionId) throw new Error('첫 메시지로 대화가 생성된 뒤 즐겨찾기를 설정할 수 있습니다.');
+    const latest = await queryClient.fetchQuery({ queryKey: sessionKey, queryFn: ({ signal }) => desktopApi.session(String(projectId), sessionId, signal) });
+    return desktopApi.favoriteSession(String(projectId), sessionId, !latest.session.favoritedAt);
+  }, onSuccess: data => { queryClient.setQueryData(sessionKey, data); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessionLists }); }, onError: error => toast.error(error.message) });
+  useEffect(() => { if (renameRequested) { closeMenu.current?.(); setRenaming(true); onRequestHandled('rename'); } }, [renameRequested]);
+  useEffect(() => { if (favoriteRequested) { closeMenu.current?.(); favorite.mutate(); onRequestHandled('favorite'); } }, [favoriteRequested]);
+  const keyHint = (command: DesktopCommand) => <kbd aria-hidden="true" className="ml-auto shrink-0 text-[11px] text-muted">{shortcutLabel(command, macShortcuts)}</kbd>;
+
   const activate = (action: () => void) => { closeMenu.current?.(); action(); };
-  const menu = <section role="menu" aria-label="탭 메뉴" className="w-52 rounded-lg border border-divider bg-navigation p-1 text-sm text-foreground" onKeyDown={event => {
+  const menu = <section role="menu" aria-label="탭 메뉴" className="w-64 rounded-lg border border-divider bg-navigation p-1 text-sm text-foreground" onKeyDown={event => {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
     const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)'));
@@ -43,14 +62,15 @@ export function WorkspaceTab({ tabId = 'current-chat', title, customName, onRena
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
     items[next]?.focus();
   }}>
-    <button role="menuitem" className="project-menu-item flex items-center gap-2" onClick={() => activate(() => setRenaming(true))}><MenuIcon name="rename" />이름 변경</button>
+    <button role="menuitem" className="project-menu-item flex items-center gap-2" onClick={() => activate(() => setRenaming(true))}><MenuIcon name="rename" />이름 변경{keyHint('rename')}</button>
+    <button role="menuitem" disabled={pending || favorite.isPending || !sessionId} className="project-menu-item flex items-center gap-2" onClick={() => activate(() => favorite.mutate())}><span className={favorited ? 'text-yellow-400' : 'text-muted'}><svg aria-hidden="true" viewBox="0 0 24 24" className="size-4 stroke-current" fill={favorited ? 'currentColor' : 'none'} strokeWidth="1.5"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z" /></svg></span>{favorited ? '즐겨찾기 해제' : '즐겨찾기 설정'}{keyHint('favorite')}</button>
     {customTitle && <button role="menuitem" className="project-menu-item flex items-center gap-2" onClick={() => activate(() => setCustomTitle(''))}><MenuIcon name="restore" />자동 이름으로 복원</button>}
     <div className="my-1 border-t border-divider" />
     {([{ id: 'scheduled-messages', label: '예약된 메시지' }, { id: 'background-tasks', label: '백그라운드 작업' }, { id: 'tunnel', label: '원격 터널' }, { id: 'assets', label: '에셋' }] as const).map(item => <button key={item.id} role="menuitem" disabled={pending} className="project-menu-item flex items-center gap-2" onClick={() => activate(() => onAction(item.id))}><MenuIcon name={item.id} />{item.label}</button>)}
-    <div className="my-1 border-t border-divider" /><button role="menuitem" disabled={pending} className="project-menu-item flex items-center gap-2" onClick={() => activate(onClose)}><MenuIcon name="close" />탭 닫기</button>
+    <div className="my-1 border-t border-divider" /><button role="menuitem" disabled={pending} className="project-menu-item flex items-center gap-2" onClick={() => activate(onClose)}><MenuIcon name="close" />탭 닫기{keyHint('close')}</button>
     {([{ id: 'close-others', label: '다른 탭 닫기' }, { id: 'close-right', label: '오른쪽 탭 닫기' }] as const).map(item => <button key={item.id} role="menuitem" disabled={pending || (item.id === 'close-others' ? !canCloseOthers : !canCloseRight)} className="project-menu-item flex items-center gap-2" onClick={() => activate(() => item.id === 'close-others' ? onCloseOthers?.() : onCloseRight?.())}><MenuIcon name={item.id} />{item.label}</button>)}
     <div className="my-1 border-t border-divider" />
-    {([{ id: 'split-columns', label: '좌우 분할로 열기' }, { id: 'split-rows', label: '상하 분할로 열기' }] as const).map(item => <button key={item.id} role="menuitem" disabled={pending || !onSplit} className="project-menu-item flex items-center gap-2" onClick={() => activate(() => onSplit?.(item.id === 'split-columns' ? 'columns' : 'rows'))}><MenuIcon name={item.id} />{item.label}</button>)}
+    {([{ id: 'split-columns', label: '좌우 분할로 열기' }, { id: 'split-rows', label: '상하 분할로 열기' }] as const).map(item => <button key={item.id} role="menuitem" disabled={pending || !onSplit} className="project-menu-item flex items-center gap-2" onClick={() => activate(() => onSplit?.(item.id === 'split-columns' ? 'columns' : 'rows'))}><MenuIcon name={item.id} />{item.label}{keyHint(item.id)}</button>)}
   </section>;
   return <><Dropdown contextMenu content={menu} closeRef={closeMenu}><div className={`workspace-tab group flex h-full min-w-0 max-w-60 shrink-0 items-center border-r border-divider border-b-2 ${selected ? 'border-b-muted bg-selected' : 'border-b-transparent hover:bg-hover'}`}>
     <Tooltip content={running ? `${label} · 진행 중` : label} placement="bottom-start"><button id={`workspace-tab-${tabId}`} type="button" role="tab" aria-selected={selected} aria-controls={`viewport-${tabId}`} className="flex h-full min-w-0 items-center gap-2 px-3 text-xs" onClick={onSelect}><span className="relative flex size-4 shrink-0 items-center justify-center">{running && <span role="status" aria-label="작업 진행 중" className="absolute inset-0 animate-spin rounded-full border border-muted border-t-transparent motion-reduce:animate-none" />}<img src={claudeLogo} alt="Claude" className={running ? 'size-2' : 'size-3'} /></span><span className="max-w-40 truncate">{label}</span></button></Tooltip>

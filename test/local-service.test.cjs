@@ -529,6 +529,24 @@ test('all saved-account usage refreshes validate membership and CSRF while prese
   assert.deepEqual(calls.map(call => call.refresh), [false, true, true]);
 });
 
+test('session metadata reads preserve fields and settings views enforce CSRF and fixed routes', async t => {
+  const { base, client } = await setup(t);
+  const headers = await client();
+  const response = await fetch(base + '/desktop-api/projects/1/sessions/session-0', { headers });
+  assert.equal(response.status, 200);
+  const metadata = await response.json();
+  assert.deepEqual(metadata.session.originalExtra, { preserved: true });
+  assert.equal(metadata.session.favoritedAt, 0);
+  assert.equal((await fetch(base + '/desktop-api/settings-views', { method: 'POST', headers: { ...headers, 'x-swttch-csrf': 'wrong' }, body: '{}' })).status, 403);
+  const settings = await fetch(base + '/desktop-api/settings-views', { method: 'POST', headers, body: JSON.stringify({ path: 'https://other.example/' }) });
+  assert.equal(settings.status, 201);
+  const url = new URL((await settings.json()).url, base);
+  assert.equal(url.origin, base);
+  assert.equal(url.pathname, '/settings/general');
+  assert.equal(url.searchParams.get('top_bar_display'), 'F');
+  assert.ok(url.searchParams.get('pair'));
+});
+
 test('desktop clients restore their view while browser clients remain isolated', async t => {
   const { base, project, client } = await setup(t);
   async function desktop() {

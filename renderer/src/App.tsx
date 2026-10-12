@@ -21,6 +21,8 @@ import { SidebarProject } from './SidebarProject';
 import { readProjectSort, saveProjectSort, sortProjects, SortOrder } from './projects/projectSort';
 import { StatusBar } from './StatusBar';
 import { ProjectSwitcher } from './ProjectSwitcher';
+import { DesktopHelp } from './DesktopHelp';
+import { DesktopSettings } from './DesktopSettings';
 import { WorkspaceSurface, type WorkspaceSurfaceHandle } from './WorkspaceSurface';
 import type { WorkspaceView } from '../../src/workspace-layout.mjs';
 
@@ -74,6 +76,8 @@ export function App() {
   const [sort, setSort] = useState(readProjectSort);
   const [activeView, setActiveView] = useState<WorkspaceView | null>(null);
   const sessionId = activeView?.sessionId || '';
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [accountInfo, setAccountInfo] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
   const surface = useRef<WorkspaceSurfaceHandle>(null);
@@ -129,13 +133,13 @@ export function App() {
     queryClient.setQueryData<{ projects: Project[]; homeDir: string }>(QUERY_KEY.projects, previous => previous ? { ...previous, projects: next.projects } : previous);
     setError('');
   }, () => setError('로컬 서버 연결이 끊겼습니다. 새로고침해 주세요.')), []);
-  useEffect(() => { void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessionLists }); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.projectScopes }); }, [state.sessionsRevision]);
+  useEffect(() => { void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessionLists }); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.session }); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.projectScopes }); }, [state.sessionsRevision]);
   useEffect(() => { void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessionLists }); }, [state.activityRevision]);
   useEffect(() => { if (state.project) void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessions(state.project) }); }, [state.project, sessionId, state.sessionsRevision]);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (!sidebarShortcut(event)) return;
-      event.preventDefault(); event.stopPropagation();
+      event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation();
       if (projectsPage) { router.push(PATH.HOME); setCollapsed(false); }
       else setCollapsed(value => !value);
     };
@@ -197,6 +201,8 @@ export function App() {
   const feedback = error || workspaceQuery.error?.message || (state.phase === DesktopPhase.Error || state.phase === DesktopPhase.Starting ? state.message : '');
 
   return <div style={{ '--sidebar-width': sidebarWidth.width + 'px' } as React.CSSProperties} className={`app h-dvh overflow-hidden bg-chrome text-foreground${window.desktopHost ? ' electron-host' : ''}`}>
+    {helpOpen && <DesktopHelp getShortcuts={() => surface.current?.getShortcuts() || Promise.resolve([])} onClose={() => setHelpOpen(false)} />}
+    {settingsOpen && <DesktopSettings onClose={() => setSettingsOpen(false)} onHelp={() => setHelpOpen(value => !value)} />}
     {selecting && <AddProjectModal onClose={() => setSelecting(false)} onAdded={id => {
       setSelecting(false);
       if (!selectingForChat) { chooseProject(id); return; }
@@ -246,7 +252,7 @@ export function App() {
         <SidebarResize width={sidebarWidth.width} onResize={sidebarWidth.save} />
       </aside>
       <section className="workspace relative min-h-0 min-w-0 bg-canvas" aria-label="작업 영역">
-        <WorkspaceSurface ref={surface} state={state} browsing={projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onActive={tab => setActiveView(tab)} onNew={(pane, path) => { const target = path || detailProject?.path || activeProjectPath; if (target) openView(target, undefined, pane); else { setSelectingForChat(true); setSelecting(true); } }} onEmpty={() => closeViewMutation.mutate()} onSidebar={() => setCollapsed(value => !value)} />
+        <WorkspaceSurface ref={surface} state={state} browsing={projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onActive={tab => setActiveView(tab)} onNew={(pane, path) => { const target = path || detailProject?.path || activeProjectPath; if (target) openView(target, undefined, pane); else { setSelectingForChat(true); setSelecting(true); } }} onEmpty={() => closeViewMutation.mutate()} onHelp={() => setHelpOpen(value => !value)} onSettings={() => setSettingsOpen(true)} onSidebar={() => setCollapsed(value => !value)} />
         {!activeView && !projectNavigation && <main className="welcome grid h-full place-items-center p-8"><div className="w-full max-w-sm text-center"><h2 className="mb-3 text-lg font-medium">프로젝트에서 시작하세요.</h2><p className="mb-6 text-sm leading-6 text-muted">프로젝트를 추가하고 에이전트와 작업을 시작하세요.</p><button className="primary-button" onClick={openProject} disabled={disabled}>프로젝트 추가</button><p className="mt-4 text-xs text-muted" role="status">{feedback}</p></div></main>}
         {detailId && <ProjectDetailPage projectId={detailId} disabled={disabled} onChat={path => openView(path)} onSession={(sessionId, path) => openView(path, sessionId)} />}
         {projectsPage && <ProjectsPage onMove={reorderProjects} disabled={disabled || reorderMutation.isPending} onOpen={chooseProject} onAdd={() => void openProject()} sort={sort} onSort={order => { setSort(order); saveProjectSort(order); }} />}
