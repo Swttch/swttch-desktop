@@ -19,3 +19,7 @@ Right-click or Shift+F10 opens the tab's Tippy context menu. It supports a custo
 Application actions use a same-origin, owning-frame message contract and reuse the webview's existing dock actions. Acknowledgments detect unavailable actions instead of silently treating them as successful. The listener lives on the chat page and remains mounted when the visual webview header is hidden.
 
 Verification: Desktop and webview builds passed. The webview boundary test rejects foreign origins/sources and unsupported actions, verifies all four supported commands, and verifies cleanup. Browser checks covered renaming, all four actual surfaces, Escape dismissal, and a real demo agent response: the running ring appeared during work and disappeared after `TAB_SPINNER_OK`.
+
+For created chat sessions, rename uses the same CLI-backed session API as the sidebar. Shared session queries supply titles to every open view, including split clones. The rename dialog stays open with its input and error if saving fails. Uncreated chats retain a temporary tab label until a session exists. Project trust is never approved implicitly.
+
+Verification: Command+E on the browser-demo session reached the CLI adapter and reproduced the existing project-trust error, leaving the edited value and dialog intact. A trusted CLI save was observed in its JSONL and restored to its previous custom title afterward. Legacy plugin aliases retain their existing display priority. API tests verify successful source synchronization and rejected trust errors without changing saved titles.

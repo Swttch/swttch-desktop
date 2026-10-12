@@ -19,7 +19,7 @@ export function SidebarSessionRow({ session, projectId, selected, disabled, onOp
   const [editing, setEditing] = useState(false), [value, setValue] = useState(session.title || ''), [deleting, setDeleting] = useState(false);
   const finished = useRef(false);
   const refresh = () => void client.invalidateQueries({ queryKey: QUERY_KEY.sessionLists });
-  const rename = useMutation({ mutationFn: (title: string) => desktopApi.renameSession(String(projectId), session.sessionId, title), onSuccess: refresh, onError: error => toast.error(error.message) });
+  const rename = useMutation({ mutationFn: (title: string) => desktopApi.renameSession(String(projectId), session.sessionId, title), onSuccess: () => { refresh(); void client.invalidateQueries({ queryKey: [...QUERY_KEY.session, projectId, session.sessionId] }); }, onError: error => toast.error(error.message) });
   const remove = useMutation({ mutationFn: () => desktopApi.deleteSession(String(projectId), session.sessionId), onSuccess: () => { setDeleting(false); refresh(); }, onError: error => toast.error(error.message) });
   const commit = () => { if (finished.current) return; finished.current = true; setEditing(false); const title = value.trim(); if (title && title !== session.title) rename.mutate(title); };
   return <>

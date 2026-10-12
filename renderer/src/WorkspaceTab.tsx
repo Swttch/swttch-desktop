@@ -27,11 +27,11 @@ function MenuIcon({ name }: { name: string }) {
   </svg>;
 }
 
-function RenameTab({ title, onSave, onClose }: { title: string; onSave: (value: string) => void; onClose: () => void }) {
+function RenameTab({ title, pending, error, onSave, onClose }: { title: string; pending: boolean; error?: string; onSave: (value: string) => void; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [value, setValue] = useState(title);
   useEffect(() => { dialog.current?.showModal(); }, []);
-  return <dialog ref={dialog} aria-label="탭 이름 변경" onCancel={onClose} className="fixed inset-0 m-auto! w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-divider bg-navigation p-4 text-foreground backdrop:bg-black/50"><form onSubmit={event => { event.preventDefault(); if (value.trim()) onSave(value.trim()); }}><h2 className="mb-3 text-sm font-medium">탭 이름 변경</h2><input autoFocus aria-label="탭 이름" value={value} maxLength={120} onChange={event => setValue(event.target.value)} className="field w-full" /><div className="mt-4 flex justify-end gap-2"><button type="button" className="secondary-button" onClick={onClose}>취소</button><button type="submit" disabled={!value.trim()} className="primary-button">저장</button></div></form></dialog>;
+  return <dialog ref={dialog} aria-label="탭 이름 변경" onCancel={event => { event.preventDefault(); if (!pending) onClose(); }} className="fixed inset-0 m-auto! w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-divider bg-navigation p-4 text-foreground backdrop:bg-black/50"><form onSubmit={event => { event.preventDefault(); if (!pending && value.trim()) onSave(value.trim()); }}><h2 className="mb-3 text-sm font-medium">탭 이름 변경</h2><input autoFocus aria-label="탭 이름" value={value} disabled={pending} maxLength={512} onChange={event => setValue(event.target.value)} className="field w-full" /><p role="alert" className="mt-2 text-xs text-red-400">{error}</p><div className="mt-4 flex justify-end gap-2"><button type="button" disabled={pending} className="secondary-button" onClick={onClose}>취소</button><button type="submit" disabled={pending || !value.trim()} className="primary-button">{pending ? '저장 중…' : '저장'}</button></div></form></dialog>;
 }
 
 export function WorkspaceTab({ tabId = 'current-chat', projectId, sessionId, renameRequested, favoriteRequested, onRequestHandled, title, customName, onRename, selected, pending, running, onSelect, onClose, onAction, onCloseOthers, canCloseOthers = false, onCloseRight, canCloseRight = false, onSplit }: { tabId?: string; projectId: number; sessionId: string; renameRequested: boolean; favoriteRequested: boolean; onRequestHandled: (kind: 'rename' | 'favorite') => void; title: string; customName?: string; onRename?: (value: string) => void; selected: boolean; pending: boolean; running: boolean; onSelect: () => void; onClose: () => void; onAction: (action: DesktopTabAction) => void; onCloseOthers?: () => void; canCloseOthers?: boolean; onCloseRight?: () => void; canCloseRight?: boolean; onSplit?: (direction: 'columns' | 'rows') => void }) {
@@ -40,16 +40,23 @@ export function WorkspaceTab({ tabId = 'current-chat', projectId, sessionId, ren
   const setCustomTitle = (value: string) => { if (onRename) onRename(value); else setLocalCustomTitle(value); };
   const [renaming, setRenaming] = useState(false);
   const closeMenu = useRef<(() => void) | null>(null);
-  const label = customTitle || title;
   const sessionKey = [...QUERY_KEY.session, projectId, sessionId];
   const session = useQuery({ queryKey: sessionKey, queryFn: ({ signal }) => desktopApi.session(String(projectId), sessionId, signal), enabled: !!sessionId });
+  const label = session.data?.session.title || customTitle || title;
+  const rename = useMutation({ scope: { id: `rename-${projectId}-${sessionId}` }, mutationFn: (value: string) => desktopApi.renameSession(String(projectId), sessionId, value), onSuccess: async () => {
+    setCustomTitle('');
+    await queryClient.invalidateQueries({ queryKey: sessionKey });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessionLists });
+    setRenaming(false);
+  } });
+  const openRename = () => { rename.reset(); setRenaming(true); };
   const favorited = !!session.data?.session.favoritedAt;
   const favorite = useMutation({ scope: { id: `favorite-${projectId}-${sessionId}` }, mutationFn: async () => {
     if (!sessionId) throw new Error('첫 메시지로 대화가 생성된 뒤 즐겨찾기를 설정할 수 있습니다.');
     const latest = await queryClient.fetchQuery({ queryKey: sessionKey, queryFn: ({ signal }) => desktopApi.session(String(projectId), sessionId, signal) });
     return desktopApi.favoriteSession(String(projectId), sessionId, !latest.session.favoritedAt);
   }, onSuccess: data => { queryClient.setQueryData(sessionKey, data); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessionLists }); }, onError: error => toast.error(error.message) });
-  useEffect(() => { if (renameRequested) { closeMenu.current?.(); setRenaming(true); onRequestHandled('rename'); } }, [renameRequested]);
+  useEffect(() => { if (renameRequested) { closeMenu.current?.(); openRename(); onRequestHandled('rename'); } }, [renameRequested]);
   useEffect(() => { if (favoriteRequested) { closeMenu.current?.(); favorite.mutate(); onRequestHandled('favorite'); } }, [favoriteRequested]);
   const keyHint = (command: DesktopCommand) => <kbd aria-hidden="true" className="ml-auto shrink-0 text-[11px] text-muted">{shortcutLabel(command, macShortcuts, browserShortcuts)}</kbd>;
 
@@ -62,9 +69,9 @@ export function WorkspaceTab({ tabId = 'current-chat', projectId, sessionId, ren
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
     items[next]?.focus();
   }}>
-    <button role="menuitem" className="project-menu-item flex items-center gap-2" onClick={() => activate(() => setRenaming(true))}><MenuIcon name="rename" />이름 변경{keyHint('rename')}</button>
+    <button role="menuitem" className="project-menu-item flex items-center gap-2" onClick={() => activate(openRename)}><MenuIcon name="rename" />이름 변경{keyHint('rename')}</button>
     <button role="menuitem" disabled={pending || favorite.isPending || !sessionId} className="project-menu-item flex items-center gap-2" onClick={() => activate(() => favorite.mutate())}><span className={favorited ? 'text-yellow-400' : 'text-muted'}><svg aria-hidden="true" viewBox="0 0 24 24" className="size-4 stroke-current" fill={favorited ? 'currentColor' : 'none'} strokeWidth="1.5"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z" /></svg></span>{favorited ? '즐겨찾기 해제' : '즐겨찾기 설정'}{keyHint('favorite')}</button>
-    {customTitle && <button role="menuitem" className="project-menu-item flex items-center gap-2" onClick={() => activate(() => setCustomTitle(''))}><MenuIcon name="restore" />자동 이름으로 복원</button>}
+    {!sessionId && customTitle && <button role="menuitem" className="project-menu-item flex items-center gap-2" onClick={() => activate(() => setCustomTitle(''))}><MenuIcon name="restore" />자동 이름으로 복원</button>}
     <div className="my-1 border-t border-divider" />
     {([{ id: 'scheduled-messages', label: '예약된 메시지' }, { id: 'background-tasks', label: '백그라운드 작업' }, { id: 'tunnel', label: '원격 터널' }, { id: 'assets', label: '에셋' }] as const).map(item => <button key={item.id} role="menuitem" disabled={pending} className="project-menu-item flex items-center gap-2" onClick={() => activate(() => onAction(item.id))}><MenuIcon name={item.id} />{item.label}</button>)}
     <div className="my-1 border-t border-divider" /><button role="menuitem" disabled={pending} className="project-menu-item flex items-center gap-2" onClick={() => activate(onClose)}><MenuIcon name="close" />탭 닫기{keyHint('close')}</button>
@@ -75,5 +82,5 @@ export function WorkspaceTab({ tabId = 'current-chat', projectId, sessionId, ren
   return <><Dropdown contextMenu content={menu} closeRef={closeMenu}><div className={`workspace-tab group flex h-full min-w-0 max-w-60 shrink-0 items-center border-r border-divider border-b-2 ${selected ? 'border-b-muted bg-selected' : 'border-b-transparent hover:bg-hover'}`}>
     <Tooltip content={running ? `${label} · 진행 중` : label} placement="bottom-start"><button id={`workspace-tab-${tabId}`} type="button" role="tab" aria-selected={selected} aria-controls={`viewport-${tabId}`} className="flex h-full min-w-0 items-center gap-2 px-3 text-xs" onClick={onSelect}><span className="relative flex size-4 shrink-0 items-center justify-center">{running && <span role="status" aria-label="작업 진행 중" className="absolute inset-0 animate-spin rounded-full border border-muted border-t-transparent motion-reduce:animate-none" />}<img src={claudeLogo} alt="Claude" className={running ? 'size-2' : 'size-3'} /></span><span className="max-w-40 truncate">{label}</span></button></Tooltip>
     <Tooltip content="탭 닫기" placement="bottom-end"><button type="button" aria-label="채팅 탭 닫기" disabled={pending} className="mr-1 flex size-5 shrink-0 items-center justify-center rounded text-muted hover:bg-hover hover:text-foreground" onClick={onClose}><svg aria-hidden="true" className="size-3 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg></button></Tooltip>
-  </div></Dropdown>{renaming && <RenameTab title={label} onClose={() => setRenaming(false)} onSave={value => { setCustomTitle(value); setRenaming(false); }} />}</>;
+  </div></Dropdown>{renaming && <RenameTab title={label} pending={rename.isPending} error={rename.error?.message} onClose={() => setRenaming(false)} onSave={value => { if (sessionId) rename.mutate(value); else { setCustomTitle(value); setRenaming(false); } }} />}</>;
 }

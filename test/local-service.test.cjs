@@ -318,7 +318,7 @@ test('desktop rename uses the CLI adapter, syncs the source into ORM, and leaves
     await fs.writeFile(src, JSON.stringify({ type: 'user', timestamp: '2026-10-01T00:00:00Z', message: { role: 'user', content: 'Original title' } }) + '\n');
     aliasFile = join(source, '.claude-code-gui-session-titles.json'); await fs.writeFile(aliasFile, '{"session-0":"Legacy alias"}');
     const parser = await import(pathToFileURL(join(__dirname, '../dist/session-source.mjs')).href);
-    return { sourceReader: async () => ({ ...parser, getProjectSessionsPath: async () => source }), renameSession: async args => { calls.push(args); await fs.appendFile(args.src, JSON.stringify({ type: 'custom-title', customTitle: args.title, sessionId: args.uid }) + '\n'); } };
+    return { sourceReader: async () => ({ ...parser, getProjectSessionsPath: async () => source }), renameSession: async args => { if (args.title === 'Blocked') throw new Error('Project trust is required'); calls.push(args); await fs.appendFile(args.src, JSON.stringify({ type: 'custom-title', customTitle: args.title, sessionId: args.uid }) + '\n'); } };
   });
   const headers = await client(), resource = base + '/desktop-api/projects/1/sessions/session-0';
   const response = await fetch(resource, { method: 'PATCH', headers, body: '{"title":" Renamed via CLI "}' });
@@ -327,6 +327,11 @@ test('desktop rename uses the CLI adapter, syncs the source into ORM, and leaves
   assert.equal(calls.length, 1); assert.equal(calls[0].uid, 'session-0'); assert.ok(result.session.sourceSyncedAt);
   assert.equal(backendRequests.some(row => row.type === 'RENAME_SESSION'), false);
   assert.equal(await fs.readFile(aliasFile, 'utf8'), '{"session-0":"Legacy alias"}');
+  const blocked = await fetch(resource, { method: 'PATCH', headers, body: JSON.stringify({ title: 'Blocked' }) });
+  assert.equal(blocked.status, 400);
+  assert.equal((await blocked.json()).error, 'Project trust is required');
+  assert.equal(calls.length, 1);
+  assert.equal((await (await fetch(resource, { headers })).json()).session.title, 'Legacy alias');
   const syncUrl = base + '/desktop-api/session-source-syncs';
   assert.equal((await fetch(syncUrl, { method: 'POST', headers: { cookie: headers.cookie }, body: '{}' })).status, 403);
   const batch = await (await fetch(syncUrl, { method: 'POST', headers, body: '{"uids":["session-0","missing"]}' })).json();
