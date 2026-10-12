@@ -96,7 +96,7 @@ export function StatusBar({ state }: { state: DesktopState }) {
       </button>
       </Tooltip>
     </Dropdown>
-    <RefreshButton pending={query.isFetching || refresh.isPending} onClick={() => refresh.mutate()} />
+    <RefreshButton small pending={query.isFetching || refresh.isPending} onClick={() => refresh.mutate()} />
     </div>
 
     <div className="flex shrink-0 items-center gap-2">

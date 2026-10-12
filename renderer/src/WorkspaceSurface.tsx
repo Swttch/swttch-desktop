@@ -1,3 +1,5 @@
+import { Dropdown } from './Dropdown';
+import { NewTabMenuContent } from './NewTabMenuContent';
 import { DndProvider, useDragLayer } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { DraggableTab, PanelDropZone, TabDropStrip } from './TabDrag';
@@ -17,13 +19,14 @@ type Rect = { left: number; top: number; width: number; height: number };
 type SurfaceProps = { state: DesktopState; browsing: boolean; pending: boolean; onSelect: () => void; onActive: (tab: WorkspaceView | null) => void; onNew: (panelId: string, projectPath?: string) => void; onEmpty: () => void; onSidebar: () => void; onHelp: () => void; onSettings: () => void };
 
 function PanelLeaf({ panel, active, browsing, pending, state, registerViewport, onActivate, onClose, onCloseOthers, onCloseRight, onSplit, onAction, onRename, onMove, onNew, renameTarget, favoriteTarget, onHandled }: { panel: WorkspacePanel; active: boolean; browsing: boolean; pending: boolean; state: DesktopState; registerViewport: (id: string, element: HTMLDivElement | null) => void; onActivate: (panel: string, tab: string) => void; onClose: (panel: string, ids: string[]) => void; onCloseOthers: (panel: string, tab: string) => void; onCloseRight: (panel: string, tab: string) => void; onSplit: (panel: string, tab: string, direction: 'columns' | 'rows') => void; onAction: (panel: string, tab: string, action: DesktopTabAction) => void; onRename: (tab: string, value: string) => void; onMove: (id: string, panel: string, index: number) => void; onNew: (panel: string, path?: string) => void; renameTarget: string; favoriteTarget: string; onHandled: (kind: 'rename' | 'favorite') => void }) {
+  const closeTabMenu = useRef<(() => void) | null>(null);
   const register = useCallback((element: HTMLDivElement | null) => registerViewport(panel.id, element), [panel.id, registerViewport]);
   useEffect(() => { document.querySelector<HTMLElement>(`[data-panel-id="${panel.id}"]`)?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [panel.activeTabId, browsing]);
   const current = panel.tabs.find(tab => tab.id === panel.activeTabId);
   return <section aria-label="작업 패널" data-panel-id={panel.id} data-active-panel={active || undefined} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
     <TabDropStrip panelId={panel.id} disabled={pending} onMove={onMove} active={active}>
       {panel.tabs.map((tab, index) => <DraggableTab key={tab.id} id={tab.id} disabled={pending}><WorkspaceTab tabId={tab.id} projectId={tab.projectId} sessionId={tab.sessionId} renameRequested={renameTarget === tab.id} favoriteRequested={favoriteTarget === tab.id} onRequestHandled={onHandled} title={tab.title} customName={tab.customTitle} onRename={value => onRename(tab.id, value)} selected={!browsing && panel.activeTabId === tab.id} running={state.sessionActivity?.activity[tab.sessionId] === SessionActivity.Running} pending={pending} onSelect={() => onActivate(panel.id, tab.id)} onClose={() => onClose(panel.id, [tab.id])} onAction={action => onAction(panel.id, tab.id, action)} onCloseOthers={() => onCloseOthers(panel.id, tab.id)} canCloseOthers={panel.tabs.length > 1} onCloseRight={() => onCloseRight(panel.id, tab.id)} canCloseRight={index < panel.tabs.length - 1} onSplit={direction => onSplit(panel.id, tab.id, direction)} /></DraggableTab>)}
-      <Tooltip content="새 채팅" placement="bottom-start"><button type="button" aria-label="패널 새 채팅" disabled={pending} className="flex h-full w-8 shrink-0 items-center justify-center text-muted hover:bg-selected" onClick={() => onNew(panel.id, current?.projectPath)}><svg aria-hidden="true" className="size-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="1.5"><path d="M12 5v14M5 12h14" /></svg></button></Tooltip>
+      <Dropdown closeRef={closeTabMenu} content={<NewTabMenuContent pending={pending} onCreate={() => { closeTabMenu.current?.(); onNew(panel.id, current?.projectPath); }} />}><Tooltip content="새 탭 열기" placement="bottom-start"><button type="button" aria-label="새 탭 열기" disabled={pending} className="flex h-full w-8 shrink-0 items-center justify-center text-muted hover:bg-selected"><svg aria-hidden="true" className="size-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="1.5"><path d="M12 5v14M5 12h14" /></svg></button></Tooltip></Dropdown>
     </TabDropStrip>
     <div ref={register} className="relative min-h-0 min-w-0 flex-1" />
   </section>;
@@ -190,7 +193,7 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
     {allPanels.flatMap(panel => panel.tabs.map(tab => {
       const box = rects[panel.id];
       const hidden = props.browsing || panel.activeTabId !== tab.id;
-      return <div key={tab.id} data-tab-view={tab.id} id={`viewport-${tab.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${tab.id}`} className={`absolute overflow-hidden bg-canvas ${hidden ? 'hidden' : 'pointer-events-auto'}`} style={box || { width: 0, height: 0 }}><WorkspaceFrame tab={tab} hidden={hidden} register={registerFrame} onMetadata={metadata} onFocus={() => { if (current.current.activePanel !== panel.id) setActivePanel(panel.id); }} onShortcut={(id, command) => commands.current(command, id)} /></div>;
+      return <div key={tab.id} data-tab-view={tab.id} data-workspace-corner={panel.id === allPanels[0].id || undefined} id={`viewport-${tab.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${tab.id}`} className={`absolute overflow-hidden bg-canvas ${hidden ? 'hidden' : 'pointer-events-auto'}`} style={box || { width: 0, height: 0 }}><WorkspaceFrame tab={tab} hidden={hidden} register={registerFrame} onMetadata={metadata} onFocus={() => { if (current.current.activePanel !== panel.id) setActivePanel(panel.id); }} onShortcut={(id, command) => commands.current(command, id)} /></div>;
     }))}
   </div>;
 });

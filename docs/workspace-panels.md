@@ -51,3 +51,11 @@ Native browser verification covered all four edges, new column/row splits, sourc
 The panel drop placeholder has no border. Its geometry and opacity transition over 150 ms with ease-out; it stays mounted throughout the drag so edge changes interpolate rather than recreate the preview. Reduced-motion preferences disable the transition.
 
 Panel separators render a 1 px divider at the same color/opacity as the workspace/sidebar boundary, with an invisible expanded pointer hit area for resizing. The development highlight belongs to the app root and spans the complete viewport above both title bar and panel tabs.
+
+## New tab chooser and collapsed sidebar
+
+The panel plus button opens a shared Tippy dropdown, with a separate hover tooltip labeled “새 탭 열기”. Chat is enabled; terminal and browser choices retain their icons but are disabled and marked as upcoming. Opening the chooser does not create a tab. Choosing chat closes the menu and creates one chat in that panel. The redundant new-chat button in the project title bar is removed.
+
+When the sidebar is collapsed, the top-left panel view clips its iframe at the same radius as the workspace corner, connecting the icon rail and tab bar smoothly. Other split-panel corners remain unchanged. The status-bar usage refresh icon uses the existing small size, preserving its pointer target.
+
+The chooser's tests were written first and confirmed failing against the previous direct-chat control; implementation then made them pass. Native browser checks covered opening without creating a tab, disabled upcoming choices, one chat created on selection, Escape/outside dismissal, title-bar button removal, the collapsed corner, and the smaller refresh icon. Build and all 74 tests passed.

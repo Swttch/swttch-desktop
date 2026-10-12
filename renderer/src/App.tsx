@@ -216,9 +216,7 @@ export function App() {
         <div className="header-context flex min-w-0 flex-1 items-center pr-2" aria-label="상단바 중간 영역" aria-hidden={sidebarHidden} inert={sidebarHidden}>
           <ProjectSwitcher projects={switcherProjects} selected={selectedHeaderProject} disabled={disabled} onSelect={chooseProject} />
         </div>
-        <div className={`shrink-0 items-center pr-1 ${sidebarHidden ? 'hidden' : 'flex'}`}>
-          <IconButton label="새 채팅" icon={IconName.Plus} onClick={newChat} disabled={disabled} />
-        </div>
+
       </header>
       <div className="min-w-0" />
     </div>

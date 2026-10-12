@@ -87,3 +87,5 @@
 
 .workspace-surface [data-drag-tab] { -webkit-app-region: no-drag; }
 .workspace-surface[data-tab-dragging] iframe { pointer-events: none; }
+
+.sidebar-collapsed .workspace-surface [data-workspace-corner] { border-top-left-radius: 1rem; }
