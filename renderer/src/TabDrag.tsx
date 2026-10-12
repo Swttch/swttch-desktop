@@ -35,7 +35,7 @@ export function TabDropStrip({ panelId, disabled, children, onMove, active }: { 
     drop: (item, monitor) => { if (!monitor.didDrop()) onMove(item.id, panelId, insertion.current); },
     collect: monitor => ({ over: monitor.isOver({ shallow: true }) && monitor.canDrop() }),
   }), [panelId, disabled, onMove]);
-  return <div ref={element => { strip.current = element; drop(element); }} role="tablist" aria-label="패널 탭" className={`relative pointer-events-auto flex h-(--header-height) shrink-0 items-stretch overflow-x-auto border-b border-divider bg-chrome ${active ? '' : 'opacity-85'}`}>
+  return <div ref={element => { strip.current = element; drop(element); }} role="tablist" aria-label="패널 탭" className={`relative pointer-events-auto flex h-(--header-height) shrink-0 items-stretch overflow-x-auto bg-chrome ${active ? '' : 'opacity-85'}`}>
     {children}
     {over && <span aria-hidden="true" data-tab-drop-marker className="pointer-events-none absolute inset-y-1 w-px bg-foreground" style={{ left: marker }} />}
   </div>;
