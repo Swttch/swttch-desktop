@@ -12,7 +12,7 @@ Desktop help opens a separate host dialog rather than the webview's help. It inc
 
 Settings opens the existing settings application in a host dialog, through a fixed-route, authenticated, CSRF-protected settings-view resource. Its embedded keyboard listener closes only that dialog on the host-specific close shortcut and sends help to the Desktop dialog.
 
-All chat view addresses receive `top_bar_display=F` from both the Desktop URL factory and final iframe adapter. Hiding the visual webview header retains its chat-page activity and host-action listeners.
+All chat view addresses receive `is_desktop=1` from both the Desktop URL factory and final iframe adapter. Hiding the visual webview header retains its chat-page activity and host-action listeners.
 
 Page-dispatched automation covered shortcuts originating inside the composer: rename, favorite/sidebar synchronization, both split directions, all four panel directions, previous/next tab navigation, exactly one tab closing under page-dispatched input, Desktop-only help with real chat entries, settings with and without a chat tab, settings-dialog closure, and hidden-header parameters on every open view. Native Electron was not launched. Complete layout restoration remains TODO 25.
 
