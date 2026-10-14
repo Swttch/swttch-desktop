@@ -17,7 +17,7 @@ For frontend work, also read the [design system](DESIGN.md) and [UI playbook](do
 - Use the same React + TypeScript frontend and local Node.js backend in Electron and localhost browsers.
 - Shared features must actually work in browsers. Electron-only preload dependencies or browser mocks do not establish completion of shared functionality.
 - Perform routine frontend implementation, execution, and verification in the Codex browser on localhost. Verify Electron-specific integrations separately in the native app.
-- Use the desktop package's npm scripts: `npm run dev` (Electron development), `npm run dev:browser` (browser), `npm start` (normal app), `npm run build`, and `npm test`. Use `npm run runtime:build` to invoke the parent repository's official build script for the CCG runtime.
+- Use the desktop package's pnpm scripts: `pnpm run dev` (Electron development), `pnpm run dev:browser` (browser), `pnpm start` (normal app), `pnpm run build`, and `pnpm test`. Use `pnpm run runtime:build` to invoke the parent repository's official build script for the CCG runtime.
 - Reuse the existing chat app and backend. Do not duplicate CLI or session business logic in the shell.
 - Each workspace panel owns its tab list and selected tab. Tabs host independent applications; a chat session is not a tab entity. The approved scope includes multiple chat tabs and nested horizontal/vertical splits. Keep mounted views alive when changing tabs, splitting, or resizing.
 - The project title bar ends at the sidebar boundary. Panel-local tab strips occupy the workspace area to its right. Keep the left rail and use `⇧⌘S` to toggle only the middle project/session sidebar.

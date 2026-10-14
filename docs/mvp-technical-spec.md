@@ -74,8 +74,8 @@ Google·GitHub·이메일을 모두 지원하고 기존 Swttch 계정을 재사�
 배포는 기존 standalone tgz를 의존 산출물로 소비하는 방향을 유지한다. tgz 버전·무결성·vendor 실행 권한을 확인한다.
 개발 소스 연결은 상위 저장소의 빌드 산출물을 명시 경로로 참조하는 안을 제안한다. 배포 번들에 개발 절대 경로를 남기지 않는다.
 상위 플러그인 코드를 수정할 때는 별도 worktree에서 작업하고, 데스크탑 자체 저장소와 변경을 구분한다.
-데스크탑 실행·빌드·테스트는 package.json의 npm scripts를 사용한다. `npm run dev`는 Electron 개발환경, `npm start`는 일반 앱을 실행한다. 상위 CCG 런타임 빌드는 기존 공식 빌드 스크립트를 호출한다.
-Electron 버전, 패키저, 서명·공증, npm 런처 및 Cask 업데이트는 배포 스펙에서 확정한다.
+데스크탑 실행·빌드·테스트는 package.json의 pnpm scripts를 사용한다. `pnpm run dev`는 Electron 개발환경, `pnpm start`는 일반 앱을 실행한다. 상위 CCG 런타임 빌드는 기존 공식 빌드 스크립트를 호출한다.
+Electron 버전, 패키저, 서명·공증, pnpm 런처 및 Cask 업데이트는 배포 스펙에서 확정한다.
 
 ## 검증 순서
 

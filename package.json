@@ -36,6 +36,7 @@
     "vite": "8.3.4"
   },
   "scripts": {
+    "preinstall": "node scripts/check-package-manager.cjs",
     "postinstall": "node scripts/prepare-pty.cjs",
     "start": "electron .",
     "predev": "node scripts/build-source-reader.cjs",
@@ -48,5 +49,6 @@
     "pretest": "node scripts/build-source-reader.cjs",
     "test": "node --test test/*.test.cjs",
     "serve": "node src/host.cjs"
-  }
+  },
+  "packageManager": "pnpm@10.30.1"
 }
