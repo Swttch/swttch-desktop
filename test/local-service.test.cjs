@@ -548,7 +548,8 @@ test('session metadata reads preserve fields and settings views enforce CSRF and
   const url = new URL((await settings.json()).url, base);
   assert.equal(url.origin, base);
   assert.equal(url.pathname, '/settings/general');
-  assert.equal(url.searchParams.get('top_bar_display'), 'F');
+  assert.equal(url.searchParams.get('is_desktop'), '1');
+  assert.equal(url.searchParams.get('top_bar_display'), null);
   assert.ok(url.searchParams.get('pair'));
 });
 
@@ -614,7 +615,8 @@ test("workspace file API requires CSRF, rejects stale writes, and reconstructs c
   assert.equal(restored.layout.tabs[0].customTitle, "My tab");
   assert.equal(new URL(restored.layout.tabs[0].url).searchParams.get("workingDir"), project);
   assert.ok(new URL(restored.layout.tabs[0].url).searchParams.get("pair"));
-  assert.equal(new URL(restored.layout.tabs[0].url).searchParams.get("top_bar_display"), "F");
+  assert.equal(new URL(restored.layout.tabs[0].url).searchParams.get("is_desktop"), "1");
+  assert.equal(new URL(restored.layout.tabs[0].url).searchParams.get("top_bar_display"), null);
 });
 
 test("terminal restoration reuses a live owned shell on reload and retains missing-project placeholders", async t => {

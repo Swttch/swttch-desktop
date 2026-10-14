@@ -9,7 +9,7 @@ function sessionUrl(workingDir, sessionId, pairCode, port = WEBVIEW_PORT) {
   const url = new URL(sessionId ? PATH.SESSION.replace(':sessionId', encodeURIComponent(sessionId)) : PATH.NEW_SESSION, `http://localhost:${port}`);
   url.searchParams.set('workingDir', workingDir);
   url.searchParams.set('pair', pairCode);
-  url.searchParams.set('top_bar_display', 'F');
+  url.searchParams.set('is_desktop', '1');
   return url.href;
 }
 module.exports = { sessionUrl };

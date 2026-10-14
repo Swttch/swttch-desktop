@@ -326,7 +326,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
           if (typeof code !== 'string' || !code) throw new Error('계정 화면 인증 코드를 받지 못했습니다.');
           const url = new URL(targetPath, 'http://localhost');
           url.searchParams.set('workingDir', session.project || homedir()); url.searchParams.set('pair', code);
-          if (path === API_PATH.SETTINGS_VIEWS) url.searchParams.set('top_bar_display', 'F');
+          if (path === API_PATH.SETTINGS_VIEWS) url.searchParams.set('is_desktop', '1');
           return json(res, 201, { url: url.pathname + url.search });
         }
         if (path === API_PATH.ACTIVE_ACCOUNT) {
