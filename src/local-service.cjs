@@ -134,6 +134,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
   if (!suppliedBackend && !process.env.SWTTCH_RUNTIME_DIR) backend.webview = join(pluginRoot, 'webview/dist');
 
   const state = session => ({
+    settings: store.settings.read(),
     workspaceLayoutVersion: 1,
     phase: phase === 'ready' && session.project ? 'chat' : phase,
     message, project: session.project, chatUrl: phase === 'ready' ? session.chatUrl : null,
@@ -144,6 +145,13 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
   function broadcast() {
     for (const [response, session] of streams) response.write(`data: ${JSON.stringify(state(session))}\n\n`);
   }
+  let settingsRevision = store.settings.read().revision;
+  const settingsTimer = setInterval(() => {
+    if (stopping) return;
+    const revision = store.settings.read().revision;
+    if (revision !== settingsRevision) { settingsRevision = revision; broadcast(); }
+  }, 250);
+  settingsTimer.unref();
   function start() {
     if (starting) return starting;
     unsubscribeBackend(); sessionActivity = { activity: {}, open: [] };
@@ -213,6 +221,18 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
       return json(res, 201, { csrf: session.csrf, state: state(session) });
     }
     if (!session) return json(res, 401, { error: '앱 연결이 만료됐습니다. 새로고침해 주세요.' });
+    if (path === API_PATH.SETTINGS) {
+      if (req.method === 'GET') return json(res, 200, store.settings.read());
+      if (req.method !== 'PATCH') return json(res, 405, { error: 'Method not allowed' });
+      if (req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      try {
+        const body = await readBody(req);
+        const record = body.initialize === true ? store.settings.initialize(body.patch) : store.settings.patch(body.patch);
+        settingsRevision = record.revision;
+        broadcast();
+        return json(res, 200, record);
+      } catch (error) { return json(res, 400, { error: error.message }); }
+    }
     if (path === API_PATH.WORKSPACE_LAYOUT || path === API_PATH.WORKSPACE_RESTORATIONS) {
       const method = path === API_PATH.WORKSPACE_LAYOUT ? ['GET', 'PUT'] : ['POST'];
       if (!method.includes(req.method)) return json(res, 405, { error: 'Method not allowed' });
@@ -649,7 +669,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
     home, start, middleware,
     bind(server) { port = server.address().port; if (!boundServers.has(server)) { boundServers.add(server); server.on('upgrade', upgrade); } },
     async stop() {
-      stopping = true; terminals.stop(); unsubscribeBackend(); folderDialog.stop();
+      stopping = true; clearInterval(settingsTimer); terminals.stop(); unsubscribeBackend(); folderDialog.stop();
       for (const res of streams.keys()) res.end();
       streams.clear();
       if (starting) await starting;

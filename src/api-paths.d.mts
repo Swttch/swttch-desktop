@@ -1,4 +1,5 @@
 export const API_PATH: {
+  readonly SETTINGS: '/desktop-api/settings';
   readonly TERMINALS: '/desktop-api/terminals';
   readonly TERMINAL: '/desktop-api/terminals/:terminalId';
   readonly TERMINAL_INPUT: '/desktop-api/terminals/:terminalId/input';

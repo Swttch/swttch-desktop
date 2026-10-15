@@ -1,3 +1,4 @@
+import type { SettingsPatch, SettingsRecord } from '../../src/device-settings.mjs';
 import type { DesktopState, SessionListEntry, SessionPage, Project, ProjectSessionScope } from './desktop';
 import { API_PATH } from '../../src/api-paths.mjs';
 import { replacePathParams } from './routes';
@@ -38,6 +39,8 @@ async function request<T>(path: string, method: string, body?: object, signal?: 
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }
 export const desktopApi = {
+  settings: () => request<SettingsRecord>(API_PATH.SETTINGS, 'GET'),
+  updateSettings: (patch: SettingsPatch, initialize = false) => request<SettingsRecord>(API_PATH.SETTINGS, 'PATCH', { patch, initialize }),
   restoreWorkspace: () => request<WorkspaceRestoration | null>(API_PATH.WORKSPACE_RESTORATIONS, 'POST', {}),
   saveWorkspace: (snapshot: WorkspaceSnapshot, expectedRevision: number, terminalBindings: { tabId: string; terminalId: string }[]) => request<WorkspaceRecord>(API_PATH.WORKSPACE_LAYOUT, 'PUT', { snapshot, expectedRevision, terminalBindings }),
   createTerminal: (projectId: number) => request<{ id: string; projectId: number; projectPath: string; title: string }>(API_PATH.TERMINALS, 'POST', { projectId }),

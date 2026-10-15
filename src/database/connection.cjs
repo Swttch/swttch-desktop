@@ -11,7 +11,7 @@ function openDatabase(home) {
     client.pragma('journal_mode = WAL');
     client.pragma('foreign_keys = OFF');
     const version = client.pragma('user_version', { simple: true });
-    if (version > 10) throw new Error('이 앱보다 새로운 데이터베이스입니다. 앱을 업데이트해 주세요.');
+    if (version > 11) throw new Error('이 앱보다 새로운 데이터베이스입니다. 앱을 업데이트해 주세요.');
     // Versioned DDL upgrades preserve the existing MVP database in place.
     client.transaction(() => {
       client.exec("CREATE TABLE IF NOT EXISTS projects (path TEXT PRIMARY KEY, opened_at INTEGER NOT NULL, data TEXT NOT NULL DEFAULT '{}')");
@@ -77,7 +77,8 @@ function openDatabase(home) {
         rows.forEach((row, sortOrder) => db.update(schema.projects).set({ sortOrder }).where(eq(schema.projects.id, row.id)).run());
       }
       if (version < 10) client.exec('CREATE TABLE IF NOT EXISTS workspaces (id TEXT PRIMARY KEY, project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL, session_id TEXT)');
-      client.pragma('user_version = 10');
+      if (version < 11) client.exec('CREATE TABLE IF NOT EXISTS device_settings (id TEXT PRIMARY KEY, revision INTEGER NOT NULL, values_json TEXT NOT NULL)');
+      client.pragma('user_version = 11');
     }).immediate();
     client.pragma('foreign_keys = ON');
     if (client.pragma('foreign_key_check').length) throw new Error('프로젝트 관계의 외래키가 올바르지 않습니다.');

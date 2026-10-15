@@ -4,10 +4,13 @@ const { openDatabase } = require('./database/connection.cjs');
 const { ProjectRepository } = require('./database/project.repository.cjs');
 const { SessionRepository } = require('./database/session.repository.cjs');
 
+const { SettingsRepository } = require('./database/settings.repository.cjs');
+
 function openStore(home) {
   const connection = openDatabase(home);
   const projects = new ProjectRepository(connection.db);
   return {
+    settings: new SettingsRepository(connection.db),
     sessionRepository: new SessionRepository(connection.db),
     workspace: () => connection.db.select().from(workspaces).where(eq(workspaces.id, 'desktop')).get(),
     saveWorkspace: (projectId, sessionId) => connection.db.insert(workspaces).values({ id: 'desktop', projectId, sessionId: sessionId || null }).onConflictDoUpdate({ target: workspaces.id, set: { projectId, sessionId: sessionId || null } }).run(),

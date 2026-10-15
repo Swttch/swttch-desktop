@@ -23,7 +23,8 @@
     "react-dom": "19.3.0",
     "react-hot-toast": "2.6.0",
     "react-router": "8.4.0",
-    "tippy.js": "6.3.7"
+    "tippy.js": "6.3.7",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",

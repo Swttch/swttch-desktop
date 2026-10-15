@@ -95,7 +95,7 @@ async function setup(t, allowedOrigins = [], registerProject = true, sourceConfi
     const row = (await (await fetch(base + '/desktop-api/projects', { headers })).json()).projects.find(row => row.path === project);
     assert.equal((await fetch(base + '/desktop-api/projects/' + row.id + '/session-imports', { method: 'POST', headers, body: '{}' })).status, 201);
   }
-  return { base, project, client, backendRequests, port: server.address().port };
+  return { base, home, project, client, backendRequests, port: server.address().port };
 }
 
 test('common API validates directories, persists recents, and isolates browser projects', async t => {
@@ -648,4 +648,44 @@ test('the host advertises workspace recording so a new renderer can coexist with
   const { base, client } = await setup(t), headers = await client();
   const state = await (await fetch(base + '/desktop-api/workspace', { headers })).json();
   assert.equal(state.workspaceLayoutVersion, 1);
+});
+
+test('device settings are shared across web and desktop sessions and broadcast through authenticated events', async t => {
+  const { base, client } = await setup(t, [], false);
+  const first = await client(), second = await client();
+  const path = base + '/desktop-api/settings';
+  assert.equal((await fetch(path)).status, 401);
+  assert.equal((await fetch(path, { method: 'PATCH', headers: { cookie: first.cookie, 'Content-Type': 'application/json' }, body: '{}' })).status, 403);
+  const stream = await fetch(base + '/desktop-api/events', { headers: second });
+  const reader = stream.body.getReader();
+  t.after(() => reader.cancel());
+  await reader.read();
+  const saved = await fetch(path, { method: 'PATCH', headers: first, body: JSON.stringify({ patch: { clock: { seconds: true } } }) });
+  assert.equal(saved.status, 200);
+  const record = await saved.json();
+  const desktop = await fetch(base + '/desktop-api/sessions', { method: 'POST', headers: { 'x-swttch-client': 'desktop' } });
+  const desktopCookie = desktop.headers.get('set-cookie').split(';')[0];
+  assert.deepEqual(await (await fetch(path, { headers: { cookie: desktopCookie } })).json(), record);
+  const packet = new TextDecoder().decode((await reader.read()).value);
+  assert.equal(JSON.parse(packet.split('data: ')[1].split('\n')[0]).settings.values.clock.seconds, true);
+  assert.equal((await fetch(path, { method: 'PATCH', headers: second, body: JSON.stringify({ patch: { sidebar: { width: 9999 } } }) })).status, 400);
+  assert.deepEqual(await (await fetch(path, { headers: first })).json(), record);
+  await reader.cancel();
+});
+
+test('settings notifications detect writes from a second backend connection on the same device', async t => {
+  const { base, home, client } = await setup(t, [], false);
+  const headers = await client();
+  const stream = await fetch(base + '/desktop-api/events', { headers });
+  const reader = stream.body.getReader();
+  t.after(() => reader.cancel());
+  await reader.read();
+  const { openStore } = require('../src/store.cjs');
+  const second = openStore(home);
+  t.after(() => second.close());
+  second.settings.patch({ sidebar: { width: 333 } });
+  let timeout;
+  const packet = await Promise.race([reader.read(), new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('No cross-backend settings notification')), 1500); })]).finally(() => clearTimeout(timeout));
+  assert.equal(JSON.parse(new TextDecoder().decode(packet.value).split('data: ')[1].split('\n')[0]).settings.values.sidebar.width, 333);
+  await reader.cancel();
 });

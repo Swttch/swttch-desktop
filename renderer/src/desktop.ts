@@ -1,3 +1,4 @@
+import type { SettingsRecord } from '../../src/device-settings.mjs';
 export enum DesktopPhase {
   Starting = 'starting',
   Ready = 'ready',
@@ -26,6 +27,7 @@ export enum SessionActivity { Idle = 'idle', Running = 'running', Awaiting = 'aw
 export interface SessionPage { sessions: SessionListEntry[]; hasMore: boolean; total: number; nextOffset: number; scopeDirCount: number; serviceError?: { reason: string } }
 
 export interface DesktopState {
+  settings?: SettingsRecord;
   phase: DesktopPhase;
   message: string;
   project: string | null;

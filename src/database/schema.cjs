@@ -43,4 +43,5 @@ const workspaces = sqliteTable('workspaces', {
   projectId: integer('project_id').references(() => projects.id, { onDelete: 'set null' }),
   sessionId: text('session_id'),
 });
-module.exports = { workspaces, projects, projectRelations, sessions, sessionRelations };
+const deviceSettings = sqliteTable('device_settings', { id: text('id').primaryKey(), revision: integer('revision').notNull(), values: text('values_json', { mode: 'json' }).notNull() });
+module.exports = { deviceSettings, workspaces, projects, projectRelations, sessions, sessionRelations };
