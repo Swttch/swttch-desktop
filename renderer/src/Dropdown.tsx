@@ -18,7 +18,7 @@ export function Dropdown({ children, content, closeRef, onOpen, onClose, context
     setContainer(element);
     const instance = tippy(button, {
       content: element, trigger: contextMenu ? 'manual' : submenu ? 'mouseenter focus click' : 'click', interactive: true, hideOnClick: true,
-      appendTo: () => document.body, placement, arrow: false, interactiveBorder: submenu ? 16 : 2,
+      appendTo: reference => submenu ? reference.closest<HTMLElement>('[data-tippy-root]') || document.body : document.body, placement, arrow: false, interactiveBorder: submenu ? 16 : 2,
       theme: 'swttch-dropdown', role: contextMenu ? 'presentation' : 'dialog', maxWidth: 'none', duration: [120, 80],
       aria: { content: null, expanded: false },
       onShow: instance => { if (!submenu) hideUnrelatedPopovers(instance, button); button.setAttribute('aria-expanded', 'true'); opened.current?.(); },

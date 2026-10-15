@@ -29,7 +29,7 @@ async function loadApp() {
     './query-client': { queryClient: { invalidateQueries() {} }, QUERY_KEY: {} },
     './projects/projectSort': { readProjectSort: () => 'manual', sortProjects: rows => rows, SortOrder: {} },
     './SettingsPage': { SettingsPage: noop, SettingsSidebar: () => React.createElement('h1', null, '설정'), AppAccountMenu: noop },
-    './Tooltip': { Tooltip: children },
+    './Tooltip': { Tooltip: children, dismissTooltips() {} },
     './routes': { PATH },
     './settings/store': settingsModule,
     './settings/actions': actionsModule,

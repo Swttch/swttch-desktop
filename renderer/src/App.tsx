@@ -6,7 +6,7 @@ import { SidebarSessions } from './SidebarSessions';
 import { SidebarSection } from './SidebarSection';
 import { SidebarSectionName } from './SidebarState';
 import { SidebarResize, useSidebarWidth } from './SidebarResize';
-import { useEffect, useRef, useState, type Ref, type ButtonHTMLAttributes } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type Ref, type ButtonHTMLAttributes } from 'react';
 import { DesktopPhase, type DesktopState, type Project } from './desktop';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { queryClient, QUERY_KEY } from './query-client';
@@ -14,7 +14,7 @@ import { desktopApi } from './api';
 import { ProjectOrderList } from './projects/ProjectOrderList';
 import { moveProjects, type ProjectMove } from './projects/projectOrder';
 import toast, { Toaster } from 'react-hot-toast';
-import { Tooltip } from './Tooltip';
+import { Tooltip, dismissTooltips } from './Tooltip';
 import { useLocation, useMatch, useNavigate } from 'react-router';
 import { AddProjectModal } from './AddProjectModal';
 import { ProjectDetailPage } from './ProjectDetailPage';
@@ -29,7 +29,6 @@ import { DesktopHelp } from './DesktopHelp';
 import { SettingsIcon } from './SettingsIcon';
 import { settingsCopy } from '../../src/locales/settings.ko.mjs';
 import { SettingsPage, SettingsSidebar, AppAccountMenu } from './SettingsPage';
-import { resolveSettingsPath } from '../../src/settings-navigation.mjs';
 import { WorkspaceSurface, type WorkspaceSurfaceHandle } from './WorkspaceSurface';
 import type { WorkspaceView } from '../../src/workspace-layout.mjs';
 
@@ -81,10 +80,9 @@ export function App() {
   const projectNavigation = !isWorkPage(location.pathname);
   const returnPath = useRef(PATH.HOME as string);
   useEffect(() => { if (!settingsPage) returnPath.current = location.pathname; }, [settingsPage, location.pathname]);
-  function openSettings(path?: string) {
-    let target = PATH.SETTINGS_GENERAL as string;
-    try { target = resolveSettingsPath(localStorage.getItem('swttch-last-settings-page') || target); } catch { /* Use general settings. */ }
-    router.push(path || target);
+  useLayoutEffect(() => { dismissTooltips(); }, [location.pathname]);
+  function openSettings(path: string = PATH.SETTINGS_GENERAL) {
+    router.push(path);
   }
   const returnFromSettings = () => router.push(returnPath.current);
   const busy = actionMutation.isPending;
@@ -256,7 +254,7 @@ export function App() {
         <IconButton label="예약" icon={IconName.History} className="rail-button" onClick={() => toast('예약 기능은 준비 중입니다.')} />
         <span className="mt-1 w-6 border-t border-divider" />
         <IconButton label="프로젝트" icon={IconName.Folder} className={`rail-button ${!settingsPage && projectNavigation ? 'rail-active' : ''}`} aria-current={!settingsPage && projectNavigation ? 'page' : undefined} onClick={() => { router.push(PATH.PROJECTS); setSelecting(false);  }} />
-        <div className="mt-auto"><AppAccountMenu onSettings={openSettings} onHelp={() => setHelpOpen(true)} /></div>
+        <div className="mt-auto"><AppAccountMenu onSettings={openSettings} onShortcuts={() => setHelpOpen(true)} /></div>
       </nav>
       <aside id="sidebar" className="relative min-h-0 overflow-hidden bg-navigation" aria-label={settingsPage ? "설정 탐색" : "프로젝트·세션 목록"} aria-hidden={sidebarHidden} inert={sidebarHidden}>
         <FloatingSidebar current={settingsPage ? SidebarKind.Settings : SidebarKind.Home} hidden={sidebarHidden} routeKey={location.pathname} width={sidebarWidth.width} homeTrigger={homeTrigger} toggleTrigger={toggleTrigger} closeRef={closeFloatingSidebar} settingsContent={<div className="sidebar-content"><SettingsSidebar /></div>} homeContent={<div className="sidebar-content">
