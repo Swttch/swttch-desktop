@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import tippy, { hideAll, type Placement } from 'tippy.js';
+import { hideUnrelatedPopovers } from './tippy-interactions';
+import tippy, { type Placement } from 'tippy.js';
 
 export function Dropdown({ children, content, closeRef, onOpen, onClose, contextMenu = false, submenu = false, placement = 'top-start' }: { children: ReactNode; content: ReactNode; closeRef?: RefObject<(() => void) | null>; onOpen?: () => void; onClose?: () => void; contextMenu?: boolean; submenu?: boolean; placement?: Placement }) {
   const anchor = useRef<HTMLSpanElement>(null);
@@ -20,7 +21,7 @@ export function Dropdown({ children, content, closeRef, onOpen, onClose, context
       appendTo: () => document.body, placement, arrow: false, interactiveBorder: submenu ? 16 : 2,
       theme: 'swttch-dropdown', role: contextMenu ? 'presentation' : 'dialog', maxWidth: 'none', duration: [120, 80],
       aria: { content: null, expanded: false },
-      onShow: instance => { if (!submenu) hideAll({ exclude: instance }); button.setAttribute('aria-expanded', 'true'); opened.current?.(); },
+      onShow: instance => { if (!submenu) hideUnrelatedPopovers(instance, button); button.setAttribute('aria-expanded', 'true'); opened.current?.(); },
       onHide: () => { button.setAttribute('aria-expanded', 'false'); closed.current?.(); },
       onShown: () => { if (contextMenu) element.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus(); },
     });

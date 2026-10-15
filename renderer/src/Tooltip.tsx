@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import tippy, { type Instance, type Props } from 'tippy.js';
 
-export function Tooltip({ content, children, placement = 'bottom-start', delay = 300 }: { content: ReactNode; children: ReactNode; placement?: Props['placement']; delay?: number }) {
+export function Tooltip({ content, children, placement = 'bottom-start', delay = 300, disabled = false }: { content: ReactNode; children: ReactNode; placement?: Props['placement']; delay?: number; disabled?: boolean }) {
   const anchor = useRef<HTMLSpanElement>(null);
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -20,7 +20,8 @@ export function Tooltip({ content, children, placement = 'bottom-start', delay =
         }
       },
     });
+    if (disabled) instance.disable();
     return () => instance.destroy();
-  }, [placement, delay]);
+  }, [placement, delay, disabled]);
   return <><span ref={anchor} className="tooltip-anchor">{children}</span>{container && createPortal(content, container)}</>;
 }

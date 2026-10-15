@@ -1,3 +1,4 @@
+import { FloatingSidebar, SidebarKind } from './FloatingSidebar';
 import { SettingsActionsContext } from './settings/actions';
 import { settingsStore, useSettingsStore, updateSettings } from './settings/store';
 import { WorkPage, isWorkPage } from './WorkPage';
@@ -5,7 +6,7 @@ import { SidebarSessions } from './SidebarSessions';
 import { SidebarSection } from './SidebarSection';
 import { SidebarSectionName } from './SidebarState';
 import { SidebarResize, useSidebarWidth } from './SidebarResize';
-import { useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react';
+import { useEffect, useRef, useState, type Ref, type ButtonHTMLAttributes } from 'react';
 import { DesktopPhase, type DesktopState, type Project } from './desktop';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { queryClient, QUERY_KEY } from './query-client';
@@ -48,8 +49,8 @@ function Icon({ name, solid = false, className = '' }: { name: IconName; solid?:
     {name === IconName.Compose && <><path d="M12 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-7" /><path d="m10 14 1-4L19 2l3 3-8 8z" /></>}
   </svg>;
 }
-function IconButton({ label, icon, shortcut, className = '', solid = false, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; icon: IconName; shortcut?: string; solid?: boolean }) {
-  return <Tooltip placement={className.includes('rail-button') ? 'right' : 'bottom-start'} delay={className.includes('rail-button') ? 0 : 300} content={<span className="flex items-center gap-3">{label}{shortcut && <kbd className="rounded-md bg-selected px-2 py-0.5 font-sans text-xs">{shortcut}</kbd>}</span>}>
+function IconButton({ label, icon, shortcut, className = '', solid = false, tooltipDisabled = false, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; icon: IconName; shortcut?: string; solid?: boolean; tooltipDisabled?: boolean; ref?: Ref<HTMLButtonElement> }) {
+  return <Tooltip disabled={tooltipDisabled} placement={className.includes('rail-button') ? 'right' : 'bottom-start'} delay={className.includes('rail-button') ? 0 : 300} content={<span className="flex items-center gap-3">{label}{shortcut && <kbd className="rounded-md bg-selected px-2 py-0.5 font-sans text-xs">{shortcut}</kbd>}</span>}>
     <button type="button" className={`icon-button ${className}`} aria-label={label} {...props}><Icon name={icon} solid={solid} /></button>
   </Tooltip>;
 }
@@ -100,6 +101,9 @@ export function App() {
   const sessionId = activeView?.sessionId || '';
   const [helpOpen, setHelpOpen] = useState(false);
 
+  const homeTrigger = useRef<HTMLButtonElement>(null);
+  const toggleTrigger = useRef<HTMLButtonElement>(null);
+  const closeFloatingSidebar = useRef<(() => void) | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const surface = useRef<WorkspaceSurfaceHandle>(null);
   const inFlight = useRef(false);
@@ -187,6 +191,7 @@ export function App() {
     } });
   }, [sessionId, activeView?.id, state.sessionsRevision, ready]);
   function openView(path: string, id?: string, panelId?: string) {
+    closeFloatingSidebar.current?.();
     const project = (projectsQuery.data?.projects || state.projects).find(row => row.path === path);
     if (!project) { toast.error('등록된 프로젝트를 찾을 수 없습니다.'); return; }
     void perform(() => id ? desktopApi.openSession(id, project.id) : desktopApi.openNewSession(project.id), panelId);
@@ -206,12 +211,14 @@ export function App() {
     finally { inFlight.current = false;  }
   }
   function chooseProject(projectId: number) {
+    closeFloatingSidebar.current?.();
     const project = (projectsQuery.data?.projects || state.projects).find(row => row.id === projectId);
     if (!project?.sessionsExpanded) expandMutation.mutate({ id: projectId, expanded: true });
     router.push(replacePathParams(PATH.PROJECT, { projectId }));
   }
-  function openProject() { setError(''); setSelectingForChat(false); setSelecting(true); }
+  function openProject() { closeFloatingSidebar.current?.(); setError(''); setSelectingForChat(false); setSelecting(true); }
   function newChat() {
+    closeFloatingSidebar.current?.();
     const path = detailProject?.path || activeProjectPath;
     if (path) openView(path);
     else { setSelectingForChat(true); setSelecting(true); }
@@ -234,7 +241,7 @@ export function App() {
     <Toaster position="bottom-right" toastOptions={{ duration: 4000, className: 'swttch-toast', style: { background: 'var(--color-navigation)', color: 'var(--color-foreground)', border: '1px solid var(--color-divider)', borderRadius: '12px', fontSize: '13px' } }} />
     <div className={`titlebar relative grid h-(--header-height) ${sidebarHidden ? 'sidebar-collapsed' : ''}`}>
       <header aria-label="상단바" className="titlebar-left col-span-2 flex min-w-0 items-center border-r border-divider pl-[calc(env(titlebar-area-x,0px)+0.75rem)]">
-        <IconButton label="사이드바 표시/숨기기" icon={sidebarHidden ? IconName.SidebarCollapsed : IconName.Sidebar} shortcut="⇧⌘S" aria-expanded={!sidebarHidden} aria-controls="sidebar" aria-keyshortcuts="Meta+Shift+S Control+Shift+S" onClick={() => { if (projectsPage) { router.push(PATH.HOME); setCollapsed(false); } else setCollapsed(value => !value); }} />
+        <IconButton ref={toggleTrigger} tooltipDisabled={sidebarHidden} label="사이드바 표시/숨기기" icon={sidebarHidden ? IconName.SidebarCollapsed : IconName.Sidebar} shortcut="⇧⌘S" aria-expanded={!sidebarHidden} aria-controls="sidebar" aria-keyshortcuts="Meta+Shift+S Control+Shift+S" onClick={() => { if (projectsPage) { router.push(PATH.HOME); setCollapsed(false); } else setCollapsed(value => !value); }} />
         <div className="header-context flex min-w-0 flex-1 items-center pr-2" aria-label="상단바 중간 영역" aria-hidden={sidebarHidden} inert={sidebarHidden}>
           {settingsPage ? <div className="flex items-center gap-1"><Tooltip content={settingsCopy.back}><button type="button" aria-label={settingsCopy.back} className="icon-button" onClick={() => historyIndex > 0 ? void navigate(-1) : returnFromSettings()}><SettingsIcon kind="back" /></button></Tooltip><Tooltip content={settingsCopy.forward}><button type="button" aria-label={settingsCopy.forward} className="icon-button" disabled={historyIndex >= lastHistoryIndex.current} onClick={() => void navigate(1)}><SettingsIcon kind="forward" /></button></Tooltip></div> : <ProjectSwitcher projects={switcherProjects} selected={selectedHeaderProject} disabled={disabled} onSelect={chooseProject} />}
         </div>
@@ -244,7 +251,7 @@ export function App() {
     </div>
     <div className={`shell-body grid h-[calc(100dvh-var(--header-height)-2rem)] min-h-0 ${sidebarHidden ? 'sidebar-collapsed' : ''}`}>
       <nav className="activity-rail flex flex-col items-center gap-3 py-3" aria-label="앱 메뉴">
-        <IconButton label="홈" icon={IconName.Home} solid={!projectNavigation} className={`rail-button ${!projectNavigation ? 'rail-active' : ''}`} aria-current={!projectNavigation ? 'page' : undefined} onClick={() => { router.push(PATH.HOME); setSelecting(false); }} />
+        <IconButton ref={homeTrigger} tooltipDisabled={sidebarHidden} label="홈" icon={IconName.Home} solid={!projectNavigation} className={`rail-button ${!projectNavigation ? 'rail-active' : ''}`} aria-current={!projectNavigation ? 'page' : undefined} onClick={() => { router.push(PATH.HOME); setSelecting(false); }} />
         <IconButton label="새 채팅" icon={IconName.Compose} className="rail-button" onClick={newChat} disabled={disabled} />
         <IconButton label="예약" icon={IconName.History} className="rail-button" onClick={() => toast('예약 기능은 준비 중입니다.')} />
         <span className="mt-1 w-6 border-t border-divider" />
@@ -252,8 +259,7 @@ export function App() {
         <div className="mt-auto"><AppAccountMenu onSettings={openSettings} onHelp={() => setHelpOpen(true)} /></div>
       </nav>
       <aside id="sidebar" className="relative min-h-0 overflow-hidden bg-navigation" aria-label={settingsPage ? "설정 탐색" : "프로젝트·세션 목록"} aria-hidden={sidebarHidden} inert={sidebarHidden}>
-        {settingsPage && <div className="sidebar-content"><SettingsSidebar /></div>}
-        <div className="sidebar-content" style={{ display: settingsPage ? "none" : undefined }} inert={settingsPage}>
+        <FloatingSidebar current={settingsPage ? SidebarKind.Settings : SidebarKind.Home} hidden={sidebarHidden} routeKey={location.pathname} width={sidebarWidth.width} homeTrigger={homeTrigger} toggleTrigger={toggleTrigger} closeRef={closeFloatingSidebar} settingsContent={<div className="sidebar-content"><SettingsSidebar /></div>} homeContent={<div className="sidebar-content">
         <div className="flex items-center justify-between px-5 pt-5 pb-3"><h1 className="text-xl font-semibold tracking-tight">Swttch</h1><IconButton label="목록 검색" icon={IconName.Search} aria-expanded={searching} onClick={() => { setSearching(value => !value); setQuery(''); }} /></div>
         <div className="px-3"><button className="navigation-row" onClick={newChat} disabled={disabled}><Icon name={IconName.Compose} /><span>새 채팅</span></button></div>
         {searching && <div className="px-4 py-2"><input ref={searchInput} className="field" aria-label="프로젝트·세션 검색" value={query} onChange={event => setQuery(event.target.value)} placeholder="프로젝트·세션 검색" /></div>}
@@ -266,7 +272,8 @@ export function App() {
           {search && visibleProjects.length === 0 && <p className="list-note">검색 결과 없음</p>}
           </SidebarSection>
         </div>
-        </div>
+        </div>} />
+
         <SidebarResize width={sidebarWidth.width} onResize={sidebarWidth.save} />
       </aside>
       <section className="workspace relative min-h-0 min-w-0 bg-canvas" aria-label={projectNavigation ? '페이지 영역' : '작업 영역'}>

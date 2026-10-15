@@ -54,7 +54,7 @@ async function loadApp() {
     const original = loaded.require.bind(loaded);
     loaded.require = id => {
       if (mocks[id]) return mocks[id];
-      if (['./router', './WorkPage', './SidebarResize'].includes(id)) return load(id.slice(2));
+      if (['./router', './WorkPage', './SidebarResize', './FloatingSidebar'].includes(id)) return load(id.slice(2));
       if (id.startsWith('.')) return new Proxy({}, { get: (_, key) => key === 'SidebarSectionName' ? {} : noop });
       return original(id);
     };
@@ -65,10 +65,10 @@ async function loadApp() {
 }
 
 test('settings shares the shell collapse shortcut, resize control and saved width with home', async t => {
-  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/settings/account' });
-  const names = ['window', 'document', 'navigator', 'HTMLElement', 'localStorage'];
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/settings/account', pretendToBeVisual: true });
+  const names = ['window', 'document', 'navigator', 'Element', 'HTMLElement', 'HTMLIFrameElement', 'Node', 'ShadowRoot', 'getComputedStyle', 'requestAnimationFrame', 'cancelAnimationFrame', 'localStorage'];
   const saved = new Map(names.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
-  for (const name of names) Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
+  for (const name of names) Object.defineProperty(globalThis, name, { configurable: true, value: ['getComputedStyle', 'requestAnimationFrame', 'cancelAnimationFrame'].includes(name) ? dom.window[name].bind(dom.window) : dom.window[name] });
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   const { createRoot } = require('react-dom/client');
   const { MemoryRouter } = require('react-router');

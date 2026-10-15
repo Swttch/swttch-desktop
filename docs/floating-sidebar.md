@@ -1,0 +1,19 @@
+# Floating sidebars
+
+The Home activity-rail icon previews the Home project/session sidebar only when the current page has no visible pinned sidebar. The Projects icon does not open the Home sidebar. On the Projects overview, which has no pinned sidebar, the Home icon can still open that preview. When the current page sidebar is expanded, all hover sidebar previews are disabled, including previews for another page. The title-bar sidebar toggle previews the current page's sidebar when it is hidden, including settings. Existing account navigation remains click-driven.
+
+The preview uses the saved expanded sidebar width. It overlays the workspace without changing the layout or persisting an expanded state. Moving from an icon into its panel keeps the panel open; leaving both closes it. Escape, an outside click, page navigation, another root popover, or a pinned-layout change dismisses it. Arrow Down or Arrow Right on an eligible focused icon opens the panel and focuses its first control.
+
+FloatingSidebar maintains one mounted content tree per sidebar. React portals render into stable containers that move between the pinned sidebar slot and Tippy's interactive panel. Search text, section state and component identity survive opening, dismissal and repinning. Floating content is attached outside the collapsed sidebar's inert subtree. The existing project/session controls and SettingsSidebar are reused rather than replaced by preview-specific copies.
+
+Shared Tippy interaction helpers preserve ancestors when a sidebar's child menu opens and dismiss descendants before an unrelated popover. Pointer departure does not hide a floating parent while its child menu is active. Clicks inside those child menus count as interaction with the parent surface.
+
+Regression coverage verifies hover eligibility, saved width, DOM identity and search preservation, interactive controls, nested menus, Escape dismissal, blocking all hover previews while settings is expanded and keeping the Projects icon separate from Home, and previews without changing the pinned layout. The existing shell integration test retains collapse, keyboard resizing and route-change coverage.
+
+Verification on 2026-10-15 after the eligibility correction: browser pointer input confirmed that expanded settings blocks previews from Home, Projects and the title-bar toggle. With settings collapsed, Projects did not open a Home preview; Home opened the Home sidebar at the saved 307.0546875px width, and the title-bar toggle opened settings. Expanding settings dismissed its preview. The original expanded state was restored. Both reported bugs were reproduced by failing behavior tests before the corresponding fixes. Native pointer-hover behavior was not independently established through the automation tool.
+
+The corrected implementation passed all 111 tests, TypeScript checking, the production build and whitespace checks. The existing bundle-size warning remains.
+
+Hover panels use Tippy's `interactive: true` boundary handling with a 12px border to bridge the 8px rail-to-panel gap. `interactiveDebounce` and the hide delay are zero; only the 120ms entrance intent delay remains. The panel fades and moves 6px into place over 160ms, then exits over 120ms immediately after leaving the interactive boundary. Reduced-motion users receive no transition. Content returns to its pinned slot in `onHidden`, preserving the complete panel during exit; Tippy's content identity is reset so subsequent openings reattach the same portal correctly.
+
+Motion verification: a test-first regression checks dismissal within animation frames rather than a debounce delay, content retention until transition completion, reopening and nested menu interaction. Browser pointer verification observed intermediate entrance and exit opacity/transform states, interactive panel entry, complete dismissal and reopening at the saved width. All 111 tests and the production build passed.
