@@ -25,7 +25,7 @@ export function AppAccountMenu({ onSettings, onShortcuts }: { onSettings: (path?
     <button type="button" className="account-menu-row" onClick={() => action(() => onSettings(PATH.SETTINGS_PLAN))}><SettingsIcon kind="gauge" /><span>{copy.planManagement}</span></button>
     <button type="button" disabled className="account-menu-row"><SettingsIcon kind="pet" /><span>{copy.showPet}</span></button>
     <button type="button" disabled className="account-menu-row"><SettingsIcon kind="invite" /><span>{copy.inviteFriends}</span></button>
-    <button type="button" className="account-menu-row" onClick={() => action(() => onSettings(PATH.SETTINGS_GENERAL))}><SettingsIcon /><span>{copy.settings}</span><kbd className="ml-auto text-xs text-muted">{shortcutLabel('settings', macShortcuts, browserShortcuts)}</kbd></button>
+    <button type="button" className="account-menu-row" onClick={() => action(() => onSettings(PATH.SETTINGS_GENERAL))}><SettingsIcon /><span>{copy.settings}</span><kbd className="shortcut-keys ml-auto">{shortcutLabel('settings', macShortcuts, browserShortcuts)}</kbd></button>
     <div className="account-menu-divider" />
     <div className="account-submenu"><Dropdown closeRef={closeHelp} submenu placement="right-end" content={help}><button type="button" className="account-menu-row"><SettingsIcon kind="plugin" /><span>{copy.help}</span><SettingsIcon kind="chevron" className="ml-auto text-muted" /></button></Dropdown></div>
     <button type="button" disabled className="account-menu-row"><SettingsIcon kind="logout" /><span>{copy.logout}</span></button>

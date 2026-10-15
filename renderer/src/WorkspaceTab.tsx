@@ -60,7 +60,7 @@ export function WorkspaceTab({ tabId = 'current-chat', projectId, sessionId, ter
   }, onSuccess: data => { queryClient.setQueryData(sessionKey, data); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessionLists }); }, onError: error => toast.error(error.message) });
   useEffect(() => { if (renameRequested) { closeMenu.current?.(); openRename(); onRequestHandled('rename'); } }, [renameRequested]);
   useEffect(() => { if (favoriteRequested) { closeMenu.current?.(); favorite.mutate(); onRequestHandled('favorite'); } }, [favoriteRequested]);
-  const keyHint = (command: DesktopCommand) => <kbd aria-hidden="true" className="ml-auto shrink-0 text-[11px] text-muted">{shortcutLabel(command, macShortcuts, browserShortcuts)}</kbd>;
+  const keyHint = (command: DesktopCommand) => <kbd aria-hidden="true" className="shortcut-keys ml-auto shrink-0">{shortcutLabel(command, macShortcuts, browserShortcuts)}</kbd>;
 
   const activate = (action: () => void) => { closeMenu.current?.(); action(); };
   const menu = <section role="menu" aria-label="탭 메뉴" className="w-64 rounded-lg border border-divider bg-navigation p-1 text-sm text-foreground" onKeyDown={event => {

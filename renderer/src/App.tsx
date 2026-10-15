@@ -49,7 +49,7 @@ function Icon({ name, solid = false, className = '' }: { name: IconName; solid?:
   </svg>;
 }
 function IconButton({ label, icon, shortcut, className = '', solid = false, tooltipDisabled = false, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; icon: IconName; shortcut?: string; solid?: boolean; tooltipDisabled?: boolean; ref?: Ref<HTMLButtonElement> }) {
-  return <Tooltip disabled={tooltipDisabled} placement={className.includes('rail-button') ? 'right' : 'bottom-start'} delay={className.includes('rail-button') ? 0 : 300} content={<span className="flex items-center gap-3">{label}{shortcut && <kbd className="rounded-md bg-selected px-2 py-0.5 font-sans text-xs">{shortcut}</kbd>}</span>}>
+  return <Tooltip disabled={tooltipDisabled} placement={className.includes('rail-button') ? 'right' : 'bottom-start'} delay={className.includes('rail-button') ? 0 : 300} content={<span className="flex items-center gap-3">{label}{shortcut && <kbd className="shortcut-keys rounded-md bg-selected px-2 py-0.5">{shortcut}</kbd>}</span>}>
     <button type="button" className={`icon-button ${className}`} aria-label={label} {...props}><Icon name={icon} solid={solid} /></button>
   </Tooltip>;
 }

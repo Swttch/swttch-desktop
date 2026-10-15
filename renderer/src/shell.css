@@ -125,7 +125,7 @@
   .settings-switch.is-on { @apply bg-[#3485fa]; }
   .settings-switch.is-on > span { @apply translate-x-3; }
   .settings-switch:disabled { @apply opacity-60; }
-  .settings-shortcut { @apply whitespace-nowrap text-xs text-muted; }
+  .shortcut-keys, .settings-shortcut { @apply whitespace-nowrap font-sans text-[14px] font-medium leading-5 tracking-[0.06em] text-muted; }
   .account-rail-button { @apply flex size-11 items-center justify-center rounded-xl hover:bg-[#373633]; }
   .account-rail-button[aria-expanded='true'] { @apply bg-[#373633]; }
   .account-avatar { @apply flex size-7 shrink-0 items-center justify-center rounded-full bg-[#22ae68] text-xs font-medium text-white; }
