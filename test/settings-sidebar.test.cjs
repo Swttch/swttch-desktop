@@ -53,6 +53,7 @@ async function loadApp() {
     loaded.filename = file; loaded.paths = Module._nodeModulePaths(dirname(file)); cache.set(file, loaded);
     const original = loaded.require.bind(loaded);
     loaded.require = id => {
+      if (id.endsWith('/i18n')) return require('./i18n-fixture.cjs');
       if (mocks[id]) return mocks[id];
       if (['./router', './WorkPage', './SidebarResize', './FloatingSidebar'].includes(id)) return load(id.slice(2));
       if (id.startsWith('.')) return new Proxy({}, { get: (_, key) => key === 'SidebarSectionName' ? {} : noop });

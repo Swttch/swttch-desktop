@@ -1,4 +1,4 @@
-import { settingsCopy as copy } from '../../../../../src/locales/settings.ko.mjs';
+import { useSettingsCopy } from '../../../i18n';
 import { SettingsRow } from '../../../SettingsControls';
 
-export function ProductSettingItem() { return <SettingsRow title="Swttch" description={copy.productDescription} />; }
+export function ProductSettingItem() { const copy = useSettingsCopy(); return <SettingsRow title="Swttch" description={copy.productDescription} />; }

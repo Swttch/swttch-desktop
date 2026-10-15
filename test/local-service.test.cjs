@@ -21,6 +21,7 @@ async function setup(t, allowedOrigins = [], registerProject = true, sourceConfi
     else { res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.end('chat-app'); }
   });
   const backendRequests = [];
+  const settingsFailures = new Set();
   const nestedSettings = new Map();
   let activeAccount = 'acc-11111111-1111-4111-8111-111111111111';
   const accountRows = [{ id: 'acc-11111111-1111-4111-8111-111111111111', emailAddress: 'one@example.test', displayName: 'One', futureField: { preserved: true } }, { id: 'acc-22222222-2222-4222-8222-222222222222', emailAddress: 'two@example.test', displayName: 'Two' }];
@@ -52,6 +53,7 @@ async function setup(t, allowedOrigins = [], registerProject = true, sourceConfi
       else if (message.type === 'SWITCH_ACCOUNT') { if (accountRows.some(row => row.id === message.payload.id)) activeAccount = message.payload.id; else result = { status: 'error', error: 'Not found' }; }
       else if (message.type === 'DELETE_PROJECT') assert.equal(message.payload.path, project);
       else if (message.type === 'GET_SETTINGS') result.settings = { includeNestedSessions: nestedSettings.get(message.payload.workingDir) ?? true };
+      else if (message.type === 'SAVE_SETTINGS' && settingsFailures.has(message.payload.key)) result = { status: 'error', error: 'Fixture settings failure' };
       else if (message.type === 'SAVE_SETTINGS') nestedSettings.set(message.payload.workingDir, message.payload.value);
       else if (message.type === 'GET_SESSIONS') {
         const offset = message.payload.offset || 0;
@@ -95,7 +97,7 @@ async function setup(t, allowedOrigins = [], registerProject = true, sourceConfi
     const row = (await (await fetch(base + '/desktop-api/projects', { headers })).json()).projects.find(row => row.path === project);
     assert.equal((await fetch(base + '/desktop-api/projects/' + row.id + '/session-imports', { method: 'POST', headers, body: '{}' })).status, 201);
   }
-  return { base, home, project, client, backendRequests, port: server.address().port };
+  return { base, home, project, client, backendRequests, settingsFailures, port: server.address().port };
 }
 
 test('common API validates directories, persists recents, and isolates browser projects', async t => {
@@ -688,4 +690,46 @@ test('settings notifications detect writes from a second backend connection on t
   const packet = await Promise.race([reader.read(), new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('No cross-backend settings notification')), 1500); })]).finally(() => clearTimeout(timeout));
   assert.equal(JSON.parse(new TextDecoder().decode(packet.value).split('data: ')[1].split('\n')[0]).settings.values.sidebar.width, 333);
   await reader.cancel();
+});
+
+
+test('desktop interface changes use existing plugin global APIs, resolve auto direction and skip migration and unrelated settings', async t => {
+  const { base, client, backendRequests } = await setup(t, [], false);
+  const headers = await client();
+  const path = base + '/desktop-api/settings';
+  const patch = async (value, initialize = false) => {
+    const response = await fetch(path, { method: 'PATCH', headers, body: JSON.stringify({ patch: value, initialize }) });
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+  await patch({ general: { language: 'korean', direction: 'auto' } }, true);
+  await patch({ clock: { seconds: true } });
+  assert.equal(backendRequests.filter(message => message.type === 'SAVE_SETTINGS').length, 0);
+  const saved = await patch({ general: { language: 'arabic' } });
+  assert.equal(saved.values.general.language, 'arabic');
+  assert.deepEqual(backendRequests.filter(message => message.type === 'SAVE_SETTINGS').map(message => message.payload), [
+    { key: 'uiLanguage', value: 'arabic', scope: 'global' },
+    { key: 'uiDirection', value: 'rtl', scope: 'global' },
+  ]);
+  assert.equal(saved.propagation.status, 'synced');
+  backendRequests.length = 0;
+  await patch({ general: { direction: 'ltr' } });
+  assert.deepEqual(backendRequests.filter(message => message.type === 'SAVE_SETTINGS').map(message => message.payload), [{ key: 'uiDirection', value: 'ltr', scope: 'global' }]);
+});
+
+test('plugin propagation failure retains desktop settings and an explicit retry sends the saved value again', async t => {
+  const { base, client, backendRequests, settingsFailures } = await setup(t, [], false);
+  const headers = await client();
+  const path = base + '/desktop-api/settings';
+  settingsFailures.add('uiLanguage');
+  const write = () => fetch(path, { method: 'PATCH', headers, body: JSON.stringify({ patch: { general: { language: 'french' } } }) });
+  const saved = await (await write()).json();
+  assert.equal(saved.values.general.language, 'french');
+  assert.equal(saved.propagation.status, 'failed');
+  assert.equal(saved.propagation.errors[0].key, 'uiLanguage');
+  assert.equal((await (await fetch(path, { headers })).json()).values.general.language, 'french');
+  settingsFailures.clear();
+  const retried = await (await write()).json();
+  assert.equal(retried.propagation.status, 'synced');
+  assert.equal(backendRequests.filter(message => message.type === 'SAVE_SETTINGS' && message.payload.key === 'uiLanguage').length, 2);
 });

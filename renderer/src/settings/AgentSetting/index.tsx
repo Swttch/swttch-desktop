@@ -1,11 +1,11 @@
-import { settingsCopy as copy } from '../../../../src/locales/settings.ko.mjs';
+import { useSettingsCopy } from '../../i18n';
 import { useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { desktopApi } from '../../api';
 import { bindScopedShortcuts } from '../../../../src/desktop-shortcuts.mjs';
 import { macShortcuts, browserShortcuts } from '../../shortcut-platform';
 import { useSettingsActions } from '../actions';
-export function AgentSetting() {
+export function AgentSetting() { const copy = useSettingsCopy();
   const { onReturn, onHelp, onSidebar } = useSettingsActions();
   const view = useMutation({ mutationFn: desktopApi.settingsView });
   const cleanup = useRef<() => void>(() => {});

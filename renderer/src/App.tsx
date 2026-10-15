@@ -1,3 +1,4 @@
+import { t, useShellTranslation } from './i18n';
 import { FloatingSidebar, SidebarKind } from './FloatingSidebar';
 import { SettingsActionsContext } from './settings/actions';
 import { settingsStore, useSettingsStore, updateSettings } from './settings/store';
@@ -27,13 +28,14 @@ import { StatusBar } from './StatusBar';
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { DesktopHelp } from './DesktopHelp';
 import { SettingsIcon } from './SettingsIcon';
-import { settingsCopy } from '../../src/locales/settings.ko.mjs';
+import { i18n, useSettingsCopy } from './i18n';
+import { interfaceDirection, interfaceLocale } from '../../src/interface-languages.mjs';
 import { SettingsPage, SettingsSidebar, AppAccountMenu } from './SettingsPage';
 import { WorkspaceSurface, type WorkspaceSurfaceHandle } from './WorkspaceSurface';
 import type { WorkspaceView } from '../../src/workspace-layout.mjs';
 
 enum IconName { Folder, Chat, Sidebar, SidebarCollapsed, Plus, Home, History, Search, Refresh, Compose }
-function Icon({ name, solid = false, className = '' }: { name: IconName; solid?: boolean; className?: string }) {
+function Icon({ name, solid = false, className = '' }: { name: IconName; solid?: boolean; className?: string }) { useShellTranslation();
   return <svg className={`size-5 shrink-0 fill-none stroke-current ${className}`} viewBox="0 0 24 24" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {name === IconName.Folder && <path d="M3 7V5h6l2 2h10v13H3z" />}
     {name === IconName.Chat && <path d="M4 5h16v12H9l-5 3z" />}
@@ -48,18 +50,25 @@ function Icon({ name, solid = false, className = '' }: { name: IconName; solid?:
     {name === IconName.Compose && <><path d="M12 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-7" /><path d="m10 14 1-4L19 2l3 3-8 8z" /></>}
   </svg>;
 }
-function IconButton({ label, icon, shortcut, className = '', solid = false, tooltipDisabled = false, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; icon: IconName; shortcut?: string; solid?: boolean; tooltipDisabled?: boolean; ref?: Ref<HTMLButtonElement> }) {
+function IconButton({ label, icon, shortcut, className = '', solid = false, tooltipDisabled = false, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; icon: IconName; shortcut?: string; solid?: boolean; tooltipDisabled?: boolean; ref?: Ref<HTMLButtonElement> }) { useShellTranslation();
   return <Tooltip disabled={tooltipDisabled} placement={className.includes('rail-button') ? 'right' : 'bottom-start'} delay={className.includes('rail-button') ? 0 : 300} content={<span className="flex items-center gap-3">{label}{shortcut && <kbd className="shortcut-keys rounded-md bg-selected px-2 py-0.5">{shortcut}</kbd>}</span>}>
     <button type="button" className={`icon-button ${className}`} aria-label={label} {...props}><Icon name={icon} solid={solid} /></button>
   </Tooltip>;
 }
 const sidebarShortcut = (event: KeyboardEvent) => event.shiftKey && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's';
 
-export function App() {
+export function App() { useShellTranslation();
+  const settingsCopy = useSettingsCopy();
+  const general = useSettingsStore(state => state.values.general);
+  useLayoutEffect(() => {
+    void i18n.changeLanguage(interfaceLocale(general.language));
+    document.documentElement.lang = interfaceLocale(general.language);
+    document.documentElement.dir = interfaceDirection(general.language, general.direction);
+  }, [general.language, general.direction]);
   useEffect(() => { void settingsStore.getState().load(); }, []);
   const workspaceQuery = useQuery({ queryKey: QUERY_KEY.workspace, queryFn: ({ signal }) => desktopApi.state(signal) });
   const projectsQuery = useQuery({ queryKey: QUERY_KEY.projects, queryFn: ({ signal }) => desktopApi.projects(signal) });
-  const state: DesktopState = workspaceQuery.data || { phase: DesktopPhase.Starting, message: '채팅 환경을 준비하고 있습니다.', project: null, recent: [], projects: [], chatUrl: null, backendId: '' };
+  const state: DesktopState = workspaceQuery.data || { phase: DesktopPhase.Starting, message: t("Preparing chat environment."), project: null, recent: [], projects: [], chatUrl: null, backendId: '' };
   const actionMutation = useMutation({ mutationFn: (action: () => Promise<DesktopState>) => action(), onSuccess: next => queryClient.setQueryData(QUERY_KEY.workspace, next) });
   const router = useRouter();
   const projectsPage = Boolean(useMatch(PATH.PROJECTS));
@@ -157,7 +166,7 @@ export function App() {
     queryClient.setQueryData(QUERY_KEY.workspace, next);
     queryClient.setQueryData<{ projects: Project[]; homeDir: string }>(QUERY_KEY.projects, previous => previous ? { ...previous, projects: next.projects } : previous);
     setError('');
-  }, () => setError('로컬 서버 연결이 끊겼습니다. 새로고침해 주세요.')), []);
+  }, () => setError(t("Local server disconnected. Refresh the page."))), []);
   useEffect(() => { void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessionLists }); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.session }); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.projectScopes }); }, [state.sessionsRevision]);
   useEffect(() => { void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessionLists }); }, [state.activityRevision]);
   useEffect(() => { if (state.project) void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessions(state.project) }); }, [state.project, sessionId, state.sessionsRevision]);
@@ -185,13 +194,13 @@ export function App() {
     savedViewSession.current = `${activeView?.id}:${sessionId}`;
     saveViewMutation.mutate({ sessionId, projectId: activeView!.projectId }, { onError: () => {
       if (savedViewSession.current === `${activeView?.id}:${sessionId}`) savedViewSession.current = '';
-      toast.error('마지막 대화를 저장하지 못했습니다.');
+      toast.error(t("Could not save the last chat."));
     } });
   }, [sessionId, activeView?.id, state.sessionsRevision, ready]);
   function openView(path: string, id?: string, panelId?: string) {
     closeFloatingSidebar.current?.();
     const project = (projectsQuery.data?.projects || state.projects).find(row => row.path === path);
-    if (!project) { toast.error('등록된 프로젝트를 찾을 수 없습니다.'); return; }
+    if (!project) { toast.error(t("Registered project not found.")); return; }
     void perform(() => id ? desktopApi.openSession(id, project.id) : desktopApi.openNewSession(project.id), panelId);
   }
   async function perform(action: () => Promise<DesktopState>, panelId = surface.current?.getActivePanel()) {
@@ -205,7 +214,7 @@ export function App() {
       router.push(PATH.HOME);
       setSelecting(false); void queryClient.invalidateQueries({ queryKey: QUERY_KEY.sessions(state.project) });
     }
-    catch (cause) { const message = cause instanceof Error ? cause.message : '작업을 완료하지 못했습니다.'; setError(message); toast.error(message); }
+    catch (cause) { const message = cause instanceof Error ? cause.message : t("Could not complete the operation."); setError(message); toast.error(message); }
     finally { inFlight.current = false;  }
   }
   function chooseProject(projectId: number) {
@@ -238,9 +247,9 @@ export function App() {
     }} />}
     <Toaster position="bottom-right" toastOptions={{ duration: 4000, className: 'swttch-toast', style: { background: 'var(--color-navigation)', color: 'var(--color-foreground)', border: '1px solid var(--color-divider)', borderRadius: '12px', fontSize: '13px' } }} />
     <div className={`titlebar relative grid h-(--header-height) ${sidebarHidden ? 'sidebar-collapsed' : ''}`}>
-      <header aria-label="상단바" className="titlebar-left col-span-2 flex min-w-0 items-center border-r border-divider pl-[calc(env(titlebar-area-x,0px)+0.75rem)]">
-        <IconButton ref={toggleTrigger} tooltipDisabled={sidebarHidden} label="사이드바 표시/숨기기" icon={sidebarHidden ? IconName.SidebarCollapsed : IconName.Sidebar} shortcut="⇧⌘S" aria-expanded={!sidebarHidden} aria-controls="sidebar" aria-keyshortcuts="Meta+Shift+S Control+Shift+S" onClick={() => { if (projectsPage) { router.push(PATH.HOME); setCollapsed(false); } else setCollapsed(value => !value); }} />
-        <div className="header-context flex min-w-0 flex-1 items-center pr-2" aria-label="상단바 중간 영역" aria-hidden={sidebarHidden} inert={sidebarHidden}>
+      <header aria-label={t("Title bar")} className="titlebar-left col-span-2 flex min-w-0 items-center border-r border-divider ps-[calc(env(titlebar-area-x,0px)+0.75rem)]">
+        <IconButton ref={toggleTrigger} tooltipDisabled={sidebarHidden} label={t("Toggle sidebar")} icon={sidebarHidden ? IconName.SidebarCollapsed : IconName.Sidebar} shortcut="⇧⌘S" aria-expanded={!sidebarHidden} aria-controls="sidebar" aria-keyshortcuts="Meta+Shift+S Control+Shift+S" onClick={() => { if (projectsPage) { router.push(PATH.HOME); setCollapsed(false); } else setCollapsed(value => !value); }} />
+        <div className="header-context flex min-w-0 flex-1 items-center pe-2" aria-label={t("Title bar center")} aria-hidden={sidebarHidden} inert={sidebarHidden}>
           {settingsPage ? <div className="flex items-center gap-1"><Tooltip content={settingsCopy.back}><button type="button" aria-label={settingsCopy.back} className="icon-button" onClick={() => historyIndex > 0 ? void navigate(-1) : returnFromSettings()}><SettingsIcon kind="back" /></button></Tooltip><Tooltip content={settingsCopy.forward}><button type="button" aria-label={settingsCopy.forward} className="icon-button" disabled={historyIndex >= lastHistoryIndex.current} onClick={() => void navigate(1)}><SettingsIcon kind="forward" /></button></Tooltip></div> : <ProjectSwitcher projects={switcherProjects} selected={selectedHeaderProject} disabled={disabled} onSelect={chooseProject} />}
         </div>
 
@@ -248,35 +257,35 @@ export function App() {
       <div className="min-w-0" />
     </div>
     <div className={`shell-body grid h-[calc(100dvh-var(--header-height)-2rem)] min-h-0 ${sidebarHidden ? 'sidebar-collapsed' : ''}`}>
-      <nav className="activity-rail flex flex-col items-center gap-3 py-3" aria-label="앱 메뉴">
-        <IconButton ref={homeTrigger} tooltipDisabled={sidebarHidden} label="홈" icon={IconName.Home} solid={!projectNavigation} className={`rail-button ${!projectNavigation ? 'rail-active' : ''}`} aria-current={!projectNavigation ? 'page' : undefined} onClick={() => { router.push(PATH.HOME); setSelecting(false); }} />
-        <IconButton label="새 채팅" icon={IconName.Compose} className="rail-button" onClick={newChat} disabled={disabled} />
-        <IconButton label="예약" icon={IconName.History} className="rail-button" onClick={() => toast('예약 기능은 준비 중입니다.')} />
+      <nav className="activity-rail flex flex-col items-center gap-3 py-3" aria-label={t("App menu")}>
+        <IconButton ref={homeTrigger} tooltipDisabled={sidebarHidden} label={t("Home")} icon={IconName.Home} solid={!projectNavigation} className={`rail-button ${!projectNavigation ? 'rail-active' : ''}`} aria-current={!projectNavigation ? 'page' : undefined} onClick={() => { router.push(PATH.HOME); setSelecting(false); }} />
+        <IconButton label={t("New chat")} icon={IconName.Compose} className="rail-button" onClick={newChat} disabled={disabled} />
+        <IconButton label={t("Scheduled")} icon={IconName.History} className="rail-button" onClick={() => toast(t("Scheduling is coming soon."))} />
         <span className="mt-1 w-6 border-t border-divider" />
-        <IconButton label="프로젝트" icon={IconName.Folder} className={`rail-button ${!settingsPage && projectNavigation ? 'rail-active' : ''}`} aria-current={!settingsPage && projectNavigation ? 'page' : undefined} onClick={() => { router.push(PATH.PROJECTS); setSelecting(false);  }} />
+        <IconButton label={t("Projects")} icon={IconName.Folder} className={`rail-button ${!settingsPage && projectNavigation ? 'rail-active' : ''}`} aria-current={!settingsPage && projectNavigation ? 'page' : undefined} onClick={() => { router.push(PATH.PROJECTS); setSelecting(false);  }} />
         <div className="mt-auto"><AppAccountMenu onSettings={openSettings} onShortcuts={() => setHelpOpen(true)} /></div>
       </nav>
-      <aside id="sidebar" className="relative min-h-0 overflow-hidden bg-navigation" aria-label={settingsPage ? "설정 탐색" : "프로젝트·세션 목록"} aria-hidden={sidebarHidden} inert={sidebarHidden}>
+      <aside id="sidebar" className="relative min-h-0 overflow-hidden bg-navigation" aria-label={settingsPage ? t("Settings navigation") : t("Projects and sessions")} aria-hidden={sidebarHidden} inert={sidebarHidden}>
         <FloatingSidebar current={settingsPage ? SidebarKind.Settings : SidebarKind.Home} hidden={sidebarHidden} routeKey={location.pathname} width={sidebarWidth.width} homeTrigger={homeTrigger} toggleTrigger={toggleTrigger} closeRef={closeFloatingSidebar} settingsContent={<div className="sidebar-content"><SettingsSidebar /></div>} homeContent={<div className="sidebar-content">
-        <div className="flex items-center justify-between px-5 pt-5 pb-3"><h1 className="text-xl font-semibold tracking-tight">Swttch</h1><IconButton label="목록 검색" icon={IconName.Search} aria-expanded={searching} onClick={() => { setSearching(value => !value); setQuery(''); }} /></div>
-        <div className="px-3"><button className="navigation-row" onClick={newChat} disabled={disabled}><Icon name={IconName.Compose} /><span>새 채팅</span></button></div>
-        {searching && <div className="px-4 py-2"><input ref={searchInput} className="field" aria-label="프로젝트·세션 검색" value={query} onChange={event => setQuery(event.target.value)} placeholder="프로젝트·세션 검색" /></div>}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3"><h1 className="text-xl font-semibold tracking-tight">Swttch</h1><IconButton label={t("Search list")} icon={IconName.Search} aria-expanded={searching} onClick={() => { setSearching(value => !value); setQuery(''); }} /></div>
+        <div className="px-3"><button className="navigation-row" onClick={newChat} disabled={disabled}><Icon name={IconName.Compose} /><span>{t("New chat")}</span></button></div>
+        {searching && <div className="px-4 py-2"><input ref={searchInput} className="field" aria-label={t("Search projects and sessions")} value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search projects and sessions")} /></div>}
         <div className="sidebar-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 pt-6">
           <SidebarSessions favorites projects={projectsQuery.data?.projects || state.projects} ready={ready} disabled={disabled} sessionId={sessionId} search={search} onSession={(id, path) => openView(path, id)} />
           <SidebarSessions projects={projectsQuery.data?.projects || state.projects} ready={ready} disabled={disabled} sessionId={sessionId} search={search} onSession={(id, path) => openView(path, id)} />
-          <SidebarSection name={SidebarSectionName.Projects} title="프로젝트" count={(projectsQuery.data?.projects || state.projects).filter(project => project.hiddenAt === 0).length} action={<IconButton label="프로젝트 추가" icon={IconName.Plus} onClick={() => void openProject()} disabled={disabled} />}>
+          <SidebarSection name={SidebarSectionName.Projects} title={t("Projects")} count={(projectsQuery.data?.projects || state.projects).filter(project => project.hiddenAt === 0).length} action={<IconButton label={t("Add project")} icon={IconName.Plus} onClick={() => void openProject()} disabled={disabled} />}>
           <ProjectOrderList projects={visibleProjects} disabled={disabled || reorderMutation.isPending} onMove={reorderProjects}>{project => <SidebarProject key={project.id} project={project} expanded={project.sessionsExpanded} selected={detailId ? String(project.id) === detailId : project.path === activeProjectPath} disabled={disabled || expandMutation.isPending || reorderMutation.isPending} ready={ready} sessionId={sessionId} search={search} onOpen={() => chooseProject(project.id)} onToggle={() => expandMutation.mutate({ id: project.id, expanded: !project.sessionsExpanded })} onSession={(id, path) => openView(path, id)} onNewSession={() => openView(project.path)} />}</ProjectOrderList>
-          {state.projects.length === 0 && <button className="navigation-row text-muted" onClick={() => void openProject()} disabled={disabled}><Icon name={IconName.Plus} />프로젝트 열기</button>}
-          {search && visibleProjects.length === 0 && <p className="list-note">검색 결과 없음</p>}
+          {state.projects.length === 0 && <button className="navigation-row text-muted" onClick={() => void openProject()} disabled={disabled}><Icon name={IconName.Plus} />{t("Open project")}</button>}
+          {search && visibleProjects.length === 0 && <p className="list-note">{t("No results")}</p>}
           </SidebarSection>
         </div>
         </div>} />
 
         <SidebarResize width={sidebarWidth.width} onResize={sidebarWidth.save} />
       </aside>
-      <section className="workspace relative min-h-0 min-w-0 bg-canvas" aria-label={projectNavigation ? '페이지 영역' : '작업 영역'}>
+      <section className="workspace relative min-h-0 min-w-0 bg-canvas" aria-label={projectNavigation ? t("Page area") : t("Workspace")}>
         <WorkPage active={!projectNavigation}><WorkspaceSurface ref={surface} onRestored={found => { if (found) restoredView.current = true; setWorkspaceRestored(true); }} state={state} browsing={projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onActive={tab => setActiveView(tab)} onNew={(pane, path) => { const target = path || detailProject?.path || activeProjectPath; if (target) openView(target, undefined, pane); else { setSelectingForChat(true); setSelecting(true); } }} onEmpty={() => closeViewMutation.mutate()} onHelp={() => setHelpOpen(value => !value)} onSettings={() => openSettings()} onSidebar={() => setCollapsed(value => !value)} /></WorkPage>
-        {!activeView && !projectNavigation && <main className="welcome grid h-full place-items-center p-8"><div className="w-full max-w-sm text-center"><h2 className="mb-3 text-lg font-medium">프로젝트에서 시작하세요.</h2><p className="mb-6 text-sm leading-6 text-muted">프로젝트를 추가하고 에이전트와 작업을 시작하세요.</p><button className="primary-button" onClick={openProject} disabled={disabled}>프로젝트 추가</button><p className="mt-4 text-xs text-muted" role="status">{feedback}</p></div></main>}
+        {!activeView && !projectNavigation && <main className="welcome grid h-full place-items-center p-8"><div className="w-full max-w-sm text-center"><h2 className="mb-3 text-lg font-medium">{t("Start with a project.")}</h2><p className="mb-6 text-sm leading-6 text-muted">{t("Add a project to start working with agents.")}</p><button className="primary-button" onClick={openProject} disabled={disabled}>{t("Add project")}</button><p className="mt-4 text-xs text-muted" role="status">{feedback}</p></div></main>}
         {projectNavigation && <div data-route-page className="absolute inset-x-0 bottom-0 z-20 bg-canvas" style={{ top: settingsPage ? 0 : 'calc(-1 * var(--header-height))' }}>
         {settingsPage && <SettingsActionsContext.Provider value={{ onReturn: returnFromSettings, onHelp: () => setHelpOpen(true), onSidebar: () => setCollapsed(value => !value) }}><SettingsPage /></SettingsActionsContext.Provider>}
         {detailId && <ProjectDetailPage projectId={detailId} disabled={disabled} onChat={path => openView(path)} onSession={(sessionId, path) => openView(path, sessionId)} />}

@@ -1,3 +1,4 @@
+import { t, useShellTranslation } from './i18n';
 import { canExecuteWorkCommand } from './WorkPage';
 import { hideAll } from 'tippy.js';
 import { useMutation } from '@tanstack/react-query';
@@ -24,15 +25,15 @@ export interface WorkspaceSurfaceHandle { open: (url: string, projectId: number,
 type Rect = { left: number; top: number; width: number; height: number };
 type SurfaceProps = { state: DesktopState; browsing: boolean; pending: boolean; onRestored: (found: boolean) => void; onSelect: () => void; onActive: (tab: WorkspaceView | null) => void; onNew: (panelId: string, projectPath?: string) => void; onEmpty: () => void; onSidebar: () => void; onHelp: () => void; onSettings: () => void };
 
-function PanelLeaf({ panel, active, browsing, pending, state, registerViewport, onActivate, onClose, onCloseOthers, onCloseRight, onSplit, onAction, onRename, onMove, onMoveEdge, onRefresh, onNewTerminal, onNew, renameTarget, favoriteTarget, onHandled }: { panel: WorkspacePanel; active: boolean; browsing: boolean; pending: boolean; state: DesktopState; registerViewport: (id: string, element: HTMLDivElement | null) => void; onActivate: (panel: string, tab: string) => void; onClose: (panel: string, ids: string[]) => void; onCloseOthers: (panel: string, tab: string) => void; onCloseRight: (panel: string, tab: string) => void; onSplit: (panel: string, tab: string, direction: 'columns' | 'rows') => void; onAction: (panel: string, tab: string, action: DesktopTabAction) => void; onRename: (tab: string, value: string) => void; onMove: (id: string, panel: string, index: number) => void; onMoveEdge: (id: string, panel: string, edge: PanelDropEdge) => void; onRefresh: (id: string) => void; onNewTerminal: (panel: string, path?: string) => void; onNew: (panel: string, path?: string) => void; renameTarget: string; favoriteTarget: string; onHandled: (kind: 'rename' | 'favorite') => void }) {
+function PanelLeaf({ panel, active, browsing, pending, state, registerViewport, onActivate, onClose, onCloseOthers, onCloseRight, onSplit, onAction, onRename, onMove, onMoveEdge, onRefresh, onNewTerminal, onNew, renameTarget, favoriteTarget, onHandled }: { panel: WorkspacePanel; active: boolean; browsing: boolean; pending: boolean; state: DesktopState; registerViewport: (id: string, element: HTMLDivElement | null) => void; onActivate: (panel: string, tab: string) => void; onClose: (panel: string, ids: string[]) => void; onCloseOthers: (panel: string, tab: string) => void; onCloseRight: (panel: string, tab: string) => void; onSplit: (panel: string, tab: string, direction: 'columns' | 'rows') => void; onAction: (panel: string, tab: string, action: DesktopTabAction) => void; onRename: (tab: string, value: string) => void; onMove: (id: string, panel: string, index: number) => void; onMoveEdge: (id: string, panel: string, edge: PanelDropEdge) => void; onRefresh: (id: string) => void; onNewTerminal: (panel: string, path?: string) => void; onNew: (panel: string, path?: string) => void; renameTarget: string; favoriteTarget: string; onHandled: (kind: 'rename' | 'favorite') => void }) { useShellTranslation();
   const closeTabMenu = useRef<(() => void) | null>(null);
   const register = useCallback((element: HTMLDivElement | null) => registerViewport(panel.id, element), [panel.id, registerViewport]);
   useEffect(() => { document.querySelector<HTMLElement>(`[data-panel-id="${panel.id}"]`)?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [panel.activeTabId, browsing]);
   const current = panel.tabs.find(tab => tab.id === panel.activeTabId);
-  return <section aria-label="작업 패널" data-panel-id={panel.id} data-active-panel={active || undefined} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+  return <section aria-label={t("Work panel")} data-panel-id={panel.id} data-active-panel={active || undefined} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
     <TabDropStrip panelId={panel.id} disabled={pending} onMove={onMove} active={active}>
       {panel.tabs.map((tab, index) => <DraggableTab key={tab.id} id={tab.id} disabled={pending}><WorkspaceTab tabId={tab.id} terminal={tab.kind === 'terminal'} projectId={tab.projectId} sessionId={tab.sessionId} renameRequested={renameTarget === tab.id} favoriteRequested={favoriteTarget === tab.id} onRequestHandled={onHandled} title={tab.title} customName={tab.customTitle} onRename={value => onRename(tab.id, value)} selected={!browsing && panel.activeTabId === tab.id} onRefresh={() => onRefresh(tab.id)} onMoveEdge={edge => onMoveEdge(tab.id, panel.id, edge)} canMoveEdge={panel.tabs.length > 1} running={state.sessionActivity?.activity[tab.sessionId] === SessionActivity.Running} pending={pending} onSelect={() => onActivate(panel.id, tab.id)} onClose={() => onClose(panel.id, [tab.id])} onAction={action => onAction(panel.id, tab.id, action)} onCloseOthers={() => onCloseOthers(panel.id, tab.id)} canCloseOthers={panel.tabs.length > 1} onCloseRight={() => onCloseRight(panel.id, tab.id)} canCloseRight={index < panel.tabs.length - 1} onSplit={direction => onSplit(panel.id, tab.id, direction)} /></DraggableTab>)}
-      <Dropdown closeRef={closeTabMenu} content={<NewTabMenuContent pending={pending} onCreateTerminal={() => { closeTabMenu.current?.(); onNewTerminal(panel.id, current?.projectPath); }} onCreate={() => { closeTabMenu.current?.(); onNew(panel.id, current?.projectPath); }} />}><Tooltip content="새 탭 열기" placement="bottom-start"><button type="button" aria-label="새 탭 열기" disabled={pending} className="flex h-full w-8 shrink-0 items-center justify-center text-muted hover:bg-selected"><svg aria-hidden="true" className="size-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="1.5"><path d="M12 5v14M5 12h14" /></svg></button></Tooltip></Dropdown>
+      <Dropdown closeRef={closeTabMenu} content={<NewTabMenuContent pending={pending} onCreateTerminal={() => { closeTabMenu.current?.(); onNewTerminal(panel.id, current?.projectPath); }} onCreate={() => { closeTabMenu.current?.(); onNew(panel.id, current?.projectPath); }} />}><Tooltip content={t("Open new tab")} placement="bottom-start"><button type="button" aria-label={t("Open new tab")} disabled={pending} className="flex h-full w-8 shrink-0 items-center justify-center text-muted hover:bg-selected"><svg aria-hidden="true" className="size-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="1.5"><path d="M12 5v14M5 12h14" /></svg></button></Tooltip></Dropdown>
     </TabDropStrip>
     <div ref={register} className="relative min-h-0 min-w-0 flex-1" />
   </section>;
@@ -48,9 +49,9 @@ export const WorkspaceSurface = forwardRef<WorkspaceSurfaceHandle, SurfaceProps>
   const callback = useRef(props.onRestored); callback.current = props.onRestored;
   useEffect(() => { if (ready && !supported) callback.current(false); }, [ready, supported]);
   useEffect(() => { if (restore.isSuccess) callback.current(Boolean(restore.data)); }, [restore.isSuccess, restore.data]);
-  if (ready && !supported) return <DndProvider backend={HTML5Backend}><WorkspaceSurfaceContent {...props} restored={null} ref={ref} /><p role="status" className="pointer-events-none absolute bottom-2 right-2 z-30 rounded bg-navigation px-3 py-2 text-xs text-muted">작업 영역 저장·복원을 적용하려면 로컬 호스트를 재시작해 주세요.</p></DndProvider>;
-  if (restore.isError) return <div role="alert" className="p-6 text-sm text-muted">작업 영역을 복원하지 못했습니다: {restore.error.message}<button className="ml-3 underline" onClick={() => restore.mutate()}>다시 시도</button></div>;
-  if (!restore.isSuccess) return <p role="status" className="p-6 text-sm text-muted">작업 영역을 복원하고 있습니다…</p>;
+  if (ready && !supported) return <DndProvider backend={HTML5Backend}><WorkspaceSurfaceContent {...props} restored={null} ref={ref} /><p role="status" className="pointer-events-none absolute bottom-2 right-2 z-30 rounded bg-navigation px-3 py-2 text-xs text-muted">{t("Restart the local host to enable saving and restoring the workspace.")}</p></DndProvider>;
+  if (restore.isError) return <div role="alert" className="p-6 text-sm text-muted">{t("Could not restore workspace:")}{restore.error.message}<button className="ms-3 underline" onClick={() => restore.mutate()}>{t("Try again")}</button></div>;
+  if (!restore.isSuccess) return <p role="status" className="p-6 text-sm text-muted">{t("Restoring workspace…")}</p>;
   return <DndProvider backend={HTML5Backend}><WorkspaceSurfaceContent {...props} restored={restore.data} ref={ref} /></DndProvider>;
 });
 const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps & { restored: WorkspaceRestoration | null }>(function WorkspaceSurfaceContent(props, ref) {
@@ -67,10 +68,10 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps 
   const blocked = useRef(false);
   const lastSaved = useRef(props.restored ? JSON.stringify(workspaceSnapshot(layout, activePanel, focusHistory.current)) : '');
   const save = useMutation({ scope: { id: 'workspace-layout' }, mutationFn: async ({ snapshot, terminalBindings }: { snapshot: WorkspaceSnapshot; terminalBindings: { tabId: string; terminalId: string }[] }) => {
-    if (blocked.current) throw new Error('저장 오류를 해결한 뒤 작업 영역을 다시 불러와 주세요.');
+    if (blocked.current) throw new Error(t("Resolve the save error, then reload the workspace."));
     try { const result = await desktopApi.saveWorkspace(snapshot, revision.current, terminalBindings); revision.current = result.revision; return result; }
     catch (error) { blocked.current = true; throw error; }
-  }, onError: error => toast.error(`작업 영역을 저장하지 못했습니다: ${error.message}`, { id: 'workspace-save-error', duration: 10000 }) });
+  }, onError: error => toast.error(`${t("Could not save workspace")}: ${error.message}`, { id: 'workspace-save-error', duration: 10000 }) });
   const persistence = useRef(save); persistence.current = save;
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const [renameTarget, setRenameTarget] = useState('');
@@ -136,7 +137,7 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps 
       const existingPanel = existingId && existingId !== 'new' ? panels(snapshot.layout).find(panel => panel.tabs.some(tab => tab.sessionId === existingId && tab.projectPath === projectPath)) : undefined;
       if (existingPanel) { activate(existingPanel.id, existingPanel.tabs.find(tab => tab.sessionId === existingId && tab.projectPath === projectPath)!.id); return; }
       const target = panels(snapshot.layout).find(panel => panel.id === (requestedPanel || snapshot.activePanel)) || panels(snapshot.layout)[0];
-      const tab: WorkspaceView = { id: crypto.randomUUID(), url, projectId, projectPath, title: '새 채팅', sessionId: existingId && existingId !== 'new' ? existingId : '' };
+      const tab: WorkspaceView = { id: crypto.randomUUID(), url, projectId, projectPath, title: t("New chat"), sessionId: existingId && existingId !== 'new' ? existingId : '' };
       setActivePanel(target.id); setLayout(value => openTab(value, target.id, tab));
     },
   }));
@@ -173,7 +174,7 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps 
   }, [move]);
   function openTerminal(panelId: string, path?: string) {
     const project = props.state.projects.find(project => project.path === (path || props.state.project));
-    if (!project) { toast('프로젝트를 먼저 선택해 주세요.'); return; }
+    if (!project) { toast(t("Select a project first.")); return; }
     createTerminal.mutate({ projectId: project.id, panelId });
   }
   function split(panelId: string, tabId: string, direction: 'columns' | 'rows') {
@@ -189,7 +190,7 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps 
   function action(panelId: string, tabId: string, command: DesktopTabAction) {
     activate(panelId, tabId);
     const frame = frames.current.get(tabId);
-    if (!frame) { toast.error('채팅 화면을 불러온 뒤 다시 시도해 주세요.'); return; }
+    if (!frame) { toast.error(t("Load the chat view and try again.")); return; }
     void activateTabAction(frame, command).catch(error => toast.error(error.message));
   }
   const commands = useRef<(command: DesktopCommand, source?: string) => void>(() => {});
@@ -212,7 +213,7 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps 
       return;
     }
     if (command.startsWith('move-')) {
-      if (pane.tabs.length < 2) { toast('같은 패널에 탭이 두 개 이상 있을 때 분리해서 이동할 수 있습니다.'); return; }
+      if (pane.tabs.length < 2) { toast(t("A panel needs at least two tabs to move one into a separate panel.")); return; }
       const edge: PanelDropEdge = command === 'move-left' ? 'left' : command === 'move-right' ? 'right' : command === 'move-up' ? 'top' : 'bottom';
       moveToEdge(tab.id, pane.id, edge); return;
     }
@@ -264,7 +265,7 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps 
     const columns = node.direction === 'columns';
     return <div key={node.id} data-split-direction={node.direction} className={`flex min-h-0 min-w-0 flex-1 ${columns ? 'flex-row' : 'flex-col'}`}>
       <div className="flex min-h-0 min-w-0" style={{ flex: `0 0 calc(${node.ratio * 100}% - 0.5px)` }}>{render(node.children[0])}</div>
-      <div role="separator" aria-label={columns ? '좌우 패널 크기 조절' : '상하 패널 크기 조절'} aria-orientation={columns ? 'vertical' : 'horizontal'} aria-valuemin={15} aria-valuemax={85} aria-valuenow={Math.round(node.ratio * 100)} tabIndex={0} className={`relative pointer-events-auto z-20 shrink-0 touch-none bg-divider/60 hover:bg-blue-400/50 focus-visible:bg-blue-400/50 before:absolute before:content-[''] ${columns ? 'w-px cursor-col-resize before:inset-y-0 before:-inset-x-1' : 'h-px cursor-row-resize before:inset-x-0 before:-inset-y-1'}`} onPointerDown={event => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={event => { if (!event.currentTarget.hasPointerCapture(event.pointerId)) return; const box = event.currentTarget.parentElement!.getBoundingClientRect(); const ratio = columns ? (event.clientX - box.left) / box.width : (event.clientY - box.top) / box.height; setLayout(value => resizeSplit(value, node.id, ratio)); }} onPointerUp={event => event.currentTarget.releasePointerCapture(event.pointerId)} onKeyDown={event => { if ((columns && ['ArrowLeft', 'ArrowRight'].includes(event.key)) || (!columns && ['ArrowUp', 'ArrowDown'].includes(event.key))) { event.preventDefault(); setLayout(value => resizeSplit(value, node.id, node.ratio + (['ArrowLeft', 'ArrowUp'].includes(event.key) ? -.05 : .05))); } }} />
+      <div role="separator" aria-label={columns ? t("Resize horizontal panels") : t("Resize vertical panels")} aria-orientation={columns ? 'vertical' : 'horizontal'} aria-valuemin={15} aria-valuemax={85} aria-valuenow={Math.round(node.ratio * 100)} tabIndex={0} className={`relative pointer-events-auto z-20 shrink-0 touch-none bg-divider/60 hover:bg-blue-400/50 focus-visible:bg-blue-400/50 before:absolute before:content-[''] ${columns ? 'w-px cursor-col-resize before:inset-y-0 before:-inset-x-1' : 'h-px cursor-row-resize before:inset-x-0 before:-inset-y-1'}`} onPointerDown={event => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={event => { if (!event.currentTarget.hasPointerCapture(event.pointerId)) return; const box = event.currentTarget.parentElement!.getBoundingClientRect(); const ratio = columns ? (event.clientX - box.left) / box.width : (event.clientY - box.top) / box.height; setLayout(value => resizeSplit(value, node.id, ratio)); }} onPointerUp={event => event.currentTarget.releasePointerCapture(event.pointerId)} onKeyDown={event => { if ((columns && ['ArrowLeft', 'ArrowRight'].includes(event.key)) || (!columns && ['ArrowUp', 'ArrowDown'].includes(event.key))) { event.preventDefault(); setLayout(value => resizeSplit(value, node.id, node.ratio + (['ArrowLeft', 'ArrowUp'].includes(event.key) ? -.05 : .05))); } }} />
       <div className="flex min-h-0 min-w-0 flex-1">{render(node.children[1])}</div>
     </div>;
   }
@@ -275,7 +276,7 @@ const WorkspaceSurfaceContent = forwardRef<WorkspaceSurfaceHandle, SurfaceProps 
       const { panel, tab } = mountedViews.get(id)!;
       const box = rects[panel.id];
       const hidden = props.browsing || panel.activeTabId !== tab.id;
-      return <div key={tab.id} data-tab-view={tab.id} data-workspace-corner={panel.id === allPanels[0].id || undefined} id={`viewport-${tab.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${tab.id}`} className={`absolute overflow-hidden bg-canvas ${hidden ? 'hidden' : 'pointer-events-auto'}`} style={box || { width: 0, height: 0 }}>{tab.restoreError ? <div role="alert" className="p-6 text-sm text-muted">이 탭을 복원하지 못했습니다: {tab.restoreError}<p className="mt-2">프로젝트와 연결 상태를 확인한 뒤 탭을 다시 열어 주세요.</p></div> : tab.kind === 'terminal' ? <Suspense fallback={<p role="status" className="p-3 text-xs text-muted">터미널을 불러오는 중…</p>}><TerminalView tab={tab} onFocus={interaction => handleViewFocus(panel.id, interaction)} onTitle={title => setLayout(value => {
+      return <div key={tab.id} data-tab-view={tab.id} data-workspace-corner={panel.id === allPanels[0].id || undefined} id={`viewport-${tab.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${tab.id}`} className={`absolute overflow-hidden bg-canvas ${hidden ? 'hidden' : 'pointer-events-auto'}`} style={box || { width: 0, height: 0 }}>{tab.restoreError ? <div role="alert" className="p-6 text-sm text-muted">{t("Could not restore this tab:")}{tab.restoreError}<p className="mt-2">{t("Check the project and connection, then reopen the tab.")}</p></div> : tab.kind === 'terminal' ? <Suspense fallback={<p role="status" className="p-3 text-xs text-muted">{t("Loading terminal…")}</p>}><TerminalView tab={tab} onFocus={interaction => handleViewFocus(panel.id, interaction)} onTitle={title => setLayout(value => {
         const original = panels(value).flatMap(panel => panel.tabs).find(view => view.id === tab.id);
         return original?.title === title ? value : updateTab(value, tab.id, { title });
       })} /></Suspense> : <WorkspaceFrame tab={tab} hidden={hidden} register={registerFrame} onMetadata={metadata} onFocus={interaction => handleViewFocus(panel.id, interaction)} onShortcut={(id, command) => commands.current(command, id)} />}</div>;

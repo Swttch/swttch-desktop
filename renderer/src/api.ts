@@ -1,3 +1,4 @@
+import { t } from '../../src/interface-i18n.mjs';
 import type { SettingsPatch, SettingsRecord } from '../../src/device-settings.mjs';
 import type { DesktopState, SessionListEntry, SessionPage, Project, ProjectSessionScope } from './desktop';
 import { API_PATH } from '../../src/api-paths.mjs';
@@ -12,7 +13,7 @@ function connect() {
     queryKey: QUERY_KEY.session, staleTime: Infinity, gcTime: Infinity,
     queryFn: async () => {
       const response = await fetch(API_PATH.SESSIONS, { method: 'POST', headers: { 'x-swttch-client': window.desktopHost ? 'desktop' : 'web' } });
-      if (!response.ok) throw new Error('로컬 앱 서비스에 연결하지 못했습니다. 새로고침해 주세요.');
+      if (!response.ok) throw new Error(t("Could not connect to the local app service. Refresh the page."));
       const result = await response.json() as { csrf: string; state: DesktopState };
       if (localStorage.getItem('swttch-backend-id') !== result.state.backendId) {
         localStorage.removeItem('ccg-auth-token');
@@ -34,7 +35,7 @@ async function request<T>(path: string, method: string, body?: object, signal?: 
       return request<T>(path, method, body, signal, false);
     }
     const result = await response.json() as { error: string };
-    throw new Error(result.error || '작업을 완료하지 못했습니다.');
+    throw new Error(result.error || t("Could not complete the operation."));
   }
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }

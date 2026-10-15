@@ -1,4 +1,4 @@
-import { settingsCopy as copy } from '../../../../../src/locales/settings.ko.mjs';
+import { useSettingsCopy } from '../../../i18n';
 import { SettingsSection } from '../../../SettingsControls';
 import { RefreshSettingItem } from './RefreshSettingItem';
 import { MoveLeftSettingItem } from './MoveLeftSettingItem';
@@ -20,4 +20,4 @@ import { PanelDownSettingItem } from './PanelDownSettingItem';
 import { SidebarSettingItem } from './SidebarSettingItem';
 import { HelpSettingItem } from './HelpSettingItem';
 import { SettingsSettingItem } from './SettingsSettingItem';
-export function KeyboardSection() { return <SettingsSection title={copy.shortcuts}><RefreshSettingItem /><MoveLeftSettingItem /><MoveRightSettingItem /><MoveUpSettingItem /><MoveDownSettingItem /><NewTabSettingItem /><SplitColumnsSettingItem /><SplitRowsSettingItem /><RenameSettingItem /><FavoriteSettingItem /><CloseSettingItem /><TabLeftSettingItem /><TabRightSettingItem /><PanelLeftSettingItem /><PanelRightSettingItem /><PanelUpSettingItem /><PanelDownSettingItem /><SidebarSettingItem /><HelpSettingItem /><SettingsSettingItem /></SettingsSection>; }
+export function KeyboardSection() { const copy = useSettingsCopy(); return <SettingsSection title={copy.shortcuts}><RefreshSettingItem /><MoveLeftSettingItem /><MoveRightSettingItem /><MoveUpSettingItem /><MoveDownSettingItem /><NewTabSettingItem /><SplitColumnsSettingItem /><SplitRowsSettingItem /><RenameSettingItem /><FavoriteSettingItem /><CloseSettingItem /><TabLeftSettingItem /><TabRightSettingItem /><PanelLeftSettingItem /><PanelRightSettingItem /><PanelUpSettingItem /><PanelDownSettingItem /><SidebarSettingItem /><HelpSettingItem /><SettingsSettingItem /></SettingsSection>; }

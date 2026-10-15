@@ -1,0 +1,13 @@
+import en from './locales/shell/en.json' with { type: 'json' };
+import ko from './locales/shell/ko.json' with { type: 'json' };
+import ja from './locales/shell/ja.json' with { type: 'json' };
+import zh from './locales/shell/zh.json' with { type: 'json' };
+import zhTW from './locales/shell/zh-TW.json' with { type: 'json' };
+import es from './locales/shell/es.json' with { type: 'json' };
+import fr from './locales/shell/fr.json' with { type: 'json' };
+import de from './locales/shell/de.json' with { type: 'json' };
+import pt from './locales/shell/pt.json' with { type: 'json' };
+import ru from './locales/shell/ru.json' with { type: 'json' };
+import fa from './locales/shell/fa.json' with { type: 'json' };
+import ar from './locales/shell/ar.json' with { type: 'json' };
+export const shellCatalogs = { 'en': en, 'ko': ko, 'ja': ja, 'zh': zh, 'zh-TW': zhTW, 'es': es, 'fr': fr, 'de': de, 'pt': pt, 'ru': ru, 'fa': fa, 'ar': ar };

@@ -13,7 +13,7 @@ test('panel body accepts tab transfers only and preserves the existing center-dr
   const compiled = ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS } }).outputText;
   const loaded = new Module(file, module); loaded.filename = file; loaded.paths = Module._nodeModulePaths(dirname(file));
   const original = loaded.require.bind(loaded);
-  loaded.require = name => name === 'react-dnd' ? { useDrop: factory => { dropSpec = factory(); return [{ over: false }, () => {}]; } } : name === './Tooltip' ? { Tooltip: ({ children }) => children } : original(name);
+  loaded.require = name => name.endsWith('/i18n') ? require('./i18n-fixture.cjs') : name === 'react-dnd' ? { useDrop: factory => { dropSpec = factory(); return [{ over: false }, () => {}]; } } : name === './Tooltip' ? { Tooltip: ({ children }) => children } : original(name);
   loaded._compile(compiled, file);
   const transfers = [];
   renderToStaticMarkup(React.createElement(loaded.exports.PanelDropZone, { panelId: 'destination', tabIds: ['selected'], disabled: false, onMove: (...args) => transfers.push(args) }));

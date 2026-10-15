@@ -1,4 +1,4 @@
-import { settingsCopy as copy } from '../../../../../src/locales/settings.ko.mjs';
+import { useSettingsCopy } from '../../../i18n';
 import { SettingsRow } from '../../../SettingsControls';
 
-export function PlanSettingItem() { return <SettingsRow pending title={copy.planPending} description={copy.planPendingDescription} />; }
+export function PlanSettingItem() { const copy = useSettingsCopy(); return <SettingsRow pending title={copy.planPending} description={copy.planPendingDescription} />; }

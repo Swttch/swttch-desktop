@@ -1,4 +1,4 @@
-import { settingsCopy as copy } from '../../../../../src/locales/settings.ko.mjs';
+import { useSettingsCopy } from '../../../i18n';
 import { SettingsRow, SettingsSwitch } from '../../../SettingsControls';
 
-export function FullAccessSettingItem() { return <SettingsRow pending title={copy.fullAccess} description={copy.fullAccessDescription}><SettingsSwitch label={copy.fullAccess} disabled /></SettingsRow>; }
+export function FullAccessSettingItem() { const copy = useSettingsCopy(); return <SettingsRow pending title={copy.fullAccess} description={copy.fullAccessDescription}><SettingsSwitch label={copy.fullAccess} disabled /></SettingsRow>; }

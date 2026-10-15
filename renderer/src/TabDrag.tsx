@@ -1,3 +1,4 @@
+import { t, useShellTranslation } from './i18n';
 import { panelDropEdge, type PanelDropEdge } from '../../src/workspace-layout.mjs';
 import { useRef, useState, type ReactNode } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
@@ -5,7 +6,7 @@ import { useDrag, useDrop } from 'react-dnd';
 const TAB_DRAG = 'swttch-workspace-tab';
 type DraggedTab = { id: string };
 
-export function DraggableTab({ id, disabled, children }: { id: string; disabled: boolean; children: ReactNode }) {
+export function DraggableTab({ id, disabled, children }: { id: string; disabled: boolean; children: ReactNode }) { useShellTranslation();
   const [{ dragging }, drag] = useDrag<DraggedTab, void, { dragging: boolean }>(() => ({
     type: TAB_DRAG, item: { id }, canDrag: !disabled,
     collect: monitor => ({ dragging: monitor.isDragging() }),
@@ -13,7 +14,7 @@ export function DraggableTab({ id, disabled, children }: { id: string; disabled:
   return <div ref={element => { drag(element); }} data-drag-tab={id} className={`flex h-full shrink-0 select-none ${dragging ? 'opacity-40' : ''}`}>{children}</div>;
 }
 
-export function TabDropStrip({ panelId, disabled, children, onMove, active }: { panelId: string; disabled: boolean; children: ReactNode; onMove: (id: string, panel: string, index: number) => void; active: boolean }) {
+export function TabDropStrip({ panelId, disabled, children, onMove, active }: { panelId: string; disabled: boolean; children: ReactNode; onMove: (id: string, panel: string, index: number) => void; active: boolean }) { useShellTranslation();
   const strip = useRef<HTMLDivElement>(null);
   const insertion = useRef(0);
   const [marker, setMarker] = useState(0);
@@ -35,13 +36,13 @@ export function TabDropStrip({ panelId, disabled, children, onMove, active }: { 
     drop: (item, monitor) => { if (!monitor.didDrop()) onMove(item.id, panelId, insertion.current); },
     collect: monitor => ({ over: monitor.isOver({ shallow: true }) && monitor.canDrop() }),
   }), [panelId, disabled, onMove]);
-  return <div ref={element => { strip.current = element; drop(element); }} role="tablist" aria-label="패널 탭" className={`relative pointer-events-auto flex h-(--header-height) shrink-0 items-stretch overflow-x-auto bg-chrome ${active ? '' : 'opacity-85'}`}>
+  return <div ref={element => { strip.current = element; drop(element); }} role="tablist" aria-label={t("Panel tabs")} className={`relative pointer-events-auto flex h-(--header-height) shrink-0 items-stretch overflow-x-auto bg-chrome ${active ? '' : 'opacity-85'}`}>
     {children}
     {over && <span aria-hidden="true" data-tab-drop-marker className="pointer-events-none absolute inset-y-1 w-px bg-foreground" style={{ left: marker }} />}
   </div>;
 }
 
-export function PanelDropZone({ panelId, tabIds, disabled, onMove }: { panelId: string; tabIds: string[]; disabled: boolean; onMove: (id: string, panel: string, edge: PanelDropEdge) => void }) {
+export function PanelDropZone({ panelId, tabIds, disabled, onMove }: { panelId: string; tabIds: string[]; disabled: boolean; onMove: (id: string, panel: string, edge: PanelDropEdge) => void }) { useShellTranslation();
   const area = useRef<HTMLDivElement>(null);
   const [edge, setEdge] = useState<PanelDropEdge>('center');
   const edgeAt = (point: { x: number; y: number } | null) => {

@@ -1,3 +1,4 @@
+import { t, useShellTranslation } from '../i18n';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { Project } from '../desktop';
 
@@ -6,13 +7,13 @@ import { SortableProjectList } from './SortableProjectList';
 
 export function ProjectOrderList(props: {
   projects: Project[]; disabled: boolean; placeholder?: boolean; onMove: (move: ProjectMove) => void; children: (project: Project) => ReactNode;
-}) {
+}) { useShellTranslation();
   return props.placeholder ? <SortableProjectList {...props} /> : <PointerProjectList {...props} />;
 }
 
 function PointerProjectList({ projects, disabled, onMove, children }: {
   projects: Project[]; disabled: boolean; placeholder?: boolean; onMove: (move: ProjectMove) => void; children: (project: Project) => ReactNode;
-}) {
+}) { useShellTranslation();
   const root = useRef<HTMLDivElement | null>(null);
   const positions = useRef(new Map<string, { x: number; y: number }>());
   const transitions = useRef<Animation[]>([]);
@@ -48,7 +49,7 @@ function PointerProjectList({ projects, disabled, onMove, children }: {
     return () => { window.removeEventListener('keydown', cancel); cancelAnimationFrame(frame.current); };
   }, []);
   const dragged = projects.find(project => project.id === dragId);
-  const hint = target && dragged && target.favorite !== (dragged.favoritedAt > 0) ? target.favorite ? '고정' : '고정 해제' : '여기에 이동';
+  const hint = target && dragged && target.favorite !== (dragged.favoritedAt > 0) ? target.favorite ? t("Pin") : t("Unpin") : t("Move here");
   function updateTarget(x: number, y: number) {
     const hit = document.elementFromPoint(x, y);
     const row = hit?.closest<HTMLElement>('[data-project-drop-id]');
@@ -130,6 +131,6 @@ function PointerProjectList({ projects, disabled, onMove, children }: {
       </div>;
     })}
     {dragged && <div className="pointer-events-none fixed z-50 max-w-56 truncate rounded-lg border border-divider bg-chrome px-3 py-2 text-xs shadow-lg" style={{ left: pointer.x + 12, top: pointer.y + 12 }}>{dragged.alias || dragged.path.split(/[\\/]/).filter(Boolean).pop()}</div>}
-    <span role="status" className="sr-only">{dragId !== null ? '프로젝트 순서 변경 중. Esc로 취소할 수 있습니다.' : ''}</span>
+    <span role="status" className="sr-only">{dragId !== null ? t("Reordering projects. Press Escape to cancel.") : ''}</span>
   </div>;
 }

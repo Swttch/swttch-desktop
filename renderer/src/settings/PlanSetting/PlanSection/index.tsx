@@ -1,4 +1,4 @@
-import { settingsCopy as copy } from '../../../../../src/locales/settings.ko.mjs';
+import { useSettingsCopy } from '../../../i18n';
 import { SettingsSection } from '../../../SettingsControls';
 import { PlanSettingItem } from './PlanSettingItem';
-export function PlanSection() { return <SettingsSection title={copy.plan}><PlanSettingItem /></SettingsSection>; }
+export function PlanSection() { const copy = useSettingsCopy(); return <SettingsSection title={copy.plan}><PlanSettingItem /></SettingsSection>; }

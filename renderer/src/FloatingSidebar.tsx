@@ -50,7 +50,6 @@ export function FloatingSidebar({ current, hidden, routeKey, width, homeTrigger,
         const selected = kind || latest.current.current;
         const container = containers[selected];
         container.dataset.sidebarKind = selected;
-        container.classList.add('floating-sidebar-content');
         container.style.width = `${latest.current.width}px`;
         container.style.setProperty('--sidebar-width', `${latest.current.width}px`);
         const app = button.closest('.app');
@@ -70,12 +69,13 @@ export function FloatingSidebar({ current, hidden, routeKey, width, homeTrigger,
           const app = button.closest('.app');
           const rail = app?.querySelector('.activity-rail')?.getBoundingClientRect();
           const body = app?.querySelector('.shell-body')?.getBoundingClientRect();
-          const x = rail?.right || 49, y = (body?.top || 35) + 4;
+          const x = document.documentElement.dir === 'rtl' ? (rail?.left ?? window.innerWidth - 49) : (rail?.right || 49), y = (body?.top || 35) + 4;
           return { x, y, top: y, bottom: y, left: x, right: x, width: 0, height: 0, toJSON: () => ({}) };
         },
         popperOptions: { strategy: 'fixed', modifiers: [{ name: 'flip', enabled: false }, { name: 'preventOverflow', options: { padding: 8 } }] },
         onShow: instance => {
           if (!eligible()) return false;
+          instance.setProps({ placement: document.documentElement.dir === 'rtl' ? 'left-start' : 'right-start' });
           hideUnrelatedPopovers(instance, button);
           const { selected, container } = surface();
           floatingContainer = container;
@@ -140,7 +140,7 @@ export function FloatingSidebar({ current, hidden, routeKey, width, homeTrigger,
   }, [containers, homeTrigger, toggleTrigger, closeRef]);
 
   useLayoutEffect(() => {
-    for (const container of Object.values(containers)) { container.style.width = `${width}px`; container.style.setProperty('--sidebar-width', `${width}px`); }
+    for (const container of Object.values(containers)) { container.classList.add('floating-sidebar-content'); container.style.width = `${width}px`; container.style.setProperty('--sidebar-width', `${width}px`); }
     void active.current?.instance.popperInstance?.update();
   }, [width, containers]);
 

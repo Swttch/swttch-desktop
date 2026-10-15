@@ -19,6 +19,7 @@ const { sessionUrl } = require('./session-url.cjs');
 const { displayTitle, createSessionSourceSync } = require('./session-source-sync.cjs');
 const { renameSessionWithCli } = require('./session-rename.cjs');
 const { createProviderUsage } = require('./provider-usage.cjs');
+const { createSettingsPropagation } = require('./settings-propagation.mjs');
 const { createAccountUsage } = require('./account-usage.cjs');
 
 function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(homedir(), '.swttch'), backend: suppliedBackend, allowedOrigins = [], folderDialog: suppliedFolderDialog, sourceReader, renameSession = renameSessionWithCli, subscribe = subscribeBackend, providerUsage: suppliedProviderUsage, accountUsage: suppliedAccountUsage, terminalManager: suppliedTerminals } = {}) {
@@ -26,6 +27,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
   const providerUsage = suppliedProviderUsage || createProviderUsage({ resolveUsage: (client, profile) => accountUsage.fetchLiveUsage(client, profile) });
   mkdirSync(home, { recursive: true, mode: 0o700 });
   const store = openStore(home);
+  const propagateSettings = createSettingsPropagation({ read: () => store.settings.read().values, request: (type, payload) => backendRequest(backend, type, payload) });
   const workspaceRecord = createWorkspaceRecord(home);
   const sourceSync = createSessionSourceSync({ repository: store.sessionRepository, projects: store.projects, reader: sourceReader });
   store.sessionRepository.syncActivity({ open: [], activity: {} });
@@ -162,6 +164,11 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
     starting = (async () => {
       try {
         await backend.start();
+        if (!suppliedBackend && store.settings.needsPluginSettings()) {
+          const source = await backendRequest(backend, 'GET_SETTINGS', { scope: 'global' });
+          if (source.status === 'error' || source.serviceError) throw new Error(source.error || 'Interface settings could not be imported');
+          store.settings.seedPluginSettings(source.settings || {});
+        }
         phase = 'ready'; message = '프로젝트를 선택해 시작하세요.';
         if (!suppliedBackend || subscribe !== subscribeBackend) unsubscribeBackend = subscribe(backend, (type, payload) => {
           if (type === 'accounts') { providerUsage.invalidate(); accountUsage.invalidate(); accountsRevision++; broadcast(); return; }
@@ -223,6 +230,8 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
     }
     if (!session) return json(res, 401, { error: '앱 연결이 만료됐습니다. 새로고침해 주세요.' });
     if (path === API_PATH.SETTINGS) {
+      if (phase !== 'ready') await start();
+      if (phase !== 'ready') return json(res, 503, { error: message });
       if (req.method === 'GET') return json(res, 200, store.settings.read());
       if (req.method !== 'PATCH') return json(res, 405, { error: 'Method not allowed' });
       if (req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
@@ -231,7 +240,8 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         const record = body.initialize === true ? store.settings.initialize(body.patch) : store.settings.patch(body.patch);
         settingsRevision = record.revision;
         broadcast();
-        return json(res, 200, record);
+        const propagation = body.initialize === true ? undefined : await propagateSettings(body.patch);
+        return json(res, 200, propagation ? { ...record, propagation } : record);
       } catch (error) { return json(res, 400, { error: error.message }); }
     }
     if (path === API_PATH.WORKSPACE_LAYOUT || path === API_PATH.WORKSPACE_RESTORATIONS) {

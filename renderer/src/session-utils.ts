@@ -1,5 +1,6 @@
+import { t } from '../../src/interface-i18n.mjs';
 import type { SessionListEntry } from "./desktop";
-export enum SessionGroup { Today = "오늘", Yesterday = "어제", Week = "지난 7일", Month = "지난 30일", Older = "이전" }
+export enum SessionGroup { Today = "Today", Yesterday = "Yesterday", Week = "Last 7 days", Month = "Last 30 days", Older = "Previous" }
 export const GROUPS = Object.values(SessionGroup);
 export function sessionDate(session: SessionListEntry) { return new Date(session.lastTimestamp || session.createdAt); }
 export function sessionGroup(date: Date, now = new Date()) {
@@ -13,10 +14,10 @@ export function sessionGroup(date: Date, now = new Date()) {
 }
 export function relativeTime(date: Date, now = Date.now()) {
   const minutes = Math.floor((now - date.getTime()) / 60000);
-  for (const [duration, label] of [[525600, "년"], [43200, "개월"], [1440, "일"], [60, "시간"], [1, "분"]] as const) {
+  for (const [duration, label] of [[525600, t("years")], [43200, t("months")], [1440, t("days")], [60, t("hours")], [1, t("minutes")]] as const) {
     if (minutes >= duration) return `${Math.floor(minutes / duration)}${label}`;
   }
-  return "방금";
+  return t("Just now");
 }
 export function searchSessions(sessions: SessionListEntry[], query: string) {
   if (!query.trim()) return sessions;

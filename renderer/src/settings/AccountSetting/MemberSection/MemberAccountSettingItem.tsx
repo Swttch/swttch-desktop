@@ -1,4 +1,4 @@
-import { settingsCopy as copy } from '../../../../../src/locales/settings.ko.mjs';
+import { useSettingsCopy } from '../../../i18n';
 import { SettingsRow } from '../../../SettingsControls';
 
-export function MemberAccountSettingItem() { return <SettingsRow pending title={copy.accountPending} description={copy.accountPendingDescription} />; }
+export function MemberAccountSettingItem() { const copy = useSettingsCopy(); return <SettingsRow pending title={copy.accountPending} description={copy.accountPendingDescription} />; }

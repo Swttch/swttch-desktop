@@ -8,7 +8,7 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const file = join(__dirname, '../renderer/src/NewTabMenuContent.tsx');
 const compiled = ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS } }).outputText;
-const loaded = new Module(file, module); loaded.filename = file; loaded.paths = Module._nodeModulePaths(dirname(file)); loaded._compile(compiled, file);
+const loaded = new Module(file, module); loaded.filename = file; loaded.paths = Module._nodeModulePaths(dirname(file)); loaded.require = name => name.endsWith('/i18n') ? require('./i18n-fixture.cjs') : Module.prototype.require.call(loaded, name); loaded._compile(compiled, file);
 const { NewTabMenuContent } = loaded.exports;
 test('new tab choices expose chat and an enabled terminal and disabled upcoming browser with icons', () => {
   const html = renderToStaticMarkup(React.createElement(NewTabMenuContent, { pending: false, onCreate: () => {} }));

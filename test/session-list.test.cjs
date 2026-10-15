@@ -4,9 +4,10 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { Module } = require('node:module');
 const ts = require('typescript');
+require('../src/interface-i18n.mjs').i18n.changeLanguage('ko');
 const filename = join(__dirname, '../renderer/src/session-utils.ts');
 const compiled = ts.transpileModule(readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-const moduleUnderTest = new Module(filename); moduleUnderTest._compile(compiled, filename);
+const moduleUnderTest = new Module(filename); moduleUnderTest.filename = filename; moduleUnderTest.paths = Module._nodeModulePaths(require('node:path').dirname(filename)); moduleUnderTest._compile(compiled, filename);
 const { sessionGroup, SessionGroup, searchSessions, sessionOrigin, uniqueSessions, relativeTime } = moduleUnderTest.exports;
 const row = (id, title, date = '2026-10-09T00:00:00Z', sidechain = false) => ({ sessionId: id, title, sessionDir: '/project/nested', createdAt: date, lastTimestamp: null, isSidechain: sidechain });
 test('session search uses regex on original title, ID and directory with literal fallback', () => {

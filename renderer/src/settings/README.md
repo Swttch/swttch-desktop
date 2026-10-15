@@ -44,3 +44,16 @@ Use selective Zustand subscriptions so each item consumes only the settings it n
 The local Node.js backend owns persistent, device-local settings shared by Electron and localhost browsers. The frontend store holds the currently applied settings. Account-based synchronization is outside the current scope.
 
 The native settings pages follow this structure. AgentSetting hosts the existing agent settings application in an iframe; its internal components remain owned by that application. Shell actions such as opening help are consumed directly through a shared action context, while settings values are consumed through Zustand.
+
+## Internationalization
+
+Use `useSettingsCopy()` (react-i18next) inside the item or section that displays a
+settings string. Shell surfaces use the shared i18next shell namespace. Keep
+localized strings in the locale resources rather than in JSX or persisted
+identifiers. Language and direction controls subscribe to the same device store
+as every other setting; pages and sections do not forward their values as props.
+
+New plugin-backed fields must follow the per-field, import-once rules in
+[Interface settings](../../../docs/interface-settings.md). Plugin edits do not flow back into initialized desktop fields. Explicit desktop
+interface edits propagate through the existing plugin API; the plugin owns its
+persistence and change notifications.

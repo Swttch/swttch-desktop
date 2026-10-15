@@ -10,6 +10,7 @@ const file = join(__dirname, '../renderer/src/WorkPage.tsx');
 const loaded = new Module(file, module); loaded.filename = file; loaded.paths = Module._nodeModulePaths(dirname(file));
 const originalRequire = loaded.require.bind(loaded);
 loaded.require = name => {
+  if (name.endsWith('/i18n')) return require('./i18n-fixture.cjs');
   if (name !== './routes') return originalRequire(name);
   const routeFile = join(dirname(file), 'routes.ts');
   const routes = new Module(routeFile, module); routes.filename = routeFile; routes.paths = Module._nodeModulePaths(dirname(routeFile));

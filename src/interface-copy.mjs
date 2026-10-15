@@ -1,0 +1,13 @@
+import ja from './locales/interface/ja.json' with { type: 'json' };
+import zh from './locales/interface/zh.json' with { type: 'json' };
+import zhTW from './locales/interface/zh-TW.json' with { type: 'json' };
+import es from './locales/interface/es.json' with { type: 'json' };
+import fr from './locales/interface/fr.json' with { type: 'json' };
+import de from './locales/interface/de.json' with { type: 'json' };
+import pt from './locales/interface/pt.json' with { type: 'json' };
+import ru from './locales/interface/ru.json' with { type: 'json' };
+import fa from './locales/interface/fa.json' with { type: 'json' };
+import ar from './locales/interface/ar.json' with { type: 'json' };
+import en from './locales/interface/en.json' with { type: 'json' };
+import ko from './locales/interface/ko.json' with { type: 'json' };
+export const interfaceCatalogs = { en, ko, ja, zh, 'zh-TW': zhTW, es, fr, de, pt, ru, fa, ar };

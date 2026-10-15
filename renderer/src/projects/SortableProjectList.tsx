@@ -1,3 +1,4 @@
+import { t, useShellTranslation } from '../i18n';
 import { projectDragActivationConstraints } from '../../../src/project-drag-activation.mjs';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { DragDropProvider, DragOverlay, PointerSensor, KeyboardSensor, useDroppable } from '@dnd-kit/react';
@@ -13,7 +14,7 @@ const sensors = [PointerSensor.configure({
 
 function SortableProject({ project, index, disabled, reducedMotion, hint, children }: {
   project: Project; index: number; disabled: boolean; reducedMotion: boolean; hint: string; children: ReactNode;
-}) {
+}) { useShellTranslation();
   const handle = useRef<HTMLElement | null>(null);
   const { ref, isDragSource } = useSortable({
     id: project.id, index, group: 'projects', type: 'project', accept: 'project', disabled, handle,
@@ -30,14 +31,14 @@ function SortableProject({ project, index, disabled, reducedMotion, hint, childr
   </div>;
 }
 
-function EmptyPinSlot({ favorite }: { favorite: boolean }) {
+function EmptyPinSlot({ favorite }: { favorite: boolean }) { useShellTranslation();
   const { ref, isDropTarget } = useDroppable({ id: favorite ? 'pin-zone' : 'unpin-zone', type: 'project', accept: 'project' });
-  return <div ref={ref} className={`flex h-7 items-center justify-center rounded border border-dashed text-xs ${isDropTarget ? 'border-muted bg-selected text-foreground' : 'border-divider text-muted'}`}>{favorite ? '여기에 놓으면 고정' : '여기에 놓으면 고정 해제'}</div>;
+  return <div ref={ref} className={`flex h-7 items-center justify-center rounded border border-dashed text-xs ${isDropTarget ? 'border-muted bg-selected text-foreground' : 'border-divider text-muted'}`}>{favorite ? t("Drop here to pin") : t("Drop here to unpin")}</div>;
 }
 
 export function SortableProjectList({ projects, disabled, onMove, children }: {
   projects: Project[]; disabled: boolean; onMove: (move: ProjectMove) => void; children: (project: Project) => ReactNode;
-}) {
+}) { useShellTranslation();
   const [dragId, setDragId] = useState<number | null>(null);
   const [preview, setPreview] = useState<number[] | null>(null);
   const [favorite, setFavorite] = useState(false);
@@ -51,7 +52,7 @@ export function SortableProjectList({ projects, disabled, onMove, children }: {
   const ids = preview || projects.map(project => project.id);
   const rows = ids.flatMap(id => { const project = projects.find(project => project.id === id); return project ? [project] : []; });
   const dragged = projects.find(project => project.id === dragId);
-  const hint = dragged && favorite !== (dragged.favoritedAt > 0) ? favorite ? '고정' : '고정 해제' : '여기에 이동';
+  const hint = dragged && favorite !== (dragged.favoritedAt > 0) ? favorite ? t("Pin") : t("Unpin") : t("Move here");
   return <DragDropProvider sensors={sensors}
     onDragStart={event => {
       const id = Number(event.operation.source?.id);
@@ -100,6 +101,6 @@ export function SortableProjectList({ projects, disabled, onMove, children }: {
         return project ? <div inert aria-hidden="true" className="pointer-events-none rounded-lg border border-divider bg-navigation shadow-lg">{children(project)}</div> : null;
       }}
     </DragOverlay>
-    <span role="status" className="sr-only">{dragged ? `${dragged.alias || dragged.path} 이동 중. ${hint}. Esc로 취소할 수 있습니다.` : ''}</span>
+    <span role="status" className="sr-only">{dragged ? t("Moving {{name}}. {{hint}}. Press Escape to cancel.", { name: dragged.alias || dragged.path, hint }) : ''}</span>
   </DragDropProvider>;
 }

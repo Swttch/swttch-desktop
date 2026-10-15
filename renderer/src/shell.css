@@ -160,3 +160,12 @@
 @media (prefers-reduced-motion: reduce) {
   .tippy-box[data-animation='floating-sidebar'] { transition: none; transform: none; }
 }
+
+/* Mirror navigation while keeping shortcuts and technical inputs readable. */
+[dir='rtl'] .settings-row-control { margin-inline-start: auto; }
+[dir='rtl'] .settings-main { text-align: start; }
+[dir='rtl'] .settings-search input { text-align: start; }
+[dir='rtl'] .settings-menu-row, [dir='rtl'] .account-menu-row, [dir='rtl'] .account-profile { text-align: start; }
+[dir='rtl'] .settings-sidebar { border-right: 0; border-left: 1px solid var(--color-divider); }
+.shortcut-keys, .settings-shortcut { direction: ltr; unicode-bidi: isolate; }
+[dir='rtl'] .tippy-box[data-animation='floating-sidebar'][data-state='hidden'] { transform: translateX(6px); }

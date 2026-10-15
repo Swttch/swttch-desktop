@@ -1,3 +1,4 @@
+import { t, useShellTranslation } from './i18n';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Terminal } from '@xterm/xterm';
@@ -8,7 +9,7 @@ import { replacePathParams } from './routes';
 import type { WorkspaceView } from '../../src/workspace-layout.mjs';
 import '@xterm/xterm/css/xterm.css';
 
-export function TerminalView({ tab, onFocus, onTitle }: { tab: WorkspaceView; onFocus: (interaction: boolean) => void; onTitle: (title: string) => void }) {
+export function TerminalView({ tab, onFocus, onTitle }: { tab: WorkspaceView; onFocus: (interaction: boolean) => void; onTitle: (title: string) => void }) { useShellTranslation();
   const root = useRef<HTMLDivElement>(null);
   const callbacks = useRef({ onFocus, onTitle }); callbacks.current = { onFocus, onTitle };
   const [status, setStatus] = useState('');
@@ -20,7 +21,7 @@ export function TerminalView({ tab, onFocus, onTitle }: { tab: WorkspaceView; on
     if (!element || !id) return;
     const terminal = new Terminal({ fontSize: 12, fontFamily: 'Menlo, Monaco, Consolas, monospace', cursorBlink: true, screenReaderMode: true, scrollback: 5000, theme: { background: '#1a1a1a', foreground: '#ededed', cursor: '#ededed', selectionBackground: '#365578' } });
     const fit = new FitAddon(); terminal.loadAddon(fit); terminal.open(element);
-    element.querySelector('textarea')?.setAttribute('aria-label', '터미널 입력');
+    element.querySelector('textarea')?.setAttribute('aria-label', t("Terminal input"));
     const data = terminal.onData(value => { for (let start = 0; start < value.length; start += 2048) mutations.current.input.mutate(value.slice(start, start + 2048)); });
     const title = terminal.onTitleChange(value => callbacks.current.onTitle(value || tab.title));
     const dimensions = terminal.onResize(size => mutations.current.resize.mutate(size));
@@ -33,9 +34,9 @@ export function TerminalView({ tab, onFocus, onTitle }: { tab: WorkspaceView; on
     events.onmessage = event => {
       const packet = JSON.parse(event.data) as { type: string; data?: string; exitCode?: number };
       if (packet.type === 'data' && packet.data) terminal.write(packet.data);
-      if (packet.type === 'exit') { setStatus(`셸 종료 · 코드 ${packet.exitCode}`); events.close(); }
+      if (packet.type === 'exit') { setStatus(t("Shell exited · code {{code}}", { code: packet.exitCode })); events.close(); }
     };
-    events.onerror = () => setStatus('터미널 연결을 다시 시도하고 있습니다…');
+    events.onerror = () => setStatus(t("Reconnecting terminal…"));
     terminal.focus();
     return () => {
       events.close(); observer.disconnect(); cancelAnimationFrame(frame); data.dispose(); title.dispose(); dimensions.dispose(); element.removeEventListener('terminal-refresh', measure); terminal.dispose();
