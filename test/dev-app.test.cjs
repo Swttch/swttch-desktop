@@ -1,0 +1,31 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } = require('node:fs');
+const { join } = require('node:path');
+const { tmpdir } = require('node:os');
+
+test('development launch uses a separately branded bundle and leaves the original Electron install untouched', t => {
+  const { prepareDevApp } = require('../scripts/prepare-dev-app.cjs');
+  const root = mkdtempSync(join(tmpdir(), 'swttch-dev-app-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const source = join(root, 'Electron.app', 'Contents');
+  mkdirSync(join(source, 'MacOS'), { recursive: true });
+  mkdirSync(join(source, 'Resources'));
+  const plist = '<?xml version="1.0"?><plist><dict><key>CFBundleName</key><string>Electron</string><key>CFBundleDisplayName</key><string>Electron</string><key>CFBundleIdentifier</key><string>com.github.Electron</string><key>CFBundleExecutable</key><string>Electron</string><key>CFBundleIconFile</key><string>electron.icns</string></dict></plist>';
+  writeFileSync(join(source, 'Info.plist'), plist);
+  writeFileSync(join(source, 'MacOS', 'Electron'), 'runtime');
+  const icon = join(root, 'swttch.icns'); writeFileSync(icon, 'icon');
+  const signed = [];
+  const options = { electronExecutable: join(source, 'MacOS', 'Electron'), outputRoot: join(root, 'cache'), icon, sign: bundle => signed.push(bundle) };
+  const executable = prepareDevApp(options);
+  const destination = join(root, 'cache', 'Swttch.app', 'Contents');
+  assert.equal(executable, join(destination, 'MacOS', 'Electron'));
+  assert.equal(readFileSync(join(source, 'Info.plist'), 'utf8'), plist);
+  const generated = readFileSync(join(destination, 'Info.plist'), 'utf8');
+  assert.match(generated, /<key>CFBundleName<\/key><string>Swttch<\/string>/);
+  assert.match(generated, /<key>CFBundleIdentifier<\/key><string>app.swttch.desktop.dev<\/string>/);
+  assert.equal(readFileSync(join(destination, 'Resources', 'swttch.icns'), 'utf8'), 'icon');
+  assert.equal(existsSync(executable), true);
+  assert.equal(prepareDevApp(options), executable);
+  assert.equal(signed.length, 1, 'unchanged development bundles must reuse the prepared cache');
+});

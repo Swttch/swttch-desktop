@@ -1,5 +1,6 @@
 import { createServer } from 'vite';
 import { spawn } from 'node:child_process';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
@@ -30,7 +31,9 @@ try {
   if (process.argv.includes('--electron')) {
     const env = { ...process.env, SWTTCH_RENDERER_URL: `http://127.0.0.1:${FRONTEND_PORT}` };
     delete env.ELECTRON_RUN_AS_NODE;
-    child = spawn(require('electron'), [root], { env, stdio: 'inherit' });
+    const installedElectron = require('electron');
+    const executable = process.platform === 'darwin' ? require('./prepare-dev-app.cjs').prepareDevApp({ electronExecutable: installedElectron, outputRoot: join(root, 'artifacts', 'dev-app'), icon: join(root, 'assets', 'app-icon.icns') }) : installedElectron;
+    child = spawn(executable, [root], { env, stdio: 'inherit' });
     child.once('error', error => { console.error(error.message); void stop(1); });
     child.once('exit', code => { void stop(code || 0); });
   }
