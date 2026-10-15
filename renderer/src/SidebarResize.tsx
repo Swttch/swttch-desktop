@@ -1,10 +1,8 @@
-import { useState } from 'react';
+import { useSettingsStore, updateSettings } from './settings/store';
 
-const STORAGE_KEY = 'swttch-sidebar-width';
-const clamp = (width: number) => Math.max(196, Math.min(480, width));
 export function useSidebarWidth() {
-  const [width, setWidth] = useState(() => { const saved = Number(localStorage.getItem(STORAGE_KEY)); return saved ? clamp(saved) : 224; });
-  const save = (next: number) => { const value = clamp(next); setWidth(value); localStorage.setItem(STORAGE_KEY, String(value)); };
+  const width = useSettingsStore(state => state.values.sidebar.width);
+  const save = (next: number) => { void updateSettings({ sidebar: { width: Math.max(196, Math.min(480, next)) } }); };
   return { width, save };
 }
 export function SidebarResize({ width, onResize }: { width: number; onResize: (width: number) => void }) {

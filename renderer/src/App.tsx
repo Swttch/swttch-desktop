@@ -1,3 +1,5 @@
+import { SettingsActionsContext } from './settings/actions';
+import { settingsStore, useSettingsStore, updateSettings } from './settings/store';
 import { WorkPage, isWorkPage } from './WorkPage';
 import { SidebarSessions } from './SidebarSessions';
 import { SidebarSection } from './SidebarSection';
@@ -12,7 +14,7 @@ import { ProjectOrderList } from './projects/ProjectOrderList';
 import { moveProjects, type ProjectMove } from './projects/projectOrder';
 import toast, { Toaster } from 'react-hot-toast';
 import { Tooltip } from './Tooltip';
-import { useLocation, useMatch } from 'react-router';
+import { useLocation, useMatch, useNavigate } from 'react-router';
 import { AddProjectModal } from './AddProjectModal';
 import { ProjectDetailPage } from './ProjectDetailPage';
 import { PATH, replacePathParams } from './routes';
@@ -23,7 +25,10 @@ import { readProjectSort, saveProjectSort, sortProjects, SortOrder } from './pro
 import { StatusBar } from './StatusBar';
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { DesktopHelp } from './DesktopHelp';
-import { DesktopSettings } from './DesktopSettings';
+import { SettingsIcon } from './SettingsIcon';
+import { settingsCopy } from '../../src/locales/settings.ko.mjs';
+import { SettingsPage, SettingsSidebar, AppAccountMenu } from './SettingsPage';
+import { resolveSettingsPath } from '../../src/settings-navigation.mjs';
 import { WorkspaceSurface, type WorkspaceSurfaceHandle } from './WorkspaceSurface';
 import type { WorkspaceView } from '../../src/workspace-layout.mjs';
 
@@ -51,6 +56,7 @@ function IconButton({ label, icon, shortcut, className = '', solid = false, ...p
 const sidebarShortcut = (event: KeyboardEvent) => event.shiftKey && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's';
 
 export function App() {
+  useEffect(() => { void settingsStore.getState().load(); }, []);
   const workspaceQuery = useQuery({ queryKey: QUERY_KEY.workspace, queryFn: ({ signal }) => desktopApi.state(signal) });
   const projectsQuery = useQuery({ queryKey: QUERY_KEY.projects, queryFn: ({ signal }) => desktopApi.projects(signal) });
   const state: DesktopState = workspaceQuery.data || { phase: DesktopPhase.Starting, message: '채팅 환경을 준비하고 있습니다.', project: null, recent: [], projects: [], chatUrl: null, backendId: '' };
@@ -65,10 +71,25 @@ export function App() {
     if (legacyProject) router.push(replacePathParams(PATH.PROJECT, { projectId: legacyProject.id }));
   }, [legacyProject?.id, router]);
   const detailProject = state.projects.find(project => String(project.id) === detailId);
-  const projectNavigation = !isWorkPage(useLocation().pathname);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const historyIndex = Number(window.history.state?.idx || 0);
+  const lastHistoryIndex = useRef(historyIndex);
+  lastHistoryIndex.current = Math.max(lastHistoryIndex.current, historyIndex);
+  const settingsPage = Boolean(useMatch(PATH.SETTINGS_ROUTE));
+  const projectNavigation = !isWorkPage(location.pathname);
+  const returnPath = useRef(PATH.HOME as string);
+  useEffect(() => { if (!settingsPage) returnPath.current = location.pathname; }, [settingsPage, location.pathname]);
+  function openSettings(path?: string) {
+    let target = PATH.SETTINGS_GENERAL as string;
+    try { target = resolveSettingsPath(localStorage.getItem('swttch-last-settings-page') || target); } catch { /* Use general settings. */ }
+    router.push(path || target);
+  }
+  const returnFromSettings = () => router.push(returnPath.current);
   const busy = actionMutation.isPending;
   const sidebarWidth = useSidebarWidth();
-  const [collapsed, setCollapsed] = useState(false);
+  const collapsed = useSettingsStore(state => state.values.sidebar.collapsed);
+  const setCollapsed = (next: boolean | ((value: boolean) => boolean)) => { void updateSettings({ sidebar: { collapsed: typeof next === 'function' ? next(settingsStore.getState().values.sidebar.collapsed) : next } }); };
   const [error, setError] = useState('');
   const [selecting, setSelecting] = useState(false);
   const [selectingForChat, setSelectingForChat] = useState(false);
@@ -78,8 +99,7 @@ export function App() {
   const [activeView, setActiveView] = useState<WorkspaceView | null>(null);
   const sessionId = activeView?.sessionId || '';
   const [helpOpen, setHelpOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [accountInfo, setAccountInfo] = useState(false);
+
   const searchInput = useRef<HTMLInputElement>(null);
   const surface = useRef<WorkspaceSurfaceHandle>(null);
   const inFlight = useRef(false);
@@ -131,6 +151,7 @@ export function App() {
     onSettled: () => void queryClient.invalidateQueries({ queryKey: QUERY_KEY.projects }),
   });
   useEffect(() => desktopApi.subscribe(next => {
+    if (next.settings) settingsStore.getState().receive(next.settings);
     queryClient.setQueryData(QUERY_KEY.workspace, next);
     queryClient.setQueryData<{ projects: Project[]; homeDir: string }>(QUERY_KEY.projects, previous => previous ? { ...previous, projects: next.projects } : previous);
     setError('');
@@ -147,7 +168,7 @@ export function App() {
     };
     window.addEventListener('keydown', keydown, true);
     return () => { window.removeEventListener('keydown', keydown, true); };
-  }, [projectsPage, router]);
+  }, [projectsPage, settingsPage, router]);
     useEffect(() => { if (searching) searchInput.current?.focus(); }, [searching]);
   useEffect(() => {
     if (!ready || !workspaceRestored || restoredView.current || inFlight.current) return;
@@ -202,9 +223,8 @@ export function App() {
   const selectedHeaderProject = detailProject || switcherProjects.find(project => project.path === activeProjectPath);
   const feedback = error || workspaceQuery.error?.message || (state.phase === DesktopPhase.Error || state.phase === DesktopPhase.Starting ? state.message : '');
 
-  return <div style={{ '--sidebar-width': sidebarWidth.width + 'px' } as React.CSSProperties} className={`app relative h-dvh overflow-hidden bg-chrome text-foreground before:pointer-events-none before:absolute before:top-0 before:left-0 before:h-[2px] before:w-full before:bg-dev-line before:z-40 ${window.desktopHost ? ' electron-host' : ''}`}>
+  return <div style={{ '--sidebar-width': sidebarWidth.width + 'px' } as React.CSSProperties} className={`app ${settingsPage ? 'settings-route' : ''} relative h-dvh overflow-hidden bg-chrome text-foreground before:pointer-events-none before:absolute before:top-0 before:left-0 before:h-[2px] before:w-full before:bg-dev-line before:z-40 ${window.desktopHost ? ' electron-host' : ''}`}>
     {helpOpen && <DesktopHelp getShortcuts={() => surface.current?.getShortcuts() || Promise.resolve([])} onClose={() => setHelpOpen(false)} />}
-    {settingsOpen && <DesktopSettings onClose={() => setSettingsOpen(false)} onHelp={() => setHelpOpen(value => !value)} />}
     {selecting && <AddProjectModal onClose={() => setSelecting(false)} onAdded={id => {
       setSelecting(false);
       if (!selectingForChat) { chooseProject(id); return; }
@@ -216,7 +236,7 @@ export function App() {
       <header aria-label="상단바" className="titlebar-left col-span-2 flex min-w-0 items-center border-r border-divider pl-[calc(env(titlebar-area-x,0px)+0.75rem)]">
         <IconButton label="사이드바 표시/숨기기" icon={sidebarHidden ? IconName.SidebarCollapsed : IconName.Sidebar} shortcut="⇧⌘S" aria-expanded={!sidebarHidden} aria-controls="sidebar" aria-keyshortcuts="Meta+Shift+S Control+Shift+S" onClick={() => { if (projectsPage) { router.push(PATH.HOME); setCollapsed(false); } else setCollapsed(value => !value); }} />
         <div className="header-context flex min-w-0 flex-1 items-center pr-2" aria-label="상단바 중간 영역" aria-hidden={sidebarHidden} inert={sidebarHidden}>
-          <ProjectSwitcher projects={switcherProjects} selected={selectedHeaderProject} disabled={disabled} onSelect={chooseProject} />
+          {settingsPage ? <div className="flex items-center gap-1"><Tooltip content={settingsCopy.back}><button type="button" aria-label={settingsCopy.back} className="icon-button" onClick={() => historyIndex > 0 ? void navigate(-1) : returnFromSettings()}><SettingsIcon kind="back" /></button></Tooltip><Tooltip content={settingsCopy.forward}><button type="button" aria-label={settingsCopy.forward} className="icon-button" disabled={historyIndex >= lastHistoryIndex.current} onClick={() => void navigate(1)}><SettingsIcon kind="forward" /></button></Tooltip></div> : <ProjectSwitcher projects={switcherProjects} selected={selectedHeaderProject} disabled={disabled} onSelect={chooseProject} />}
         </div>
 
       </header>
@@ -228,14 +248,12 @@ export function App() {
         <IconButton label="새 채팅" icon={IconName.Compose} className="rail-button" onClick={newChat} disabled={disabled} />
         <IconButton label="예약" icon={IconName.History} className="rail-button" onClick={() => toast('예약 기능은 준비 중입니다.')} />
         <span className="mt-1 w-6 border-t border-divider" />
-        <IconButton label="프로젝트" icon={IconName.Folder} className={`rail-button ${projectNavigation ? 'rail-active' : ''}`} aria-current={projectNavigation ? 'page' : undefined} onClick={() => { router.push(PATH.PROJECTS); setSelecting(false);  }} />
-        <div className="relative mt-auto">
-          <Tooltip content="계정 상태" placement="right" delay={0}><button className="account-button" aria-label="계정 상태" aria-expanded={accountInfo} onClick={() => setAccountInfo(value => !value)}>S</button></Tooltip>
-          {accountInfo && <div className="account-popover" role="status"><strong className="block text-sm font-medium">Swttch 계정</strong><p className="mt-2 text-xs leading-5 text-muted">앱 로그인과 기존 계정 연동은 준비 중입니다.</p></div>}
-        </div>
+        <IconButton label="프로젝트" icon={IconName.Folder} className={`rail-button ${!settingsPage && projectNavigation ? 'rail-active' : ''}`} aria-current={!settingsPage && projectNavigation ? 'page' : undefined} onClick={() => { router.push(PATH.PROJECTS); setSelecting(false);  }} />
+        <div className="mt-auto"><AppAccountMenu onSettings={openSettings} onHelp={() => setHelpOpen(true)} /></div>
       </nav>
-      <aside id="sidebar" className="relative min-h-0 overflow-hidden bg-navigation" aria-label="프로젝트·세션 목록" aria-hidden={sidebarHidden} inert={sidebarHidden}>
-        <div className="sidebar-content">
+      <aside id="sidebar" className="relative min-h-0 overflow-hidden bg-navigation" aria-label={settingsPage ? "설정 탐색" : "프로젝트·세션 목록"} aria-hidden={sidebarHidden} inert={sidebarHidden}>
+        {settingsPage && <div className="sidebar-content"><SettingsSidebar /></div>}
+        <div className="sidebar-content" style={{ display: settingsPage ? "none" : undefined }} inert={settingsPage}>
         <div className="flex items-center justify-between px-5 pt-5 pb-3"><h1 className="text-xl font-semibold tracking-tight">Swttch</h1><IconButton label="목록 검색" icon={IconName.Search} aria-expanded={searching} onClick={() => { setSearching(value => !value); setQuery(''); }} /></div>
         <div className="px-3"><button className="navigation-row" onClick={newChat} disabled={disabled}><Icon name={IconName.Compose} /><span>새 채팅</span></button></div>
         {searching && <div className="px-4 py-2"><input ref={searchInput} className="field" aria-label="프로젝트·세션 검색" value={query} onChange={event => setQuery(event.target.value)} placeholder="프로젝트·세션 검색" /></div>}
@@ -252,9 +270,10 @@ export function App() {
         <SidebarResize width={sidebarWidth.width} onResize={sidebarWidth.save} />
       </aside>
       <section className="workspace relative min-h-0 min-w-0 bg-canvas" aria-label={projectNavigation ? '페이지 영역' : '작업 영역'}>
-        <WorkPage active={!projectNavigation}><WorkspaceSurface ref={surface} onRestored={found => { if (found) restoredView.current = true; setWorkspaceRestored(true); }} state={state} browsing={projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onActive={tab => setActiveView(tab)} onNew={(pane, path) => { const target = path || detailProject?.path || activeProjectPath; if (target) openView(target, undefined, pane); else { setSelectingForChat(true); setSelecting(true); } }} onEmpty={() => closeViewMutation.mutate()} onHelp={() => setHelpOpen(value => !value)} onSettings={() => setSettingsOpen(true)} onSidebar={() => setCollapsed(value => !value)} /></WorkPage>
+        <WorkPage active={!projectNavigation}><WorkspaceSurface ref={surface} onRestored={found => { if (found) restoredView.current = true; setWorkspaceRestored(true); }} state={state} browsing={projectNavigation} pending={disabled} onSelect={() => { router.push(PATH.HOME); setSelecting(false); }} onActive={tab => setActiveView(tab)} onNew={(pane, path) => { const target = path || detailProject?.path || activeProjectPath; if (target) openView(target, undefined, pane); else { setSelectingForChat(true); setSelecting(true); } }} onEmpty={() => closeViewMutation.mutate()} onHelp={() => setHelpOpen(value => !value)} onSettings={() => openSettings()} onSidebar={() => setCollapsed(value => !value)} /></WorkPage>
         {!activeView && !projectNavigation && <main className="welcome grid h-full place-items-center p-8"><div className="w-full max-w-sm text-center"><h2 className="mb-3 text-lg font-medium">프로젝트에서 시작하세요.</h2><p className="mb-6 text-sm leading-6 text-muted">프로젝트를 추가하고 에이전트와 작업을 시작하세요.</p><button className="primary-button" onClick={openProject} disabled={disabled}>프로젝트 추가</button><p className="mt-4 text-xs text-muted" role="status">{feedback}</p></div></main>}
-        {projectNavigation && <div data-route-page className="absolute inset-x-0 bottom-0 z-20 bg-canvas" style={{ top: 'calc(-1 * var(--header-height))' }}>
+        {projectNavigation && <div data-route-page className="absolute inset-x-0 bottom-0 z-20 bg-canvas" style={{ top: settingsPage ? 0 : 'calc(-1 * var(--header-height))' }}>
+        {settingsPage && <SettingsActionsContext.Provider value={{ onReturn: returnFromSettings, onHelp: () => setHelpOpen(true), onSidebar: () => setCollapsed(value => !value) }}><SettingsPage /></SettingsActionsContext.Provider>}
         {detailId && <ProjectDetailPage projectId={detailId} disabled={disabled} onChat={path => openView(path)} onSession={(sessionId, path) => openView(path, sessionId)} />}
         {projectsPage && <ProjectsPage onMove={reorderProjects} disabled={disabled || reorderMutation.isPending} onOpen={chooseProject} onAdd={() => void openProject()} sort={sort} onSort={order => { setSort(order); saveProjectSort(order); }} />}
         </div>}

@@ -6,6 +6,7 @@ const { mkdirSync, appendFileSync, statSync } = require('node:fs');
 const { join, resolve } = require('node:path');
 const { homedir } = require('node:os');
 const { API_PATH } = require('./api-paths.mjs');
+const { isShellSettingsRequest } = require('./settings-navigation.mjs');
 const { PATH } = require('./paths.mjs');
 const { Backend } = require('./backend.cjs');
 const { createFolderDialog } = require('./folder-dialog.cjs');
@@ -662,7 +663,7 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
   function middleware(req, res, next) {
     const path = req.url.split('?')[0];
     if (path.startsWith('/desktop-api/')) { void api(req, res).catch(() => json(res, 500, { error: 'Local service failure' })); return; }
-    if (path === PATH.HOME || (path === PATH.PROJECTS || path.startsWith(PATH.PROJECTS + '/')) || path === '/index.html' || ['/src/', '/@', '/node_modules/', '/desktop-assets/'].some(prefix => path.startsWith(prefix))) return next();
+    if (isShellSettingsRequest(req.url) || path === PATH.HOME || (path === PATH.PROJECTS || path.startsWith(PATH.PROJECTS + '/')) || path === '/index.html' || ['/src/', '/@', '/node_modules/', '/desktop-assets/'].some(prefix => path.startsWith(prefix))) return next();
     proxy(req, res);
   }
   return {

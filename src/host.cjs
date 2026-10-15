@@ -3,6 +3,7 @@ const { readFile } = require('node:fs/promises');
 const { resolve, join, extname } = require('node:path');
 const { createLocalService } = require('./local-service.cjs');
 
+const { isShellSettingsRequest } = require('./settings-navigation.mjs');
 const { PATH } = require('./paths.mjs');
 const { API_PORT } = require('./ports.cjs');
 
@@ -13,7 +14,7 @@ async function startHost({ port = API_PORT, home, allowedOrigins = [], backend, 
   const server = createServer((req, res) => service.middleware(req, res, async () => {
     try {
       const path = new URL(req.url, 'http://localhost').pathname;
-      const file = path === PATH.HOME || (path === PATH.PROJECTS || path.startsWith(PATH.PROJECTS + '/')) || path === '/index.html' ? join(renderer, 'index.html') : resolve(renderer, '.' + decodeURIComponent(path));
+      const file = isShellSettingsRequest(req.url) || path === PATH.HOME || (path === PATH.PROJECTS || path.startsWith(PATH.PROJECTS + '/')) || path === '/index.html' ? join(renderer, 'index.html') : resolve(renderer, '.' + decodeURIComponent(path));
       if (!file.startsWith(renderer + '/') || !['GET', 'HEAD'].includes(req.method)) { res.writeHead(404); res.end(); return; }
       const data = await readFile(file);
       res.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });

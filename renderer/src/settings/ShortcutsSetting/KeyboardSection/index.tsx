@@ -1,0 +1,23 @@
+import { settingsCopy as copy } from '../../../../../src/locales/settings.ko.mjs';
+import { SettingsSection } from '../../../SettingsControls';
+import { RefreshSettingItem } from './RefreshSettingItem';
+import { MoveLeftSettingItem } from './MoveLeftSettingItem';
+import { MoveRightSettingItem } from './MoveRightSettingItem';
+import { MoveUpSettingItem } from './MoveUpSettingItem';
+import { MoveDownSettingItem } from './MoveDownSettingItem';
+import { NewTabSettingItem } from './NewTabSettingItem';
+import { SplitColumnsSettingItem } from './SplitColumnsSettingItem';
+import { SplitRowsSettingItem } from './SplitRowsSettingItem';
+import { RenameSettingItem } from './RenameSettingItem';
+import { FavoriteSettingItem } from './FavoriteSettingItem';
+import { CloseSettingItem } from './CloseSettingItem';
+import { TabLeftSettingItem } from './TabLeftSettingItem';
+import { TabRightSettingItem } from './TabRightSettingItem';
+import { PanelLeftSettingItem } from './PanelLeftSettingItem';
+import { PanelRightSettingItem } from './PanelRightSettingItem';
+import { PanelUpSettingItem } from './PanelUpSettingItem';
+import { PanelDownSettingItem } from './PanelDownSettingItem';
+import { SidebarSettingItem } from './SidebarSettingItem';
+import { HelpSettingItem } from './HelpSettingItem';
+import { SettingsSettingItem } from './SettingsSettingItem';
+export function KeyboardSection() { return <SettingsSection title={copy.shortcuts}><RefreshSettingItem /><MoveLeftSettingItem /><MoveRightSettingItem /><MoveUpSettingItem /><MoveDownSettingItem /><NewTabSettingItem /><SplitColumnsSettingItem /><SplitRowsSettingItem /><RenameSettingItem /><FavoriteSettingItem /><CloseSettingItem /><TabLeftSettingItem /><TabRightSettingItem /><PanelLeftSettingItem /><PanelRightSettingItem /><PanelUpSettingItem /><PanelDownSettingItem /><SidebarSettingItem /><HelpSettingItem /><SettingsSettingItem /></SettingsSection>; }

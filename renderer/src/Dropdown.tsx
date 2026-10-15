@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import tippy, { hideAll } from 'tippy.js';
+import tippy, { hideAll, type Placement } from 'tippy.js';
 
-export function Dropdown({ children, content, closeRef, onOpen, onClose, contextMenu = false }: { children: ReactNode; content: ReactNode; closeRef?: RefObject<(() => void) | null>; onOpen?: () => void; onClose?: () => void; contextMenu?: boolean }) {
+export function Dropdown({ children, content, closeRef, onOpen, onClose, contextMenu = false, submenu = false, placement = 'top-start' }: { children: ReactNode; content: ReactNode; closeRef?: RefObject<(() => void) | null>; onOpen?: () => void; onClose?: () => void; contextMenu?: boolean; submenu?: boolean; placement?: Placement }) {
   const anchor = useRef<HTMLSpanElement>(null);
   const opened = useRef(onOpen);
   opened.current = onOpen;
@@ -16,11 +16,11 @@ export function Dropdown({ children, content, closeRef, onOpen, onClose, context
     button.setAttribute('aria-haspopup', contextMenu ? 'menu' : 'dialog');
     setContainer(element);
     const instance = tippy(button, {
-      content: element, trigger: contextMenu ? 'manual' : 'click', interactive: true, hideOnClick: true,
-      appendTo: () => document.body, placement: 'top-start', arrow: false,
+      content: element, trigger: contextMenu ? 'manual' : submenu ? 'mouseenter focus click' : 'click', interactive: true, hideOnClick: true,
+      appendTo: () => document.body, placement, arrow: false, interactiveBorder: submenu ? 16 : 2,
       theme: 'swttch-dropdown', role: contextMenu ? 'presentation' : 'dialog', maxWidth: 'none', duration: [120, 80],
       aria: { content: null, expanded: false },
-      onShow: instance => { hideAll({ exclude: instance }); button.setAttribute('aria-expanded', 'true'); opened.current?.(); },
+      onShow: instance => { if (!submenu) hideAll({ exclude: instance }); button.setAttribute('aria-expanded', 'true'); opened.current?.(); },
       onHide: () => { button.setAttribute('aria-expanded', 'false'); closed.current?.(); },
       onShown: () => { if (contextMenu) element.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus(); },
     });
@@ -39,7 +39,7 @@ export function Dropdown({ children, content, closeRef, onOpen, onClose, context
     if (contextMenu) { reference?.addEventListener('contextmenu', openContext); reference?.addEventListener('keydown', contextKeyboard); }
     if (closeRef) closeRef.current = () => instance.hide();
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && instance.state.isVisible) { instance.hide(); button.focus(); }
+      if (event.key === 'Escape' && instance.state.isVisible) { button.focus(); instance.hide(); }
     };
     const blur = () => { if (document.activeElement instanceof HTMLIFrameElement) instance.hide(); };
     document.addEventListener('keydown', escape);
@@ -49,6 +49,6 @@ export function Dropdown({ children, content, closeRef, onOpen, onClose, context
       reference?.removeEventListener('contextmenu', openContext); reference?.removeEventListener('keydown', contextKeyboard);
       document.removeEventListener('keydown', escape); window.removeEventListener('blur', blur);
     };
-  }, [closeRef, contextMenu]);
+  }, [closeRef, contextMenu, submenu, placement]);
   return <><span ref={anchor} className="tooltip-anchor">{children}</span>{container && createPortal(content, container)}</>;
 }

@@ -1,0 +1,38 @@
+import type { ReactNode } from 'react';
+const icons: Record<string, ReactNode> = {
+  settings: <><path d="m9.5 3-.7 2.4-2 .9-2.3-.7-2.5 4.2 1.7 1.8v2.2L2 15.6l2.5 4.2 2.3-.7 2 .9.7 2.4h5l.7-2.4 2-.9 2.3.7 2.5-4.2-1.7-1.8v-2.2l1.7-1.8-2.5-4.2-2.3.7-2-.9L14.5 3z" /><circle cx="12" cy="12.7" r="3.2" /></>,
+  user: <><circle cx="12" cy="8" r="3.5" /><path d="M5 21v-2a7 7 0 0 1 14 0v2" /></>,
+  account: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="9" r="3" /><path d="M5.5 18a7 7 0 0 1 13 0" /></>,
+  bell: <><path d="M5 15V9a7 7 0 0 1 14 0v6l2 3H3zM9 21h6" /></>,
+  download: <><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5" /></>,
+  sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></>,
+  archive: <><rect x="3" y="4" width="18" height="5" rx="1" /><path d="M5 9v11h14V9m-10 4h6" /></>,
+  voice: <><rect x="9" y="2" width="6" height="13" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3" /></>,
+  folder: <><path d="M3 7V5h7l2 2h9v13H3zM3 11h18" /></>,
+  config: <><path d="m12 3 9 5-2 10-7 4-7-4L3 8zM8 10l4-2 4 2m-8 4 4 2 4-2" /></>,
+  shield: <path d="m12 2 9 4v6c0 5-5 8-9 10-4-2-9-5-9-10V6z" />,
+  gauge: <><circle cx="12" cy="12" r="9" /><path d="m15 8-4 4 2 2 4-4M6 15a7 7 0 0 1 6-10" /></>,
+  pet: <><path d="M7 3h10l4 8-2 9H5l-2-9z" /><path d="M8 11v2m8-2v2m-6 4h4" /></>,
+  keyboard: <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M7 9h.01M11 9h.01M15 9h.01M7 13h.01M11 13h.01M15 13h.01M8 16h8" /></>,
+  plugin: <><circle cx="12" cy="12" r="9" /><path d="m7 8 3 2v5l3 2 4-4-3-2V7h-4l-3 4" /></>,
+  key: <><circle cx="8" cy="8" r="5" /><path d="m12 12 9 9m-2-2 2-2m-5-1 2-2" /></>,
+  computer: <><rect x="3" y="3" width="18" height="13" rx="2" /><path d="M8 21h8m-4-5v5" /></>,
+  history: <><circle cx="12" cy="12" r="9" /><path d="M12 6v6l-4 3" /></>,
+  scan: <><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 8h8v8H8z" /></>,
+  browser: <><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M3 9h18M7 6.5h.01m3 0h.01" /></>,
+  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10h.01" /></>,
+  agent: <><rect x="4" y="5" width="16" height="15" rx="5" /><path d="M12 2v3M8 10v3m8-3v3m-7 4h6" /></>,
+  search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,
+  back: <path d="m14 5-7 7 7 7M7 12h14" />,
+  forward: <path d="m10 5 7 7-7 7M17 12H3" />,
+  chevron: <path d="m9 5 7 7-7 7" />,
+  down: <path d="m6 9 6 6 6-6" />,
+  external: <path d="M7 17 18 6M8 6h10v10" />,
+  gift: <><path d="M3 8h18v5H3zm2 5v8h14v-8M12 8v13" /><path d="M12 8C2 8 7-3 12 5c5-8 10 3 0 3Z" /></>,
+  invite: <><path d="m3 10 19-8-7 20-4-8zM11 14 22 2" /></>,
+  logout: <><path d="M9 3H4v18h5m5-5 5-4-5-4m-6 4h11" /></>,
+  plan: <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M3 10h18M7 15h3" /></>,
+};
+export function SettingsIcon({ kind = 'settings', className = '' }: { kind?: string; className?: string }) {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className={`size-[18px] shrink-0 fill-none stroke-current ${className}`} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{icons[kind] || icons.settings}</svg>;
+}
