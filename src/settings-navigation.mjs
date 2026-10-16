@@ -11,6 +11,7 @@ return Object.freeze([
   { path: PATH.SETTINGS_PLAN, label: copy.planBilling, group: copy.personal, icon: 'gauge', description: copy.planBilling },
   pending(copy.dataControls, 'shield'),
   pending(copy.plugins, 'plugin', copy.integrations), pending(copy.passwords, 'key', copy.integrations), pending(copy.computerUse, 'computer', copy.integrations), pending(copy.computerHistory, 'history', copy.integrations), pending(copy.appshots, 'scan', copy.integrations), pending(copy.browser, 'browser', copy.integrations),
+  { path: PATH.SETTINGS_CLAUDE_CODE, label: 'Claude Code', group: copy.providers, icon: 'claude', description: `${copy.providerModel} ${copy.responseLanguage} Claude Code` },
   { path: PATH.SETTINGS_AGENT, label: copy.chatSettings, group: copy.agentGroup, icon: 'agent', description: `${copy.appearance} ${copy.notifications} ${copy.agentAccounts} Claude` },
   { path: PATH.SETTINGS_ABOUT, label: copy.about, group: copy.information, icon: 'info', description: `Swttch ${copy.version} ${copy.runtime}` },
 ]);

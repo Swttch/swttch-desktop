@@ -10,7 +10,7 @@ export function dismissTooltips() {
   }
 }
 
-export function Tooltip({ content, children, placement = 'bottom-start', delay = 300, disabled = false }: { content: ReactNode; children: ReactNode; placement?: Props['placement']; delay?: number; disabled?: boolean }) {
+export function Tooltip({ content, children, placement = 'bottom-start', delay = 300, disabled = false, interactive = false }: { content: ReactNode; children: ReactNode; placement?: Props['placement']; delay?: number; disabled?: boolean; interactive?: boolean }) {
   const anchor = useRef<HTMLSpanElement>(null);
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -19,7 +19,7 @@ export function Tooltip({ content, children, placement = 'bottom-start', delay =
     setContainer(element);
     const instance = tippy(anchor.current, {
       content: element, placement, delay: [delay, 0], duration: [120, 80],
-      theme: 'swttch', maxWidth: 360, trigger: 'mouseenter focusin', hideOnClick: true,
+      interactive, interactiveBorder: 8, theme: 'swttch', maxWidth: 360, trigger: 'mouseenter focusin', hideOnClick: true,
       onShow: instance => {
         if (!anchor.current?.isConnected || anchor.current.closest('[inert], [aria-hidden="true"]') || !anchor.current.getClientRects().length) return false;
         // Hover tooltips must not dismiss an interactive dropdown.
@@ -31,6 +31,6 @@ export function Tooltip({ content, children, placement = 'bottom-start', delay =
     });
     if (disabled) instance.disable();
     return () => instance.destroy();
-  }, [placement, delay, disabled]);
+  }, [placement, delay, disabled, interactive]);
   return <><span ref={anchor} className="tooltip-anchor">{children}</span>{container && createPortal(content, container)}</>;
 }

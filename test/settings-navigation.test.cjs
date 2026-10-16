@@ -33,7 +33,7 @@ test('production host serves settings deep links and proxies agent settings', as
   const backend = { token: 'fixture', port: upstream.address().port, async start() {}, async stop() {} };
   const host = await startHost({ port: 0, home, backend, subscribe: () => () => {} });
   t.after(async () => { await host.stop(); await new Promise(resolve => upstream.close(resolve)); rmSync(home, { recursive: true, force: true }); });
-  for (const path of ['/settings', '/settings/general', '/settings/shortcuts', '/settings/account']) {
+  for (const path of ['/settings', '/settings/general', '/settings/shortcuts', '/settings/account', '/settings/providers/claude-code']) {
     const response = await fetch(`http://127.0.0.1:${host.port}${path}`);
     assert.equal(response.status, 200);
     assert.match(await response.text(), /id="root"/);

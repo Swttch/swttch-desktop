@@ -5,8 +5,8 @@ import { SettingsIcon } from './SettingsIcon';
 export function SettingsSection({ title, children }: { title: string; children: ReactNode }) {
   return <section className="settings-section"><h3>{title}</h3><div className="settings-card">{children}</div></section>;
 }
-export function SettingsRow({ title, description, children, pending = false }: { title: string; description?: string; children?: ReactNode; pending?: boolean }) {
-  return <div className="settings-row" data-pending={pending || undefined}><div className="min-w-0 flex-1"><p className="settings-row-title">{title}</p>{description && <p className="settings-row-description">{description}</p>}</div>{children && <div className="settings-row-control">{children}</div>}</div>;
+export function SettingsRow({ title, description, children, badge, settingPath, settingDocumentation, pending = false }: { settingDocumentation?: string; settingPath?: string; badge?: ReactNode; title: string; description?: string; children?: ReactNode; pending?: boolean }) {
+  return <div className="settings-row" data-pending={pending || undefined}><div className="min-w-0 flex-1"><div className="settings-row-title flex items-center gap-1.5"><span>{title}</span>{badge}</div>{description && <p className="settings-row-description">{description}</p>}{settingPath && <code className="mt-1 block text-[11px] leading-4 text-orange-300/90" dir="ltr">{settingDocumentation ? <a href={settingDocumentation} target="_blank" rel="noreferrer" className="hover:underline">{settingPath}</a> : settingPath}</code>}</div>{children && <div className="settings-row-control">{children}</div>}</div>;
 }
 export function SettingsSwitch({ label, checked = false, disabled = false, onChange }: { label: string; checked?: boolean; disabled?: boolean; onChange?: (value: boolean) => void }) {
   return <button type="button" role="switch" aria-label={label} aria-checked={checked} disabled={disabled} onClick={() => onChange?.(!checked)} className={`settings-switch ${checked ? 'is-on' : ''}`}><span /></button>;

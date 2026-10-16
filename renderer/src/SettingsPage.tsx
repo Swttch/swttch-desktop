@@ -3,6 +3,7 @@ import { ShortcutsSetting } from './settings/ShortcutsSetting';
 import { AccountSetting } from './settings/AccountSetting';
 import { PlanSetting } from './settings/PlanSetting';
 import { AboutSetting } from './settings/AboutSetting';
+import { ClaudeCodeSetting } from './settings/ClaudeCodeSetting';
 import { AgentSetting } from './settings/AgentSetting';
 import { useSettingsCopy } from './i18n';
 import { useEffect, useState } from 'react';
@@ -28,7 +29,8 @@ export function SettingsPage() { const copy = useSettingsCopy();
   const item = getSettingsItems(copy).find(item => item.path === path)!;
   useEffect(() => { if (path !== location.pathname) void navigate(path, { replace: true }); try { localStorage.setItem('swttch-last-settings-page', path); } catch { /* Navigation remains available without storage. */ } }, [path, location.pathname, navigate]);
   if (path === PATH.SETTINGS_AGENT) return <AgentSetting />;
-  return <main key={path} aria-label={item.label} className="settings-main"><div className="settings-content"><h2>{item.label}</h2>
+  return <main key={path} aria-label={item.label} className={`settings-main ${path === PATH.SETTINGS_CLAUDE_CODE ? 'settings-provider-main' : ''}`}><div className={`settings-content ${path === PATH.SETTINGS_CLAUDE_CODE ? 'settings-provider-content' : ''}`}><h2>{item.label}</h2>
+    {path === PATH.SETTINGS_CLAUDE_CODE && <ClaudeCodeSetting />}
     {path === PATH.SETTINGS_GENERAL && <GeneralSetting />}
     {path === PATH.SETTINGS_SHORTCUTS && <ShortcutsSetting />}
     {path === PATH.ACCOUNT_SETTINGS && <AccountSetting />}

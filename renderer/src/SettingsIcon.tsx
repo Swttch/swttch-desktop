@@ -1,3 +1,4 @@
+import claudeLogo from './assets/claude-logo.svg';
 import type { ReactNode } from 'react';
 const icons: Record<string, ReactNode> = {
   settings: <><path d="m9.5 3-.7 2.4-2 .9-2.3-.7-2.5 4.2 1.7 1.8v2.2L2 15.6l2.5 4.2 2.3-.7 2 .9.7 2.4h5l.7-2.4 2-.9 2.3.7 2.5-4.2-1.7-1.8v-2.2l1.7-1.8-2.5-4.2-2.3.7-2-.9L14.5 3z" /><circle cx="12" cy="12.7" r="3.2" /></>,
@@ -34,5 +35,6 @@ const icons: Record<string, ReactNode> = {
   plan: <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M3 10h18M7 15h3" /></>,
 };
 export function SettingsIcon({ kind = 'settings', className = '' }: { kind?: string; className?: string }) {
+  if (kind === 'claude') return <img src={claudeLogo} alt="" className={`size-[18px] shrink-0 ${className}`} />;
   return <svg aria-hidden="true" viewBox="0 0 24 24" className={`size-[18px] shrink-0 fill-none stroke-current ${className}`} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{icons[kind] || icons.settings}</svg>;
 }

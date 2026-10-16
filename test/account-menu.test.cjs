@@ -12,7 +12,7 @@ function loadComponent(file, cache = new Map()) {
   const loaded = new Module(file, module);
   loaded.filename = file; loaded.paths = Module._nodeModulePaths(dirname(file)); cache.set(file, loaded);
   const originalRequire = loaded.require.bind(loaded);
-  loaded.require = name => name.endsWith('/i18n') ? require('./i18n-fixture.cjs') : name.startsWith('.') && !name.endsWith('.mjs') ? loadComponent(join(dirname(file), name + (existsSync(join(dirname(file), name + '.tsx')) ? '.tsx' : '.ts')), cache) : originalRequire(name);
+  loaded.require = name => name.endsWith('.svg') ? 'claude-logo.svg' : name.endsWith('/i18n') ? require('./i18n-fixture.cjs') : name.startsWith('.') && !name.endsWith('.mjs') ? loadComponent(join(dirname(file), name + (existsSync(join(dirname(file), name + '.tsx')) ? '.tsx' : '.ts')), cache) : originalRequire(name);
   loaded._compile(ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS } }).outputText, file);
   return loaded.exports;
 }

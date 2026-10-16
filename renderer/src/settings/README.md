@@ -57,3 +57,48 @@ New plugin-backed fields must follow the per-field, import-once rules in
 [Interface settings](../../../docs/interface-settings.md). Plugin edits do not flow back into initialized desktop fields. Explicit desktop
 interface edits propagate through the existing plugin API; the plugin owns its
 persistence and change notifications.
+
+## Provider settings
+
+Provider pages, such as `ClaudeCodeSetting`, edit the provider's original settings
+through the existing plugin backend APIs. They do not store a second copy in the
+device settings database. The provider owns persistence, merge rules, broadcasts,
+and the files that each scope writes.
+
+Scope selection belongs only to provider settings. Desktop-only preferences remain
+device-wide. `ClaudeCodeSetting` keeps its scope and selected project in a small
+Zustand view-state store, while TanStack Query owns server values. Each item reads
+its own field through `useProviderField`; page and section components only compose
+items. Scope/project changes discard unsaved input drafts.
+
+The global view displays the global value even when a selected project overrides
+it. The project view displays inherited effective values for missing local keys,
+and removing an override uses the existing API's `null` reset semantics. The API
+resolves project IDs to registered paths rather than accepting filesystem paths
+from the renderer. Open provider pages revalidate every five seconds and on focus
+to pick up changes made outside Desktop.
+
+## Provider descriptions and field metadata
+
+- Display the provider's real JSON key path, such as `$.model`, beneath each
+  description in a small colored `code` element. Link it to the official key reference.
+- Prefer the provider's official description and official translation. Keep short
+  excerpts intact where practical; minimally adapt awkward phrasing or text that
+  cannot fit a settings row, without introducing new product claims.
+- Record the source URL and any condensation in `docs/provider-settings.md`.
+  Do not present adapted copy as a verbatim quotation.
+- Use provider-supplied catalogs for model and effort dropdowns. Do not guess an
+  enum from the interface language list: Claude Code's response language accepts
+  arbitrary language names.
+- Inheritance and reset actions belong in title badges with Tippy tooltips, rather
+  than taking space beside the setting value. Reset tooltips must be interactive.
+
+## Official provider taxonomy
+
+Provider settings pages follow the provider's official documentation taxonomy rather than Desktop or plugin convenience groups. For Claude Code, each distinct **Topic** in the official **All settings → Settings index** table becomes a section. Keep the official topic names and prefer the official localized labels. A topic remains available as an empty topic page when none of its settings have been implemented; do not add speculative controls merely to fill it.
+
+Place each setting in the topic assigned to its exact key. Nested keys without their own index entry follow the documented parent key or explicitly documented alias. `env` is in **Memory and context** in the current reference, so environment-variable controls belong there as a labeled group. That group includes dedicated, explained controls for known keys, plus independent custom-variable items and an add item. Do not duplicate a known key in the generic editor.
+
+Every implemented item must include an explanation from the official key reference, including nested permission items. Preserve the actual JSON path and link to the exact documented key anchor. Record the source and verification date in the provider documentation; review the mapping when updating the provider's supported settings.
+
+Provider topic navigation belongs inside the provider content surface, not the outer settings sidebar. Keep the provider title and scope/project controls shared above the internal menu and selected topic. Reuse each existing `Section` and its closed `SettingItem` components as the selected view; do not render every topic at once. Keep topic selection in the URL for direct links and history, while retaining scope/project view state across topic changes.
