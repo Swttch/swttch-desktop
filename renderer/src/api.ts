@@ -1,3 +1,5 @@
+import type { CliAutoUpdateState } from '../../../../backend/src/shared/cli-auto-update';
+import type { ProviderScope, ProviderSettingsRecord, SettingValue, ProviderCatalog } from '../../src/provider-settings.mjs';
 import { t } from '../../src/interface-i18n.mjs';
 import type { SettingsPatch, SettingsRecord } from '../../src/device-settings.mjs';
 import type { DesktopState, SessionListEntry, SessionPage, Project, ProjectSessionScope } from './desktop';
@@ -39,7 +41,20 @@ async function request<T>(path: string, method: string, body?: object, signal?: 
   }
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }
+function providerSettingsPath(scope: ProviderScope, projectId: string) {
+  return API_PATH.CLAUDE_SETTINGS + '?' + new URLSearchParams({ scope, ...(projectId ? { projectId } : {}) });
+}
+export type ProviderConfigDirectory = { effective: string; globalSetting: string | null; projectSetting: string | null; inherited: string | null };
 export const desktopApi = {
+  cliAutoUpdate: () => request<CliAutoUpdateState>(API_PATH.CLAUDE_AUTO_UPDATE, 'GET'),
+  updateCliAutoUpdate: (enabled: boolean) => request<CliAutoUpdateState>(API_PATH.CLAUDE_AUTO_UPDATE, 'PUT', { enabled }),
+  claudeConfigDirectory: (scope: ProviderScope, projectId: string) => request<ProviderConfigDirectory>(API_PATH.CLAUDE_CONFIG_DIRECTORY + '?' + new URLSearchParams({ scope, ...(projectId && { projectId }) }), 'GET'),
+  updateClaudeConfigDirectory: (scope: ProviderScope, projectId: string, value: string | null) => request<ProviderConfigDirectory>(API_PATH.CLAUDE_CONFIG_DIRECTORY + '?' + new URLSearchParams({ scope, ...(projectId && { projectId }) }), 'PATCH', { value }),
+  nonessentialTraffic: () => request<{ disabled: boolean; lock: { path: string | null } | null; settingsPath: string }>(API_PATH.CLAUDE_NONESSENTIAL_TRAFFIC, 'GET'),
+  updateNonessentialTraffic: (disabled: boolean) => request<{ disabled: boolean; lock: { path: string | null } | null; settingsPath: string }>(API_PATH.CLAUDE_NONESSENTIAL_TRAFFIC, 'PUT', { disabled }),
+  claudeModels: (projectId: string) => request<ProviderCatalog>(API_PATH.CLAUDE_MODELS + '?' + new URLSearchParams(projectId ? { projectId } : {}), 'GET'),
+  claudeSettings: (scope: ProviderScope, projectId: string) => request<ProviderSettingsRecord>(providerSettingsPath(scope, projectId), 'GET'),
+  updateClaudeSettings: (scope: ProviderScope, projectId: string, key: string, value: SettingValue) => request<ProviderSettingsRecord>(providerSettingsPath(scope, projectId), 'PATCH', { key, value }),
   settings: () => request<SettingsRecord>(API_PATH.SETTINGS, 'GET'),
   updateSettings: (patch: SettingsPatch, initialize = false) => request<SettingsRecord>(API_PATH.SETTINGS, 'PATCH', { patch, initialize }),
   restoreWorkspace: () => request<WorkspaceRestoration | null>(API_PATH.WORKSPACE_RESTORATIONS, 'POST', {}),

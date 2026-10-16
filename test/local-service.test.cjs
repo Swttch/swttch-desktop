@@ -52,6 +52,13 @@ async function setup(t, allowedOrigins = [], registerProject = true, sourceConfi
       else if (message.type === 'GET_USAGE_REPORT') result = { status: 'ok', report: "Last 24h · 288 requests · 9 sessions\n75% of your usage was at >150k context\nTop skills: /worktree 3%\nLast 7d · 500 requests · 15 sessions\nTop MCP servers: claude-code-remote 1%", futureField: { preserved: true } };
       else if (message.type === 'SWITCH_ACCOUNT') { if (accountRows.some(row => row.id === message.payload.id)) activeAccount = message.payload.id; else result = { status: 'error', error: 'Not found' }; }
       else if (message.type === 'DELETE_PROJECT') assert.equal(message.payload.path, project);
+      else if (message.type === 'GET_CLAUDE_CONFIG_DIR') result={status:'ok',effective:'/fixture/.claude',globalSetting:null,projectSetting:null,inherited:null,future:'kept'};
+      else if (message.type === 'SAVE_CLAUDE_CONFIG_DIR') result={status:'ok'};
+      else if (['GET_CLI_AUTO_UPDATE','SET_CLI_AUTO_UPDATE'].includes(message.type)) result={status:'ok',enabled:message.payload?.enabled ?? true,channel:'stable',lock:{kind:'managed-settings',variable:'DISABLE_UPDATES',path:'/managed'},settingsPath:'~/.claude/settings.json',future:'kept'};
+      else if (['GET_NONESSENTIAL_TRAFFIC','SET_NONESSENTIAL_TRAFFIC'].includes(message.type)) result = {status:'ok',disabled:message.payload?.disabled ?? false,lock:null,settingsPath:'~/.claude/settings.json',future:'preserved'};
+      else if (message.type === 'GET_CLI_CONFIG') result = { status: 'ok', controlResponse: { response: { response: { models: [{ value: 'sonnet', displayName: 'Sonnet', supportedEffortLevels: ['low', 'high'], futureField: 'preserved' }] } } } };
+      else if (message.type === 'GET_CLAUDE_SETTINGS') result = { status: 'ok', settings: message.payload.scope === 'project' ? {} : { language: 'english', futureSetting: { preserved: true } }, overrides: [] };
+      else if (message.type === 'SAVE_CLAUDE_SETTINGS') result = settingsFailures.has(message.payload.key) ? { status: 'error', error: 'Fixture provider failure' } : { status: 'ok' };
       else if (message.type === 'GET_SETTINGS') result.settings = { includeNestedSessions: nestedSettings.get(message.payload.workingDir) ?? true };
       else if (message.type === 'SAVE_SETTINGS' && settingsFailures.has(message.payload.key)) result = { status: 'error', error: 'Fixture settings failure' };
       else if (message.type === 'SAVE_SETTINGS') nestedSettings.set(message.payload.workingDir, message.payload.value);
@@ -732,4 +739,82 @@ test('plugin propagation failure retains desktop settings and an explicit retry 
   const retried = await (await write()).json();
   assert.equal(retried.propagation.status, 'synced');
   assert.equal(backendRequests.filter(message => message.type === 'SAVE_SETTINGS' && message.payload.key === 'uiLanguage').length, 2);
+});
+
+test("provider settings preserve scoped reads and writes through the existing Claude API", async t => {
+  const { base, project, client, backendRequests, settingsFailures } = await setup(t);
+  const headers = await client();
+  const path = base + "/desktop-api/providers/claude-code/settings";
+  let response = await fetch(path + "?scope=global", { headers });
+  assert.equal(response.status, 200);
+  const globalRecord = await response.json();
+  assert.equal(globalRecord.settings.language, "english");
+  assert.deepEqual(globalRecord.settings.futureSetting, { preserved: true });
+  const projects = await (await fetch(base + "/desktop-api/projects", { headers })).json();
+  const id = projects.projects.find(row => row.path === project).id;
+  response = await fetch(path + "?scope=project&projectId=" + id, { headers });
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).settings, {});
+  const body = { key: "language", value: "korean" };
+  response = await fetch(path + "?scope=project&projectId=" + id, { method: "PATCH", headers, body: JSON.stringify(body) });
+  assert.equal(response.status, 200);
+  assert.deepEqual(backendRequests.find(message => message.type === "SAVE_CLAUDE_SETTINGS").payload, { ...body, scope: "project", workingDir: project });
+  response = await fetch(path + "?scope=project&projectId=" + id, { method: "PATCH", headers, body: JSON.stringify({ key: "language", value: null }) });
+  assert.equal(response.status, 200);
+  assert.equal(backendRequests.filter(message => message.type === "SAVE_CLAUDE_SETTINGS").at(-1).payload.value, null);
+  response = await fetch(path + "?scope=global", { method: "PATCH", headers, body: JSON.stringify(body) });
+  assert.equal(response.status, 200);
+  assert.deepEqual(backendRequests.filter(message => message.type === "SAVE_CLAUDE_SETTINGS").at(-1).payload, { ...body, scope: "global" });
+  settingsFailures.add("language");
+  assert.equal((await fetch(path + "?scope=global", { method: "PATCH", headers, body: JSON.stringify(body) })).status, 502);
+  assert.equal((await fetch(path + "?scope=project", { headers })).status, 400);
+  assert.equal((await fetch(path + "?scope=project&projectId=999999", { headers })).status, 404);
+  assert.equal((await fetch(path + "?scope=invalid", { headers })).status, 400);
+  assert.equal((await fetch(path + "?scope=global", { method: "PATCH", headers: { ...headers, "x-swttch-csrf": "bad" }, body: JSON.stringify(body) })).status, 403);
+});
+
+test('provider model catalog forwards original CLI metadata for a registered project', async t => {
+  const { base, project, client, backendRequests } = await setup(t);
+  const headers = await client();
+  const projects = await (await fetch(base + '/desktop-api/projects', { headers })).json();
+  const id = projects.projects.find(row => row.path === project).id;
+  const response = await fetch(base + '/desktop-api/providers/claude-code/models?projectId=' + id, { headers });
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.deepEqual(data.controlResponse.response.response.models[0].supportedEffortLevels, ['low', 'high']);
+  assert.equal(data.controlResponse.response.response.models[0].futureField, 'preserved');
+  assert.deepEqual(backendRequests.find(row => row.type === 'GET_CLI_CONFIG').payload, { workingDir: project });
+});
+
+test('nonessential traffic delegates to the plugin policy API, retaining managed state', async t => {
+  const {base,client,backendRequests}=await setup(t);
+  const headers=await client();
+  const path=base+'/desktop-api/providers/claude-code/nonessential-traffic';
+  let response=await fetch(path,{headers});
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).future,'preserved');
+  response=await fetch(path,{method:'PUT',headers,body:JSON.stringify({disabled:true})});
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).disabled,true);
+  assert.deepEqual(backendRequests.find(row=>row.type==='SET_NONESSENTIAL_TRAFFIC').payload,{disabled:true});
+  assert.equal((await fetch(path,{method:'PUT',headers,body:JSON.stringify({disabled:'true'})})).status,400);
+  assert.equal((await fetch(path,{method:'PUT',headers:{...headers,'x-swttch-csrf':'bad'},body:JSON.stringify({disabled:false})})).status,403);
+});
+
+test('native directory and auto-update controls use existing plugin APIs with scope and lock data intact',async t=>{
+ const {base,project,client,backendRequests}=await setup(t);const headers=await client();
+ const projects=await (await fetch(base+'/desktop-api/projects',{headers})).json();const id=projects.projects.find(row=>row.path===project).id;
+ const directory=base+'/desktop-api/providers/claude-code/config-directory';
+ let response=await fetch(directory+'?scope=global',{headers});assert.equal(response.status,200);assert.equal((await response.json()).future,'kept');
+ response=await fetch(directory+'?scope=project&projectId='+id,{method:'PATCH',headers,body:JSON.stringify({value:'~/claude-alt'})});assert.equal(response.status,200);
+ assert.deepEqual(backendRequests.find(row=>row.type==='SAVE_CLAUDE_CONFIG_DIR').payload,{scope:'project',workingDir:project,value:'~/claude-alt'});
+ response=await fetch(directory+'?scope=project&projectId='+id,{method:'PATCH',headers,body:JSON.stringify({value:null})});assert.equal(response.status,200);assert.equal(backendRequests.filter(row=>row.type==='SAVE_CLAUDE_CONFIG_DIR').at(-1).payload.value,null);
+ assert.equal((await fetch(directory+'?scope=project',{headers})).status,400);
+ assert.equal((await fetch(directory+'?scope=global',{method:'PATCH',headers,body:JSON.stringify({value:123})})).status,400);
+ assert.equal((await fetch(directory+'?scope=global',{method:'PATCH',headers:{...headers,'x-swttch-csrf':'bad'},body:JSON.stringify({value:null})})).status,403);
+ const policy=base+'/desktop-api/providers/claude-code/auto-update';
+ response=await fetch(policy,{headers});assert.equal(response.status,200);const state=await response.json();assert.equal(state.lock.path,'/managed');assert.equal(state.future,'kept');
+ response=await fetch(policy,{method:'PUT',headers,body:JSON.stringify({enabled:false})});assert.equal(response.status,200);assert.deepEqual(backendRequests.find(row=>row.type==='SET_CLI_AUTO_UPDATE').payload,{enabled:false});
+ assert.equal((await fetch(policy,{method:'PUT',headers,body:JSON.stringify({enabled:'false'})})).status,400);
+ assert.equal((await fetch(policy,{method:'PUT',headers:{...headers,'x-swttch-csrf':'bad'},body:JSON.stringify({enabled:true})})).status,403);
 });

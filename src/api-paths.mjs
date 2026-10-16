@@ -1,4 +1,4 @@
-export const API_PATH = Object.freeze({ SETTINGS: '/desktop-api/settings', TERMINALS: '/desktop-api/terminals', TERMINAL: '/desktop-api/terminals/:terminalId', TERMINAL_INPUT: '/desktop-api/terminals/:terminalId/input', TERMINAL_EVENTS: '/desktop-api/terminals/:terminalId/events', SETTINGS_VIEWS: '/desktop-api/settings-views',
+export const API_PATH = Object.freeze({ CLAUDE_AUTO_UPDATE: '/desktop-api/providers/claude-code/auto-update', CLAUDE_CONFIG_DIRECTORY: '/desktop-api/providers/claude-code/config-directory', CLAUDE_NONESSENTIAL_TRAFFIC: '/desktop-api/providers/claude-code/nonessential-traffic', CLAUDE_MODELS: '/desktop-api/providers/claude-code/models', CLAUDE_SETTINGS: '/desktop-api/providers/claude-code/settings', SETTINGS: '/desktop-api/settings', TERMINALS: '/desktop-api/terminals', TERMINAL: '/desktop-api/terminals/:terminalId', TERMINAL_INPUT: '/desktop-api/terminals/:terminalId/input', TERMINAL_EVENTS: '/desktop-api/terminals/:terminalId/events', SETTINGS_VIEWS: '/desktop-api/settings-views',
   ACCOUNT_USAGE: '/desktop-api/account-usage',
   ACCOUNT_USAGE_REFRESHES: '/desktop-api/account-usage-refreshes',
   USAGE_REPORT: '/desktop-api/usage-report',

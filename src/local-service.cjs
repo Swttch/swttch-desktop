@@ -342,6 +342,73 @@ function createLocalService({ home = process.env.SWTTCH_DESKTOP_HOME || join(hom
         return json(res, 200, await backendRequest(backend, 'GET_USAGE_REPORT', { force, ...(session.project && { workingDir: session.project }) }, 30000));
       } catch (error) { return json(res, 502, { error: error.message }); }
     }
+    if (path === API_PATH.CLAUDE_AUTO_UPDATE) {
+      if (!['GET', 'PUT'].includes(req.method)) { res.setHeader('Allow', 'GET, PUT'); return json(res, 405, { error: 'Method not allowed' }); }
+      if (req.method === 'PUT' && req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      try {
+        const body = req.method === 'PUT' ? await readBody(req) : {};
+        if (req.method === 'PUT' && typeof body.enabled !== 'boolean') return json(res, 400, { error: 'enabled must be a boolean' });
+        const result = await backendRequest(backend, req.method === 'PUT' ? 'SET_CLI_AUTO_UPDATE' : 'GET_CLI_AUTO_UPDATE', req.method === 'PUT' ? { enabled: body.enabled } : {});
+        if (result.status !== 'ok') return json(res, 502, { error: result.error || 'Could not update the CLI auto-update policy.' });
+        return json(res, 200, result);
+      } catch (error) { return json(res, 502, { error: error.message }); }
+    }
+    if (path === API_PATH.CLAUDE_NONESSENTIAL_TRAFFIC) {
+      if (!['GET', 'PUT'].includes(req.method)) { res.setHeader('Allow', 'GET, PUT'); return json(res, 405, { error: 'Method not allowed' }); }
+      if (req.method === 'PUT' && req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      try {
+        const body = req.method === 'PUT' ? await readBody(req) : {};
+        if (req.method === 'PUT' && typeof body.disabled !== 'boolean') return json(res, 400, { error: 'disabled must be a boolean' });
+        const result = await backendRequest(backend, req.method === 'PUT' ? 'SET_NONESSENTIAL_TRAFFIC' : 'GET_NONESSENTIAL_TRAFFIC', req.method === 'PUT' ? { disabled: body.disabled } : {});
+        if (result.status !== 'ok') return json(res, 502, { error: result.error || 'Could not update the nonessential traffic policy.' });
+        return json(res, 200, result);
+      } catch (error) { return json(res, 502, { error: error.message }); }
+    }
+    if (path === API_PATH.CLAUDE_MODELS) {
+      if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); return json(res, 405, { error: 'Method not allowed' }); }
+      const projectId = new URL(req.url, `http://${req.headers.host}`).searchParams.get('projectId');
+      const project = projectId && store.projects().find(row => String(row.id) === projectId && !row.hiddenAt);
+      if (projectId && !project) return json(res, 404, { error: 'Project not found.' });
+      try {
+        const result = await backendRequest(backend, 'GET_CLI_CONFIG', { ...(project && { workingDir: project.path }) }, 45000);
+        if (result.status !== 'ok' || !result.controlResponse) return json(res, 502, { error: result.error || 'Could not load the Claude Code model catalog.' });
+        return json(res, 200, result);
+      } catch (error) { return json(res, 502, { error: error.message }); }
+    }
+    if ([API_PATH.CLAUDE_SETTINGS, API_PATH.CLAUDE_CONFIG_DIRECTORY].includes(path)) {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      if (!['GET', 'PATCH'].includes(req.method)) { res.setHeader('Allow', 'GET, PATCH'); return json(res, 405, { error: 'Method not allowed' }); }
+      if (req.method === 'PATCH' && req.headers['x-swttch-csrf'] !== session.csrf) return json(res, 403, { error: 'Invalid request token' });
+      const scope = url.searchParams.get('scope');
+      if (!['global', 'project'].includes(scope)) return json(res, 400, { error: 'Choose a settings scope.' });
+      const projectId = url.searchParams.get('projectId');
+      if (scope === 'project' && !projectId) return json(res, 400, { error: 'Choose a project.' });
+      const project = projectId && store.projects().find(row => String(row.id) === projectId && !row.hiddenAt);
+      if (projectId && !project) return json(res, 404, { error: 'Project not found.' });
+      const payload = { scope, ...(project && { workingDir: project.path }) };
+      try {
+        if (path === API_PATH.CLAUDE_CONFIG_DIRECTORY) {
+          if (req.method === 'PATCH') {
+            const body = await readBody(req);
+            if (body.value !== null && typeof body.value !== 'string') return json(res, 400, { error: 'Invalid configuration directory.' });
+            const saved = await backendRequest(backend, 'SAVE_CLAUDE_CONFIG_DIR', { ...payload, value: body.value });
+            if (saved.status !== 'ok') return json(res, 502, { error: saved.error || 'Could not save the configuration directory.' });
+          }
+          const result = await backendRequest(backend, 'GET_CLAUDE_CONFIG_DIR', payload);
+          if (result.status !== 'ok') return json(res, 502, { error: result.error || 'Could not read the configuration directory.' });
+          return json(res, 200, result);
+        }
+        if (req.method === 'PATCH') {
+          const body = await readBody(req);
+          if (typeof body.key !== 'string' || !/^[a-zA-Z][a-zA-Z0-9]*$/.test(body.key) || ['constructor', 'prototype'].includes(body.key) || !Object.hasOwn(body, 'value')) return json(res, 400, { error: 'Invalid setting.' });
+          const saved = await backendRequest(backend, 'SAVE_CLAUDE_SETTINGS', { ...payload, key: body.key, value: body.value });
+          if (saved.status !== 'ok') return json(res, 502, { error: saved.error || 'Could not save provider settings.' });
+        }
+        const [raw, effective] = await Promise.all([backendRequest(backend, 'GET_CLAUDE_SETTINGS', payload), backendRequest(backend, 'GET_CLAUDE_SETTINGS', project ? { workingDir: project.path } : {})]);
+        if (raw.status !== 'ok' || effective.status !== 'ok') throw new Error(raw.error || effective.error || 'Could not read provider settings.');
+        return json(res, 200, { ...raw, effectiveSettings: effective.settings, overrides: effective.overrides || [] });
+      } catch (error) { return json(res, 502, { error: error.message }); }
+    }
     if ([API_PATH.ACCOUNTS, API_PATH.ACTIVE_ACCOUNT, API_PATH.ACCOUNT_VIEWS, API_PATH.SETTINGS_VIEWS].includes(path)) {
       const method = path === API_PATH.ACCOUNTS ? 'GET' : path === API_PATH.ACTIVE_ACCOUNT ? 'PUT' : 'POST';
       if (req.method !== method) { res.setHeader('Allow', method); return json(res, 405, { error: 'Method not allowed' }); }

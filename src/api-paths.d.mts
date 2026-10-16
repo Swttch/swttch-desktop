@@ -1,4 +1,9 @@
 export const API_PATH: {
+  readonly CLAUDE_AUTO_UPDATE: '/desktop-api/providers/claude-code/auto-update';
+  readonly CLAUDE_CONFIG_DIRECTORY: '/desktop-api/providers/claude-code/config-directory';
+  readonly CLAUDE_NONESSENTIAL_TRAFFIC: '/desktop-api/providers/claude-code/nonessential-traffic';
+  readonly CLAUDE_MODELS: '/desktop-api/providers/claude-code/models';
+  readonly CLAUDE_SETTINGS: '/desktop-api/providers/claude-code/settings';
   readonly SETTINGS: '/desktop-api/settings';
   readonly TERMINALS: '/desktop-api/terminals';
   readonly TERMINAL: '/desktop-api/terminals/:terminalId';
